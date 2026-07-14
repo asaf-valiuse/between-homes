@@ -4957,6 +4957,7 @@ function updateStep1Scale() {
   const dashboardHeight = Math.max(520, Math.min(810, visibleDesignHeight - dashboardTop));
   const dashboardTopSection = dashboardHeight * 0.6;
   const dashboardBottomSection = dashboardHeight * 0.4;
+  const dashboardDivider = dashboardTopSection + 30;
   const offsetX = 0;
   const offsetY = 0;
   document.documentElement.style.setProperty("--step1-scale", String(scale));
@@ -4965,6 +4966,7 @@ function updateStep1Scale() {
   document.documentElement.style.setProperty("--step1-dashboard-height", `${dashboardHeight}px`);
   document.documentElement.style.setProperty("--step1-dashboard-top-section", `${dashboardTopSection}px`);
   document.documentElement.style.setProperty("--step1-dashboard-bottom-section", `${dashboardBottomSection}px`);
+  document.documentElement.style.setProperty("--step1-dashboard-divider", `${dashboardDivider}px`);
   const invScale = scale > 0 && scale < 1 ? 1 / scale : 1;
   document.documentElement.style.setProperty("--step1-inv-scale", String(invScale));
   scheduleWelcomeBottomButtonsAlignment();
