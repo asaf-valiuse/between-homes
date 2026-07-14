@@ -7192,9 +7192,9 @@ function updateStep1RoutePreview() {
     return;
   }
 
-  const svgW = 460;
-  const svgH = 500;
-  const padding = 40;
+  const panelRect = elStep1RoutePreview.getBoundingClientRect();
+  const svgW = Math.max(320, Math.round(panelRect.width || 460));
+  const svgH = Math.max(220, Math.round(panelRect.height || 500));
   const NS = "http://www.w3.org/2000/svg";
 
   // Focus view on Israeli points only; draw lines to all points.
@@ -7202,7 +7202,22 @@ function updateStep1RoutePreview() {
   const israelNE = [33.359948, 35.83459];
   const isInIsrael = (lat, lon) => lat >= israelSW[0] && lat <= israelNE[0] && lon >= israelSW[1] && lon <= israelNE[1];
   const israelPts = pts.filter((p) => isInIsrael(p.lat, p.lon));
-  const viewPts = israelPts.length > 0 ? israelPts : pts;
+  const useIsraelViewport = israelPts.length > 0;
+  const viewPts = useIsraelViewport
+    ? [{ lat: israelSW[0], lon: israelSW[1] }, { lat: israelNE[0], lon: israelNE[1] }]
+    : pts;
+
+  const MAX_BELONGING_RATE = 10;
+  const ROUTE_DOT_RADIUS = 4 + MAX_BELONGING_RATE / 2.5;
+  const MAX_STROKE_WIDTH = belongingCircleStrokeWeight(MAX_BELONGING_RATE) * 1.2;
+  const MAX_OUTER_RADIUS = ROUTE_DOT_RADIUS + MAX_STROKE_WIDTH / 2;
+  const BORDER_INSET = 2;
+  const minCenterX = BORDER_INSET + MAX_OUTER_RADIUS;
+  const maxCenterX = svgW - BORDER_INSET - MAX_OUTER_RADIUS;
+  const minCenterY = BORDER_INSET + MAX_OUTER_RADIUS;
+  const maxCenterY = svgH - BORDER_INSET - MAX_OUTER_RADIUS;
+  const innerW = Math.max(1, maxCenterX - minCenterX);
+  const innerH = Math.max(1, maxCenterY - minCenterY);
 
   let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
   for (const p of viewPts) {
@@ -7214,15 +7229,59 @@ function updateStep1RoutePreview() {
 
   const latRange = Math.max(0.01, maxLat - minLat);
   const lonRange = Math.max(0.01, maxLon - minLon);
-  const centerLat = (minLat + maxLat) / 2;
-  const centerLon = (minLon + maxLon) / 2;
-  const scale = Math.min((svgW - padding * 2) / lonRange, (svgH - padding * 2) / latRange);
-
-  const toX = (lon) => Math.round(((svgW / 2) + (lon - centerLon) * scale) * 10) / 10;
-  const toY = (lat) => Math.round(((svgH / 2) - (lat - centerLat) * scale) * 10) / 10;
+  // Keep map relation faithful: use a uniform scale for both axes.
+  const scale = Math.min(innerW / lonRange, innerH / latRange);
+  const drawW = lonRange * scale;
+  const drawH = latRange * scale;
+  const offsetX = minCenterX + (innerW - drawW) / 2;
+  const offsetY = minCenterY + (innerH - drawH) / 2;
+  const toX = (lon) => Math.round((offsetX + (lon - minLon) * scale) * 10) / 10;
+  const toY = (lat) => Math.round((offsetY + (maxLat - lat) * scale) * 10) / 10;
 
   // Build all coords.
-  const coords = pts.map((p) => ({ x: toX(p.lon), y: toY(p.lat), rate: p.rate, homeLabel: p.homeLabel, addressLabel: p.addressLabel }));
+  const coords = pts.map((p) => {
+    return {
+      x: toX(p.lon),
+      y: toY(p.lat),
+      rate: p.rate,
+      homeLabel: p.homeLabel,
+      addressLabel: p.addressLabel,
+    };
+  });
+
+  if (coords.length > 0) {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const c of coords) {
+      if (c.x < minX) minX = c.x;
+      if (c.x > maxX) maxX = c.x;
+      if (c.y < minY) minY = c.y;
+      if (c.y > maxY) maxY = c.y;
+    }
+
+    // Zoom-to-fit all points while preserving map aspect relation (uniform scale).
+    const fitW = Math.max(1, maxX - minX);
+    const fitH = Math.max(1, maxY - minY);
+    const zoomFit = Math.min(innerW / fitW, innerH / fitH);
+    const zoom = Math.max(0.2, Math.min(8, zoomFit));
+    const srcCx = (minX + maxX) / 2;
+    const srcCy = (minY + maxY) / 2;
+    const dstCx = (minCenterX + maxCenterX) / 2;
+    const dstCy = (minCenterY + maxCenterY) / 2;
+
+    for (const c of coords) {
+      const x = (c.x - srcCx) * zoom + dstCx;
+      const y = (c.y - srcCy) * zoom + dstCy;
+      const minAllowedX = minCenterX;
+      const maxAllowedX = maxCenterX;
+      const minAllowedY = minCenterY;
+      const maxAllowedY = maxCenterY;
+      c.x = Math.max(minAllowedX, Math.min(maxAllowedX, x));
+      c.y = Math.max(minAllowedY, Math.min(maxAllowedY, y));
+    }
+  }
 
   // Build SVG from scratch.
   elStep1RoutePreview.innerHTML = "";
@@ -7275,7 +7334,7 @@ function updateStep1RoutePreview() {
           requestAnimationFrame(growLine);
         } else {
           // Line complete — now grow the dot.
-          const r = 4 + last.rate / 2.5;
+          const r = ROUTE_DOT_RADIUS;
           const sw = belongingCircleStrokeWeight(last.rate) * 1.2;
           const dot = document.createElementNS(NS, "circle");
           dot.setAttribute("cx", String(last.x));
@@ -7307,7 +7366,7 @@ function updateStep1RoutePreview() {
   const dotEnd = isNewPoint ? coords.length - 1 : coords.length;
   for (let i = 0; i < dotEnd; i++) {
     const c = coords[i];
-    const r = 4 + c.rate / 2.5;
+    const r = ROUTE_DOT_RADIUS;
     const sw = belongingCircleStrokeWeight(c.rate) * 1.2;
     const dot = document.createElementNS(NS, "circle");
     dot.setAttribute("cx", String(c.x));
@@ -7610,7 +7669,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
     label.setAttribute("text-anchor", "start");
     label.setAttribute("dominant-baseline", "middle");
     label.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
-    label.setAttribute("font-size", "16");
+    label.setAttribute("font-size", "14");
     label.setAttribute("fill", "#c3c1b7");
     label.textContent = String(v).padStart(2, "0");
     label.classList.add("tb-label");
@@ -7628,7 +7687,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   belongingLabel.setAttribute("text-anchor", "start");
   belongingLabel.setAttribute("dominant-baseline", "middle");
   belongingLabel.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
-  belongingLabel.setAttribute("font-size", "16");
+  belongingLabel.setAttribute("font-size", "14");
   belongingLabel.setAttribute("fill", "#c3c1b7");
   belongingLabel.textContent = "belonging";
   belongingLabel.classList.add("tb-label");
@@ -7655,7 +7714,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
     label.setAttribute("text-anchor", "end");
     label.setAttribute("dominant-baseline", "middle");
     label.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
-    label.setAttribute("font-size", "16");
+    label.setAttribute("font-size", "14");
     label.setAttribute("fill", "#c3c1b7");
     label.textContent = v === 10 ? "10+" : String(v).padStart(2, "0");
     label.classList.add("tb-label");
@@ -7670,7 +7729,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   yearsLabel.setAttribute("text-anchor", "end");
   yearsLabel.setAttribute("dominant-baseline", "middle");
   yearsLabel.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
-  yearsLabel.setAttribute("font-size", "16");
+  yearsLabel.setAttribute("font-size", "14");
   yearsLabel.setAttribute("fill", "#c3c1b7");
   yearsLabel.textContent = "years";
   yearsLabel.classList.add("tb-label");
