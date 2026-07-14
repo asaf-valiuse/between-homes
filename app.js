@@ -4948,11 +4948,18 @@ function updateCreateLifePathButtonState() {
 function updateStep1Scale() {
   const DESIGN_W = 1920;
   const DESIGN_H = 1080;
-  const vw = Math.max(1, window.innerWidth || DESIGN_W);
-  const vh = Math.max(1, window.innerHeight || DESIGN_H);
-  const scale = Math.min(1, vw / DESIGN_W, vh / DESIGN_H);
+  const viewport = window.visualViewport || null;
+  const vw = Math.max(1, Number(viewport?.width || window.innerWidth || DESIGN_W));
+  const vh = Math.max(1, Number(viewport?.height || window.innerHeight || DESIGN_H));
+  const scale = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+  const scaledW = DESIGN_W * scale;
+  const scaledH = DESIGN_H * scale;
+  const offsetX = Math.max(0, (vw - scaledW) / 2);
+  const offsetY = Math.max(0, (vh - scaledH) / 2);
   document.documentElement.style.setProperty("--step1-scale", String(scale));
-  const invScale = scale > 0 ? 1 / scale : 1;
+  document.documentElement.style.setProperty("--step1-offset-x", `${offsetX}px`);
+  document.documentElement.style.setProperty("--step1-offset-y", `${offsetY}px`);
+  const invScale = scale > 0 && scale < 1 ? 1 / scale : 1;
   document.documentElement.style.setProperty("--step1-inv-scale", String(invScale));
   scheduleWelcomeBottomButtonsAlignment();
   alignStep1TopProgressCounter();
@@ -5295,8 +5302,6 @@ let _lastPrimaryPageKey = "step1";
 
 function showPage(which, opts) {
   const options = opts && typeof opts === "object" ? opts : {};
-  const scrollTarget = options.scroll === "step1" || options.scroll === "welcome" ? options.scroll : null;
-  const scrollBehavior = options.behavior === "smooth" ? "smooth" : "auto";
   const pageKey = which;
 
   if (pageKey === "step1" || pageKey === "welcome") {
@@ -5368,25 +5373,19 @@ function showPage(which, opts) {
     }, 0);
   }
 
-  // When the app becomes a scrollable flow, ensure we always land at a sane
-  // scroll position when switching between full-screen pages.
+  // Keep pages fixed to the viewport. Internal panels may scroll, but the
+  // document itself should never become a scrollable page.
   if (!isHomeFlow) {
     try {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     } catch {
       // ignore
     }
-  } else if (scrollTarget) {
-    const targetEl = elPageStep1;
-    if (targetEl && typeof targetEl.scrollIntoView === "function") {
-      // Defer until after layout updates so the section exists in flow.
-      requestAnimationFrame(() => {
-        try {
-          targetEl.scrollIntoView({ behavior: scrollBehavior, block: "start" });
-        } catch {
-          // ignore
-        }
-      });
+  } else {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    } catch {
+      // ignore
     }
   }
 
@@ -14716,6 +14715,13 @@ window.addEventListener("resize", () => {
   enforceMinZoomToAvoidBlankViewport(map);
   if (allMapsMap) enforceMinZoomToAvoidBlankViewport(allMapsMap);
 });
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", () => {
+    updateStep1Scale();
+    updateBelongingValueLabel();
+  }, { passive: true });
+}
 
 map.on("move", () => {
   if (splashEnabled) redrawSplash();

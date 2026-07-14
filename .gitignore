@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 server.log
 server.pid
+lifepath.sqlite3
+lifepath.sqlite3-shm
+lifepath.sqlite3-wal

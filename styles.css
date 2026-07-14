@@ -247,6 +247,8 @@ button {
 html,
 body {
   height: 100%;
+  overflow: hidden;
+  width: 100%;
 }
 
 .app {
@@ -257,6 +259,8 @@ body {
 
 .page {
   min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 #pageAllMaps,
@@ -2936,7 +2940,7 @@ input[type="reset"]:hover:not(:disabled) {
   height: 1080px;
   position: relative;
   display: block;
-  transform: scale(var(--step1-scale, 1));
+  transform: translate(var(--step1-offset-x, 0), var(--step1-offset-y, 0)) scale(var(--step1-scale, 1));
   transform-origin: top left;
 
   /* Step 1 typography rule:

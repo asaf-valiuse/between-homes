@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import argparse
+import sqlite3
 import threading
 import atexit
 import time
@@ -17,7 +18,22 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent
-SIGNATURES_PATH = ROOT / "signatures.json"
+SIGNATURES_JSON_SEED_PATH = ROOT / "signatures.json"
+
+
+def _default_database_path() -> Path:
+    configured = os.environ.get("LIFEPATH_DB_PATH")
+    if configured:
+        return Path(configured).expanduser()
+
+    home = os.environ.get("HOME")
+    if os.environ.get("WEBSITE_SITE_NAME") and home:
+        return Path(home) / "data" / "lifepath.sqlite3"
+
+    return ROOT / "lifepath.sqlite3"
+
+
+DATABASE_PATH = _default_database_path()
 PID_PATH = ROOT / "server.pid"
 MP3_NEW_PATH = ROOT / "mp3" / "new"
 _lock = threading.Lock()
@@ -302,15 +318,7 @@ def _default_state() -> dict:
     }
 
 
-def _read_store() -> dict:
-    """Read signatures.json as either legacy list or new object store.
-
-    Legacy format: [ {signatureRecord}, ... ]
-    New format: { "signatures": [...], "state": {...} }
-    """
-
-    raw = _read_json_file(SIGNATURES_PATH)
-
+def _store_from_json_raw(raw) -> dict:
     if isinstance(raw, list):
         return {
             "signatures": raw,
@@ -331,17 +339,139 @@ def _read_store() -> dict:
     }
 
 
+def _connect_db() -> sqlite3.Connection:
+    DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _init_db() -> None:
+    with _connect_db() as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS signatures (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                student_name TEXT NOT NULL DEFAULT '',
+                record_json TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                state_json TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS store_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
+
+        initialized = conn.execute("SELECT value FROM store_meta WHERE key = 'initialized'").fetchone()
+        if initialized:
+            return
+
+        seed = _store_from_json_raw(_read_json_file(SIGNATURES_JSON_SEED_PATH))
+        state = seed.get("state") if isinstance(seed.get("state"), dict) else _default_state()
+        conn.execute(
+            "INSERT OR REPLACE INTO app_state (id, state_json) VALUES (1, ?)",
+            (json.dumps(state, ensure_ascii=False),),
+        )
+
+        for record in seed.get("signatures") if isinstance(seed.get("signatures"), list) else []:
+            if not isinstance(record, dict):
+                continue
+            record_id = str(record.get("id") or f"sig-{int(datetime.now().timestamp() * 1000)}").strip()
+            if not record_id:
+                continue
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO signatures (id, created_at, student_name, record_json)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    record_id,
+                    str(record.get("createdAt") or _now_iso()),
+                    str(record.get("studentName") or ""),
+                    json.dumps(record, ensure_ascii=False),
+                ),
+            )
+
+        conn.execute("INSERT OR REPLACE INTO store_meta (key, value) VALUES ('initialized', ?)", (_now_iso(),))
+
+
+def _read_store() -> dict:
+    _init_db()
+    with _connect_db() as conn:
+        rows = conn.execute("SELECT record_json FROM signatures ORDER BY rowid").fetchall()
+        signatures = []
+        for row in rows:
+            try:
+                record = json.loads(row["record_json"])
+                if isinstance(record, dict):
+                    signatures.append(record)
+            except json.JSONDecodeError:
+                continue
+
+        state_row = conn.execute("SELECT state_json FROM app_state WHERE id = 1").fetchone()
+        state = _default_state()
+        if state_row:
+            try:
+                parsed_state = json.loads(state_row["state_json"])
+                if isinstance(parsed_state, dict):
+                    state = parsed_state
+            except json.JSONDecodeError:
+                pass
+
+        return {
+            "signatures": signatures,
+            "state": state,
+        }
+
+
 def _write_store(store: dict) -> None:
+    _init_db()
     signatures = store.get("signatures")
     state = store.get("state")
-    payload = {
-        "signatures": signatures if isinstance(signatures, list) else [],
-        "state": state if isinstance(state, dict) else _default_state(),
-    }
-    _atomic_write_json(SIGNATURES_PATH, payload)
+    with _connect_db() as conn:
+        conn.execute("DELETE FROM signatures")
+        for record in signatures if isinstance(signatures, list) else []:
+            if not isinstance(record, dict):
+                continue
+            record_id = str(record.get("id") or f"sig-{int(datetime.now().timestamp() * 1000)}").strip()
+            if not record_id:
+                continue
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO signatures (id, created_at, student_name, record_json)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    record_id,
+                    str(record.get("createdAt") or _now_iso()),
+                    str(record.get("studentName") or ""),
+                    json.dumps(record, ensure_ascii=False),
+                ),
+            )
+
+        conn.execute(
+            "INSERT OR REPLACE INTO app_state (id, state_json) VALUES (1, ?)",
+            (json.dumps(state if isinstance(state, dict) else _default_state(), ensure_ascii=False),),
+        )
 
 
 def _atomic_write_json(path: Path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(path.suffix + ".tmp")
     tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp_path, path)
@@ -677,7 +807,7 @@ class Handler(SimpleHTTPRequestHandler):
                 {
                     "ok": True,
                     "count": count,
-                    "signaturesFile": str(SIGNATURES_PATH.name),
+                    "databaseFile": str(DATABASE_PATH),
                 },
             )
             return
@@ -737,7 +867,7 @@ def run(host: str = "127.0.0.1", port: int = 5173) -> None:
     global _active_server
     _active_server = server
     print(f"Serving on http://{host}:{port}", flush=True)
-    print(f"Writing signatures to: {SIGNATURES_PATH}", flush=True)
+    print(f"Writing database to: {DATABASE_PATH}", flush=True)
     try:
         server.serve_forever()
     finally:
