@@ -2226,6 +2226,19 @@ async function fetchServerMaps() {
   return Array.isArray(json.maps) ? json.maps : [];
 }
 
+async function refreshServerMapsCache() {
+  try {
+    const dbMaps = await fetchServerMaps();
+    if (!Array.isArray(dbMaps)) return false;
+    savedMapsCache = ensureSavedMapsHaveSerials(dbMaps);
+    savedMapsSerialCache = inferMaxSavedMapSerialFromList(savedMapsCache);
+    refreshSavedMapsUis();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function postServerState(partialState) {
   const payload = partialState && typeof partialState === "object" ? partialState : {};
   const res = await fetch("/api/state", {
@@ -4800,7 +4813,8 @@ if (elStep1PrintBtn) {
 }
 
 if (elStep1TopAllMapsBtn) {
-  elStep1TopAllMapsBtn.addEventListener("click", () => {
+  elStep1TopAllMapsBtn.addEventListener("click", async () => {
+    await refreshServerMapsCache();
     showPage("allmaps");
   });
 }
@@ -5521,7 +5535,8 @@ function showPage(which, opts) {
   }
 
   if (which === "archive") {
-    setTimeout(() => {
+    setTimeout(async () => {
+      await refreshServerMapsCache();
       setArchiveFilter(archiveFilterMode);
     }, 0);
   }
