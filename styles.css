@@ -3717,9 +3717,9 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1RingReading {
   position: absolute;
   left: 560px;
-  top: calc(285px + var(--step1-dashboard-half, 405px) + 30px);
+  top: calc(285px + var(--step1-dashboard-top-section, 486px) + 30px);
   width: 460px;
-  height: calc(var(--step1-dashboard-half, 405px) - 30px);
+  height: calc(var(--step1-dashboard-bottom-section, 324px) - 30px);
   z-index: 4;
   pointer-events: auto;
   overflow: visible;
@@ -3785,9 +3785,9 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1TimeBelonging {
   position: absolute;
   left: 1050px;
-  top: calc(285px + var(--step1-dashboard-half, 405px) + 30px);
+  top: calc(285px + var(--step1-dashboard-top-section, 486px) + 30px);
   width: 460px;
-  height: calc(var(--step1-dashboard-half, 405px) - 30px);
+  height: calc(var(--step1-dashboard-bottom-section, 324px) - 30px);
   z-index: 4;
   pointer-events: none;
   overflow: visible;
@@ -4694,7 +4694,7 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   left: 7px;
   right: -22px;
-  top: var(--step1-dashboard-half, 405px);
+  top: var(--step1-dashboard-top-section, 486px);
   height: 0.1px;
   background: #000000;
   opacity: 0.65;
@@ -4707,7 +4707,7 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   left: 7px;
   right: -22px;
-  top: calc(var(--step1-dashboard-half, 405px) - 20px);
+  top: calc(var(--step1-dashboard-top-section, 486px) - 20px);
   height: 0.1px;
   background: #000000;
   opacity: 0.65;
