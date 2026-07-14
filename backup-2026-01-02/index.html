@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LifePath</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <h1>LifePath</h1>
+        <p class="subtitle">Enter your home addresses (day 0 → today). We’ll draw connected vector lines without a basemap.</p>
+      </header>
+
+      <section class="panel">
+        <h2>Add address</h2>
+
+        <form id="addressForm" class="form" autocomplete="on">
+          <div class="grid">
+            <label>
+              <span>Country <strong>*</strong></span>
+              <input id="country" name="country" required placeholder="e.g. Israel" />
+            </label>
+
+            <label>
+              <span>State / Region</span>
+              <input id="state" name="state" placeholder="if applicable" />
+            </label>
+
+            <label>
+              <span>City <strong>*</strong></span>
+              <input id="city" name="city" required placeholder="e.g. Tel Aviv" />
+            </label>
+
+            <label>
+              <span>Street <strong>*</strong></span>
+              <input id="street" name="street" required placeholder="e.g. Dizengoff" />
+            </label>
+
+            <label>
+              <span>Number</span>
+              <input id="number" name="number" inputmode="numeric" placeholder="optional" />
+            </label>
+          </div>
+
+          <div class="row">
+            <button type="submit" id="addBtn">Add</button>
+            <button type="button" id="clearBtn" class="secondary">Clear all</button>
+          </div>
+
+          <p class="hint">Geocoding uses OpenStreetMap Nominatim (rate-limited). Results are cached in your browser.</p>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panelHeader">
+          <h2>Addresses (in order)</h2>
+          <div class="row">
+            <button type="button" id="drawBtn">Draw path</button>
+            <button type="button" id="importBtn" class="secondary">Import JSON</button>
+            <input id="importFile" type="file" accept="application/json" class="fileInput" />
+            <button type="button" id="exportBtn" class="secondary">Export JSON</button>
+          </div>
+        </div>
+
+        <ol id="addressList" class="list"></ol>
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panelHeader">
+          <h2>Vector path (no basemap)</h2>
+          <div class="row">
+            <button type="button" id="toggleGeoBtn" class="secondary">Show geographic layer</button>
+            <button type="button" id="toggleMapBtn" class="secondary">Hide map</button>
+          </div>
+        </div>
+        <div id="map" class="map" aria-label="Vector path map"></div>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="app.js"></script>
+  </body>
+</html>

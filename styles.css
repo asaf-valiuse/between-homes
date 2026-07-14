@@ -1,0 +1,5118 @@
+/* Step 2: Print button typography. */
+#pageStep2 #printPostcardBtn {
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
+}
+
+/* Step 2: 10px gap between bottom action buttons */
+#pageStep2 .step2BottomActions {
+  display: flex;
+  gap: 10px;
+}
+/* Align 'Add to list' and 'Create life path' buttons horizontally */
+#pageStep1 .button-row {
+  display: flex;
+  left: 200px;
+  align-items: center;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+#pageStep1 #createLifePathBtn {
+  position: absolute;
+  left: 1560px;
+  top: 998px;
+  transform: scale(var(--step1-inv-scale, 1));
+  transform-origin: top left;
+}
+
+#pageStep1 #addBtn {
+  position: absolute;
+  left: 89px;
+  top: 998px;
+  transform: scale(var(--step1-inv-scale, 1));
+  transform-origin: top left;
+}
+
+#pageStep1 #addToListMsg {
+  position: absolute;
+  top: -30px;
+  left: 90px;
+  z-index: 1;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #ff4800;
+  font-size: 16px;
+  line-height: 22px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#pageStep1 .step1AddToListMsg {
+  display: none !important;
+}
+:root {
+  color-scheme: light;
+  --lifepath-map-button-font-size: 14px;
+}
+
+@font-face {
+  font-family: "80kb Sharp";
+  src: url("fonts/80-kb-Sharp.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "80kb Sharp";
+  src: url("fonts/80-kb-SharpBold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Figma-exported font-family names (aliases) */
+@font-face {
+  font-family: "80-kb-Sharp";
+  src: url("fonts/80-kb-Sharp.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "80-kb-SharpBold";
+  src: url("fonts/80-kb-SharpBold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NarkissYair-Regular-TRIAL";
+  src: url("fonts/NarkissYair-Regular-TRIAL.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NarkissYair-Light-TRIAL";
+  src: url("fonts/NarkissYair-Light-TRIAL.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NarkissYair-Bold-TRIAL";
+  src: url("fonts/NarkissYair-Bold-TRIAL.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NarkissBlock-Regular-TRIAL";
+  src: url("fonts/NarkissBlock-Regular-TRIAL.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NarkissBlock-Hairline-TRIAL";
+  src: url("fonts/NarkissBlock-Hairline-TRIAL.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NarkissBlock-Bold-TRIAL";
+  src: url("fonts/NarkissBlock-Bold-TRIAL.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NarkissBlock-Semibold-TRIAL";
+  src: url("fonts/NarkissBlock-Semibold-TRIAL.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NarkissBlock-Medium-TRIAL";
+  src: url("fonts/NarkissBlock-Medium-TRIAL.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NarkissBlock-Light-TRIAL";
+  src: url("fonts/NarkissBlock-Light-TRIAL.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NarkissBlock-Extralight-TRIAL";
+  src: url("fonts/NarkissBlock-Extralight-TRIAL.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "AlfaBravo-Normal";
+  src: url("fonts/AlfaBravo-Normal.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+  font-weight: 400;
+}
+
+/* Standing rule: every button in the app — present and future — uses this
+   font/size. !important because many individual button classes below set
+   their own font-family/font-size that would otherwise win by specificity;
+   this is deliberately the one property those rules don't get to override. */
+button,
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  font-family: "AlfaBravo-Normal", "80-kb-SharpBold", "80kb Sharp", Helvetica, sans-serif !important;
+  /* Every button on the site is the same size as the home page's "start"
+     button — this is the site-wide default; the handful of per-class
+     overrides below (also !important, since that's what it takes to beat
+     this rule) are kept in sync with it rather than removed, so a class that
+     legitimately needs its own font-family/weight isn't forced to inherit
+     this rule's font-size by proxy. */
+  font-size: 13px !important;
+  font-weight: 400;
+  /* !important: several page-specific button classes below still set their
+     own text-decoration: underline (left over from an older "text link"
+     look) that would otherwise win by specificity — no button anywhere in
+     the app should render underlined. */
+  text-decoration: none !important;
+}
+
+/* Step 1's whole layout lives inside #pageStep1 .frame, which is scaled down
+   via transform: scale(var(--step1-scale)) on any viewport smaller than the
+   1920x1080 design size (see updateStep1Scale() in app.js) — every button in
+   there was rendering visibly smaller than the site-wide 14px everywhere
+   else once the window wasn't exactly 1920x1080. Countering the shrink by
+   the frame's own inverse scale makes their *on-screen* size land back on
+   the same 14px as every other page, regardless of window size. Excludes
+   #addBtn/#createLifePathBtn, which already counter the same shrink a
+   different way (transform: scale(var(--step1-inv-scale)) on the whole
+   button, not just its font) — applying both would double-compensate them. */
+#pageStep1 button:not(#addBtn):not(#createLifePathBtn) {
+  font-size: calc(13px * var(--step1-inv-scale, 1)) !important;
+}
+
+body {
+  margin: 0;
+  font-family: "80-kb-Sharp", "80kb Sharp", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 400;
+  line-height: 1.35;
+  text-transform: uppercase;
+  background: #f4f2ea;
+  color: #000000;
+}
+
+input,
+textarea,
+select,
+button {
+  text-transform: uppercase;
+}
+
+/* Leaflet default background is gray; keep the project background consistent,
+   including when map tiles are hidden or still loading. */
+.leaflet-container {
+  background: #f4f2ea;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+.app {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.page {
+  min-height: 100vh;
+}
+
+#pageAllMaps,
+#pageArchive {
+  background: #f4f2ea;
+}
+
+/* Keep comfortable padding on non-Figma pages */
+#pageWelcome,
+#pageStep2 {
+  padding: 36px 42px;
+}
+
+/* Home page (logo, tagline, start) and the About placeholder — both share
+   the same centered layout, just with different content in .homePageContent. */
+#pageWelcome.homePage,
+#pageAbout.homePage {
+  position: relative;
+  background-color: #f4f2ea;
+  overflow: hidden;
+  /* Overrides the old Welcome design's #pageWelcome { max-width: 1120px }
+     (in a min-width:980px media query further down) — that constrained
+     column made sense for the old scroll-hero content, but this full-bleed
+     home page needs the whole viewport. */
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.homeBgRouteSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  /* Let points bleed past the SVG's own viewBox — #pageWelcome's own
+     overflow:hidden still clips it right at the page edge, which is the
+     intended "runs off the frame" look, not a full unclipped escape. */
+  overflow: visible;
+}
+
+.homePageTopActions {
+  position: absolute;
+  top: 34px;
+  right: 40px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+/* Home page's archive/all maps/about buttons only use a tighter gap than
+   the shared .homePageTopActions default above; right margin (40px, the
+   site's standard — matches the logo's left margin) is the same either way. */
+#pageWelcome .homePageTopActions {
+  gap: 24px;
+}
+
+#pageWelcome .homePageTopActions button {
+  font-size: 13px !important;
+}
+
+.homePageTopActions button {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: #000000;
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: 13px !important;
+  text-transform: lowercase;
+}
+
+#pageWelcome .homePageTopActions button:hover,
+#pageAbout .homePageTopActions button:hover {
+  color: #8e3300;
+}
+
+.homePageContent {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 24px;
+}
+
+/* Home page only: no Y-translate on the box itself — .homePageLogo below
+   shifts itself up by exactly half its own (rendered) height via transform,
+   which doesn't affect this flex column's layout flow. That puts the
+   *logo's* vertical center — not the whole stack's — exactly on the page's
+   center, with the tagline/start row following normally right below it.
+   The About page (no logo, just one line of text) keeps the plain whole-box
+   centering above. */
+#pageWelcome .homePageContent {
+  top: 50%;
+  transform: translateX(-50%);
+}
+
+.homePageLogo {
+  width: 150px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  transform: translateY(-50%);
+}
+
+.homePageTagline {
+  margin: 50px 0 0 0;
+  position: relative;
+  left: -90px;
+  max-width: 520px;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.35;
+  text-transform: none;
+  color: #000000;
+}
+
+/* Home page only — raises the tagline (now 40px up the page total across two
+   rounds) and shrinks it 1px. Scoped so the About page's single-line "coming
+   soon" text (which shares this class) isn't affected, since it's centered
+   as a whole box where this margin would otherwise nudge the centering. */
+#pageWelcome .homePageTagline {
+  margin-top: -10px;
+  font-size: 15px;
+  left: -97px;
+  /* Visual-only offset (doesn't shift the start row that follows in flow,
+     unlike margin above, which moves both together). */
+  top: 10px;
+}
+
+.homePageStartRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  position: relative;
+  top: -15px;
+}
+
+.homePageStartBtn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-weight: 400;
+  color: #000000;
+  text-decoration: none;
+  text-transform: lowercase;
+  font-size: 13px !important;
+}
+
+#pageWelcome .homePageStartBtn:hover {
+  color: #8e3300;
+}
+
+.homePageStartHint {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+  text-transform: none;
+  color: #000000;
+}
+
+/* Step 2: full-screen map */
+#pageStep2 {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  height: 100vh;
+}
+
+/* Close (X) button: matches textLink styling but with tighter glyph metrics. */
+.closeToHomeBtn {
+  line-height: 1;
+}
+
+#pageStep2 .topbar {
+  padding: 36px 42px 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2000;
+  background: rgba(255, 255, 255, 0);
+}
+
+#pageStep2 .step2MapTitle,
+#pageStep2 .step2LogoText,
+#pageArchive .step2MapTitle,
+#pageArchive .step2LogoText,
+#pageAllMaps .step2MapTitle,
+#pageAllMaps .step2LogoText,
+#pageEmotion .emotionLogoText,
+#pageEmotion .emotionMapTitle {
+  position: absolute;
+  top: 36px;
+  left: 42px;
+  z-index: 2000;
+  margin: 0;
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+#pageStep2 .step2LogoText,
+#pageArchive .step2LogoText,
+#pageAllMaps .step2LogoText,
+#pageEmotion .emotionLogoText,
+#pageStep1EmotionFullscreen .step1EmotionFullscreenLogo {
+  top: calc(34px * var(--step1-scale, 1));
+  left: calc(40px * var(--step1-scale, 1));
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenLogo {
+  position: absolute;
+  z-index: 2001;
+}
+
+.appLogoImage {
+  width: calc(96px * var(--step1-scale, 1));
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+#pageEmotion .emotionMapTitle {
+  left: 42px;
+  top: 85px;
+}
+
+#pageStep2 .step2MapTitle,
+#pageArchive .step2MapTitle,
+#pageAllMaps .step2MapTitle {
+  left: 42px;
+  top: 85px;
+}
+
+#pageStep2.dark-map-ui .step2MapTitle,
+#pageStep2.dark-map-ui .step2LogoText,
+#pageAllMaps.dark-map-ui .step2MapTitle,
+#pageAllMaps.dark-map-ui .step2LogoText {
+  color: #f2f0e8;
+}
+
+#pageArchive .step2LogoText,
+#pageArchive .step2MapTitle,
+#pageAllMaps .step2LogoText,
+#pageAllMaps .step2MapTitle {
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif !important;
+}
+
+#pageArchive .archiveSerial,
+#pageArchive .archiveSerial .step2SignatureMain,
+#pageArchive .archiveSerial .step2SignatureCount,
+#pageAllMaps .allMapsListName {
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif !important;
+}
+
+#pageStep2 .mapWrap {
+  margin-top: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+#pageStep2 .map {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+}
+
+/* Emotion Map page: centered concentric circles */
+#pageEmotion {
+  position: relative;
+  padding: 0;
+  height: 100vh;
+  background: #f4f2ea;
+  display: flex;
+  flex-direction: column;
+}
+
+#pageEmotion .topbar {
+  padding: 36px 42px 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2000;
+  background: rgba(255, 255, 255, 0);
+}
+
+#pageEmotion .emotionLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* Emotion Map: map name label. Position matches Step 1's name display
+   (.step1TopProgress: fixed, horizontally centered, top:34px) — the name
+   shouldn't visibly jump when navigating between pages. */
+#pageEmotion .emotionSignature {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  top: 34px;
+  bottom: auto;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 2000;
+  font-size: 14px;
+  white-space: nowrap;
+
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+  text-transform: none;
+  pointer-events: none;
+}
+
+#pageEmotion .step2SignatureMain {
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+}
+
+#pageEmotion .step2SignatureCount {
+  font-size: 14px;
+  margin-left: 40px;
+}
+
+#pageEmotion #emotionLifeProfileBtn {
+  position: static;
+  left: auto;
+  top: auto;
+  bottom: auto;
+  z-index: auto;
+  display: inline-block;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 13.5px;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+  text-decoration: underline;
+  text-decoration-thickness: 0.75px;
+  text-underline-offset: 1px;
+}
+
+#pageEmotion .emotionSoloBackBtn {
+  position: fixed;
+  right: 40px;
+  top: 36px;
+  z-index: 6200;
+  line-height: 1;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
+  text-transform: lowercase !important;
+  text-decoration: underline;
+  text-decoration-thickness: 0.75px;
+  text-underline-offset: 1px;
+  display: none;
+}
+
+#pageEmotion.emotionSoloActive .emotionSoloBackBtn {
+  display: inline-block;
+}
+
+#pageEmotion .emotionSoloBackBtn:hover:not(:disabled),
+#pageEmotion #emotionLifeProfileBtn:hover:not(:disabled),
+#pageEmotion #emotionSpaceBtn:hover:not(:disabled) {
+  color: #000000;
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+}
+
+#pageEmotion .emotionWrap {
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+#pageEmotion .emotionSvg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Emotion Map: hover tooltip for ring numbering (home 01..). */
+.emotionRingHomeTooltip {
+  position: fixed;
+  z-index: 6000;
+  pointer-events: none;
+
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: #000000;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+
+  /* Keep exact casing as provided by JS. */
+  text-transform: none;
+}
+
+/* Emotion Map: when hovering a ring, fade all other rings to gray. */
+#pageEmotion [data-emotion-ring-visible="1"] {
+  transition: stroke 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#pageEmotion.emotionRingHoverActive [data-emotion-ring-visible="1"] {
+  stroke: #c9c8c1 !important;
+}
+
+#pageEmotion.emotionRingHoverActive [data-emotion-ring-visible="1"][data-emotion-hovered="1"] {
+  stroke: #111827 !important;
+}
+
+/* Emotion Map: ring reading label shown in solo mode */
+.emotionRingReading {
+  position: fixed;
+  z-index: 6100;
+  pointer-events: none;
+
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.1;
+  color: #111827;
+  text-transform: none;
+  white-space: nowrap;
+
+  transform: translateY(-50%);
+}
+
+#emotionRingReading {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
+}
+
+#pageEmotion .emotionMapTitle,
+#pageEmotion .emotionSignature {
+  display: none !important;
+}
+
+.emotionRingReading *,
+.emotionRingAddress .emotionRingAddressLabel,
+.emotionRingAddress .emotionRingAddressValue,
+.emotionRingEmotionalConnection .emotionRingEmotionalConnectionLabel,
+.emotionRingEmotionalConnection .emotionRingEmotionalConnectionValue,
+.emotionRingBelongingShift .emotionRingBelongingShiftLabel,
+.emotionRingBelongingShift .emotionRingBelongingShiftValue,
+.emotionRingDurationOfPresence .emotionRingDurationOfPresenceLabel,
+.emotionRingDurationOfPresence .emotionRingDurationOfPresenceValue,
+.emotionRingTimeframe .emotionRingTimeframeLabel,
+.emotionRingTimeframe .emotionRingTimeframeValue,
+.emotionRingLifeStage .emotionRingLifeStageLabel,
+.emotionRingLifeStage .emotionRingLifeStageValue,
+.emotionRingLifetimePresentage .emotionRingLifetimePresentageLabel,
+.emotionRingLifetimePresentage .emotionRingLifetimePresentageValue,
+.emotionRingTransitionalDistance .emotionRingTransitionalDistanceLabel,
+.emotionRingTransitionalDistance .emotionRingTransitionalDistanceValue,
+.emotionRingCumulativeDistance .emotionRingCumulativeDistanceLabel,
+.emotionRingCumulativeDistance .emotionRingCumulativeDistanceValue {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-weight: 300;
+}
+
+.emotionRingReading.hidden {
+  display: none;
+}
+
+/* Second line under RING READING: positioned by explicit top (no centering transform). */
+.emotionRingReading.emotionRingHomeNo {
+  transform: none;
+}
+
+/* Address line: same baseline behavior as HOME NO (explicit top coordinate). */
+.emotionRingReading.emotionRingAddress {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingAttachment {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingTemporal {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingMovement {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingEmotionalConnection {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingBelongingShift {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingDurationOfPresence {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingTimeframe {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingLifeStage {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingLifetimePresentage {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingTransitionalDistance {
+  transform: none;
+}
+
+.emotionRingReading.emotionRingCumulativeDistance {
+  transform: none;
+}
+
+.emotionRingEmotionalConnection .emotionRingEmotionalConnectionLabel {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingEmotionalConnection .emotionRingEmotionalConnectionValue {
+  font-family: "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingBelongingShift .emotionRingBelongingShiftLabel {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingBelongingShift .emotionRingBelongingShiftValue {
+  font-family: "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingDurationOfPresence .emotionRingDurationOfPresenceLabel {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingDurationOfPresence .emotionRingDurationOfPresenceValue {
+  font-family: "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingTimeframe .emotionRingTimeframeLabel {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingTimeframe .emotionRingTimeframeValue {
+  font-family: "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingLifeStage .emotionRingLifeStageLabel {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingLifeStage .emotionRingLifeStageValue {
+  font-family: "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingLifetimePresentage .emotionRingLifetimePresentageLabel {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingLifetimePresentage .emotionRingLifetimePresentageValue {
+  font-family: "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingTransitionalDistance .emotionRingTransitionalDistanceLabel {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingTransitionalDistance .emotionRingTransitionalDistanceValue {
+  font-family: "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingCumulativeDistance .emotionRingCumulativeDistanceLabel {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingCumulativeDistance .emotionRingCumulativeDistanceValue {
+  font-family: "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingAddress .emotionRingAddressLabel {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+}
+
+.emotionRingAddress .emotionRingAddressValue {
+  font-family: "NarkissYair-Regular-TRIAL", "80-kb-Sharp", Helvetica, sans-serif;
+  text-transform: none;
+}
+
+.emotionRingAddress .emotionRingAddressValue,
+.emotionRingEmotionalConnection .emotionRingEmotionalConnectionValue,
+.emotionRingBelongingShift .emotionRingBelongingShiftValue,
+.emotionRingDurationOfPresence .emotionRingDurationOfPresenceValue,
+.emotionRingTimeframe .emotionRingTimeframeValue,
+.emotionRingLifeStage .emotionRingLifeStageValue,
+.emotionRingLifetimePresentage .emotionRingLifetimePresentageValue,
+.emotionRingTransitionalDistance .emotionRingTransitionalDistanceValue,
+.emotionRingCumulativeDistance .emotionRingCumulativeDistanceValue {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.emotionRingEmotionalConnection .emotionRingEmotionalConnectionLabel,
+.emotionRingBelongingShift .emotionRingBelongingShiftLabel {
+  display: inline-block;
+  width: 150px;
+}
+
+.emotionRingDurationOfPresence .emotionRingDurationOfPresenceLabel,
+.emotionRingTimeframe .emotionRingTimeframeLabel,
+.emotionRingLifeStage .emotionRingLifeStageLabel,
+.emotionRingLifetimePresentage .emotionRingLifetimePresentageLabel {
+  display: inline-block;
+  width: 150px;
+}
+
+.emotionRingTransitionalDistance .emotionRingTransitionalDistanceLabel,
+.emotionRingCumulativeDistance .emotionRingCumulativeDistanceLabel {
+  display: inline-block;
+  width: 235px;
+}
+
+.emotionRingEmotionalConnection .emotionRingEmotionalConnectionValue,
+.emotionRingBelongingShift .emotionRingBelongingShiftValue,
+.emotionRingDurationOfPresence .emotionRingDurationOfPresenceValue,
+.emotionRingTimeframe .emotionRingTimeframeValue,
+.emotionRingLifeStage .emotionRingLifeStageValue,
+.emotionRingLifetimePresentage .emotionRingLifetimePresentageValue,
+.emotionRingTransitionalDistance .emotionRingTransitionalDistanceValue,
+.emotionRingCumulativeDistance .emotionRingCumulativeDistanceValue {
+  display: inline-block;
+  text-align: left;
+  vertical-align: baseline;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  top: 24px;
+  transform: translateX(-50%);
+  z-index: 4000;
+
+  padding: 10px 14px;
+  border: 1px solid #000000;
+  background: #f4f2ea;
+  color: #000000;
+
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+
+
+
+.hidden {
+  display: none !important;
+}
+
+/* Step 2: hover address tooltip font */
+.leaflet-tooltip.lifepathAddressTooltip {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair Light TRIAL", sans-serif;
+  font-size: 14px;
+  font-weight: 400 !important;
+  line-height: 1.2;
+  text-transform: none !important;
+  white-space: nowrap;
+
+  /* Remove the default Leaflet tooltip bubble/frame */
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: #000000 !important;
+}
+
+/* Dark map UI: tooltip text becomes white. */
+#pageStep2.dark-map-ui .leaflet-tooltip.lifepathAddressTooltip,
+#pageStep2.dark-map-ui .leaflet-tooltip {
+  color: #f2f0e8 !important;
+}
+
+.leaflet-tooltip.lifepathAddressTooltip:before,
+.leaflet-tooltip.lifepathAddressTooltip:after {
+  display: none !important;
+}
+
+/* All Maps: hover tooltip for map name (no bubble, 12px) */
+.leaflet-tooltip.lifepathAllMapsTooltip {
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-size: 12px;
+  font-weight: 400 !important;
+  line-height: 14px;
+  white-space: normal;
+  text-align: left;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: #000000 !important;
+}
+
+/* Dark map UI (All Maps): tooltip text becomes white. */
+#pageAllMaps.dark-map-ui .leaflet-tooltip.lifepathAllMapsTooltip,
+#pageAllMaps.dark-map-ui .leaflet-tooltip {
+  color: #ffffff !important;
+}
+
+.leaflet-tooltip.lifepathAllMapsTooltip:before,
+.leaflet-tooltip.lifepathAllMapsTooltip:after {
+  display: none !important;
+}
+
+/* Step 2 fallback: if any Leaflet tooltip is created without our class,
+   keep it text-only (no bubble) and match the requested typography. */
+#pageStep2 .leaflet-tooltip {
+  font-family: "NarkissYair-Light-TRIAL", "NarkissYair Light TRIAL", sans-serif;
+  font-size: 12px;
+  font-weight: 400 !important;
+  line-height: 1.2;
+  text-transform: none !important;
+  white-space: nowrap;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: #000000 !important;
+}
+
+#pageStep2 .leaflet-tooltip:before,
+#pageStep2 .leaflet-tooltip:after {
+  display: none !important;
+}
+
+/* Step 2 dots + route line: identical stroke-color transition on hover. */
+#pageStep2 #map .lifepathStep2Dot,
+#pageStep2 #map .lifepathStep2Path {
+  transition: stroke 120ms ease-out;
+}
+
+#pageStep2 #map .lifepathStep2Dot {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+#pageStep2 #map .lifepathStep2HoverButtonIcon {
+  background: transparent;
+  border: 0;
+}
+
+#pageStep2 #map .lifepathStep2HoverButton {
+  width: 100%;
+  height: 100%;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+#pageStep2 #map .lifepathStep2HoverButton:focus {
+  outline: none;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.brand {
+  margin: 0;
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+
+/* Site-wide wordmark (compact): LIFE—PATH● */
+.lifepathWordmark {
+  --lp-font-size: 16px;
+  --lp-divider-w: 56px;
+  --lp-divider-h: 2px;
+  --lp-gap: 6px;
+  --lp-circle: 6px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  font-size: var(--lp-font-size);
+  font-weight: 400;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lifepathDivider {
+  display: inline-block;
+  width: var(--lp-divider-w);
+  height: var(--lp-divider-h);
+  margin: 0 var(--lp-gap);
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.lifepathCircle {
+  display: inline-block;
+  width: var(--lp-circle);
+  height: var(--lp-circle);
+  margin-left: var(--lp-gap);
+  background: currentColor;
+  border: 0;
+  border-radius: 9999px;
+  flex: 0 0 auto;
+}
+
+/* Welcome page wordmark: show “life” and “path” separated. */
+#pageWelcome .brand.welcomeWordmark {
+  pointer-events: auto;
+  transform: none !important;
+  position: relative;
+  top: -17px;
+  left: -27px;
+}
+
+#pageWelcome .welcomeDivider {
+  display: inline-block;
+  width: 295px;
+  height: 5px;
+  margin: 0 17px;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+#pageWelcome .welcomeCircle {
+  display: inline-block;
+  width: 23px;
+  height: 23px;
+  margin-left: 17px;
+  background: currentColor;
+  border: 0;
+  border-radius: 9999px;
+  flex: 0 0 auto;
+}
+
+/* Center the Welcome header content. */
+#pageWelcome {
+  position: relative;
+}
+
+#pageWelcome .topbar {
+  justify-content: flex-start;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2500;
+  padding: 36px 42px 0;
+  pointer-events: none;
+}
+
+#pageWelcome .welcomeScrollHint {
+  position: fixed;
+  left: calc(var(--welcome-hint-left, 42px) + 10px);
+  right: 42px;
+  top: 50%;
+  transform: translateY(calc(-50% + 100px));
+  text-align: left;
+  z-index: 2501;
+  pointer-events: none;
+
+  color: #ff4800;
+
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  font-size: calc(16px - 2pt);
+  letter-spacing: 0.4px;
+  line-height: 1.2;
+  white-space: normal;
+
+  opacity: 1;
+  transition: opacity 120ms linear;
+}
+
+body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
+  opacity: 0;
+}
+
+/* Dark map UI: make All Maps top bar title readable on dark tiles. */
+#pageAllMaps.dark-map-ui .brand {
+  color: #ffffff;
+}
+
+/* Step 1 wordmark acts as a home button too */
+.life-path {
+  cursor: pointer;
+}
+
+.welcomeBody {
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+  /* Fill the visible Welcome page so we can push buttons to the bottom. */
+  min-height: calc(100vh - 72px);
+  width: 100%;
+}
+
+.welcomeBottomButtons {
+  margin-top: auto;
+  align-self: stretch;
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+#pageStep1 .step1HomeLinks {
+  position: absolute;
+  right: 42px;
+  bottom: 36px;
+  z-index: 20;
+  margin: 0;
+  align-self: auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  transform: none;
+}
+
+#pageStep1 .step1HomeLinks .linkButton {
+  border: 0;
+  font-size: var(--lifepath-map-button-font-size);
+}
+
+/* Welcome: nudge All maps + Archive slightly further right (still scrolls) */
+#pageWelcome .welcomeBottomButtons {
+  transform: translate(170px, 40px);
+}
+
+/* Welcome buttons: no frames/borders. */
+#pageWelcome .linkButton {
+  border: 0;
+}
+
+/* Welcome bottom buttons: reduce size by 3pt (Archive + All maps only). */
+#pageWelcome .welcomeBottomButtons .linkButton {
+  font-size: var(--lifepath-map-button-font-size);
+}
+
+/* Archive page */
+#pageArchive {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+#pageArchive .topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 112px;
+  z-index: 1990;
+  padding: 0;
+  background: #f4f2ea;
+}
+
+#pageArchive .archiveBackBtn {
+  position: fixed;
+  right: 40px;
+  top: 36px;
+  z-index: 2000;
+  display: inline-block;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
+  text-transform: lowercase !important;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+  text-decoration: underline;
+}
+
+#pageArchive .archiveBody {
+  padding: 124px 42px 42px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+#pageArchive .archiveEmpty {
+  z-index: 10;
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  margin-bottom: 18px;
+}
+
+#pageArchive .archiveGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+#pageArchive .archiveItem {
+  aspect-ratio: 1 / 1;
+  border: none;
+  outline: 0.5px solid #686868;
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+#pageArchive.archiveModeMovement .archiveItem,
+#pageArchive.archiveModeEmotion .archiveItem {
+  outline-color: #a5a49d;
+}
+
+#pageArchive .archivePreview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#pageArchive .archivePreview > svg {
+  position: absolute;
+  top: 10px !important;
+  left: 10px !important;
+  right: 10px !important;
+  bottom: 10px !important;
+}
+
+#pageArchive .archivePreview > .archiveEmotionThumb {
+  top: 10px !important;
+  left: 10px !important;
+  right: 10px !important;
+  bottom: 10px !important;
+  transform: scale(var(--archive-emotion-scale, 1.8));
+  transform-origin: center;
+}
+
+#pageArchive .archiveSerial {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+  max-width: calc(100% - 20px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none !important;
+}
+
+#pageArchive.archiveModeMovement .archiveSerial,
+#pageArchive.archiveModeMovement .archiveSerial .step2SignatureMain,
+#pageArchive.archiveModeMovement .archiveSerial .step2SignatureCount,
+#pageArchive.archiveModeEmotion .archiveSerial,
+#pageArchive.archiveModeEmotion .archiveSerial .step2SignatureMain,
+#pageArchive.archiveModeEmotion .archiveSerial .step2SignatureCount {
+  color: #c9c8c1;
+}
+
+#pageArchive.archiveModeMovement .archiveItem:hover .archiveSerial,
+#pageArchive.archiveModeMovement .archiveItem:hover .archiveSerial .step2SignatureMain,
+#pageArchive.archiveModeMovement .archiveItem:hover .archiveSerial .step2SignatureCount,
+#pageArchive.archiveModeEmotion .archiveItem:hover .archiveSerial,
+#pageArchive.archiveModeEmotion .archiveItem:hover .archiveSerial .step2SignatureMain,
+#pageArchive.archiveModeEmotion .archiveItem:hover .archiveSerial .step2SignatureCount {
+  color: #000000;
+}
+
+#pageArchive .archiveSerial .step2SignatureMain {
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  text-transform: none !important;
+}
+
+#pageArchive .archiveSerial .step2SignatureCount {
+  font-size: 14px;
+  margin-left: 13px;
+  text-transform: none !important;
+}
+
+#pageArchive .archiveAverageBelonging {
+  position: absolute;
+  top: 84px;
+  left: 10px;
+  right: 10px;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-transform: lowercase !important;
+}
+
+#pageArchive .archiveItem:hover .archiveAverageBelonging {
+  opacity: 1;
+}
+
+#pageArchive .archiveCumulativeDistance {
+  position: absolute;
+  top: 103px;
+  left: 10px;
+  right: 10px;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-transform: lowercase !important;
+}
+
+#pageArchive .archiveItem:hover .archiveCumulativeDistance {
+  opacity: 1;
+}
+
+#pageArchive .archiveCountriesRoute {
+  position: absolute;
+  top: 122px;
+  left: 10px;
+  right: 10px;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-transform: none !important;
+}
+
+#pageArchive .archiveItem:hover .archiveCountriesRoute {
+  opacity: 1;
+}
+
+#pageArchive .archiveThumb {
+  cursor: grab;
+  touch-action: none;
+}
+
+/* Archive filter buttons (movement / emotion / all) */
+#pageArchive .archiveFilterBtns {
+  position: fixed;
+  top: 85px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  z-index: 3000;
+  pointer-events: auto;
+}
+
+#pageArchive .archiveFilterBtn {
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: underline;
+  text-transform: lowercase !important;
+}
+
+#pageArchive .archiveFilterBtn:hover {
+  color: #000000;
+  font-weight: 700;
+}
+
+#pageArchive .archiveItem:hover .archiveThumb polyline,
+#pageArchive .archiveItem:hover .archiveThumb circle {
+  stroke: #d8d7d2;
+}
+
+#pageArchive .archiveItem:hover .archiveEmotionThumb path {
+  stroke: #d8d7d2;
+}
+
+#pageArchive .archiveThumb.isZoomed {
+  cursor: grab;
+}
+
+#pageArchive .archiveThumb.isDragging {
+  cursor: grabbing;
+}
+
+#pageArchive .archiveLabel {
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  font-size: 12px;
+  color: #ff4800;
+  padding: 10px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#pageArchive .archiveFooter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  background: transparent;
+}
+
+#pageArchive .archiveRemoveBtn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #000000;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  padding: 10px;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1;
+  text-transform: lowercase !important;
+  text-decoration: underline;
+}
+
+#pageArchive .archiveItem:hover .archiveRemoveBtn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#pageArchive .archiveRemoveBtn:hover {
+  color: #000000;
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+}
+
+#pageArchive .archiveRemoveBtn:hover:not(:disabled),
+.archiveConfirmBtn:hover:not(:disabled) {
+  color: #000000;
+}
+
+.archiveConfirmOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  background: rgba(244, 241, 228, 0.72);
+}
+
+.archiveConfirmDialog {
+  width: min(430px, calc(100vw - 84px));
+  padding: 22px 24px 18px;
+  border: 0.5px solid #545454;
+  background: #f4f2ea;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.25;
+  text-transform: none !important;
+}
+
+.archiveConfirmMessage {
+  white-space: pre-line;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  text-transform: none !important;
+}
+
+.archiveConfirmActions {
+  display: flex;
+  gap: 24px;
+  margin-top: 22px;
+}
+
+.archiveConfirmBtn {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #000000;
+  cursor: pointer;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1;
+  text-decoration: underline;
+  text-transform: lowercase !important;
+}
+
+.archiveConfirmBtn:hover {
+  color: #000000;
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+}
+
+/* Create Life Path transition */
+.createLifePathTransition {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: #f4f2ea;
+}
+
+.createLifePathTransition.hidden {
+  display: none;
+}
+
+.createLifePathTransitionCircle {
+  width: 92px;
+  height: 92px;
+  border: 3px solid #000000;
+  border-radius: 9999px;
+  transform: scale(0.6);
+  animation: lifepathPulseCircle 1.4s ease-in-out infinite;
+}
+
+@keyframes lifepathPulseCircle {
+  0% {
+    transform: scale(0.6);
+  }
+  50% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(0.6);
+  }
+}
+
+/* Print: 10x15cm portrait postcard */
+@media print {
+
+  /* Print-only: postcard logo should be black */
+  body.postcardPrintMode .postcardCardLogo {
+    color: #000000 !important;
+  }
+  body.postcardPrintMode .postcardLogoDivider {
+    background: #000000 !important;
+  }
+  /* Print-only: move the logo dot down by 2px */
+  body.postcardPrintMode .postcardLogoDot {
+    transform: translate(calc(-50% + 1px), 0px) !important;
+  }
+  @page {
+    size: 10cm 15cm;
+    margin: 0;
+  }
+
+  /* When printing from the postcard preview, hide the app pages and only print the card. */
+  body.postcardPrintMode .page,
+  body.postcardPrintMode .toast,
+  body.postcardPrintMode #createLifePathTransition {
+    display: none !important;
+  }
+
+  body.postcardPrintMode .postcardPreviewBackdrop,
+  body.postcardPrintMode .postcardPreviewToolbar {
+    display: none !important;
+  }
+
+  body.postcardPrintMode .postcardPreviewOverlay {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  body.postcardPrintMode .postcardCard {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    border: 0 !important;
+  }
+
+  /* Postcard edge border (postcard print only) */
+  body.postcardPrintMode::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 10cm;
+    height: 15cm;
+    border: 1px solid #000000;
+    box-sizing: border-box;
+    z-index: 999999;
+    pointer-events: none;
+  }
+
+  html,
+  body {
+    width: 10cm;
+    height: 15cm;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: #f4f2ea;
+    color: #000000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Only print the currently-visible page */
+  .page.hidden {
+    display: none !important;
+  }
+
+  /* Hide UI chrome/controls in print */
+  .topbar,
+  .step2Actions,
+  .step2BottomActions,
+  .welcomeBottomButtons,
+  #pageArchive .archiveFooter,
+  #signatureLabel,
+  #emotionTitle,
+  button,
+  input,
+  textarea,
+  select {
+    display: none !important;
+  }
+
+  /* Remove scrollbars / extra layout constraints */
+  .app {
+    width: 10cm;
+    height: 15cm;
+    margin: 0;
+    padding: 0;
+  }
+
+  .page {
+    min-height: 0 !important;
+  }
+
+  /* Step 2 Leaflet map prints inside the postcard border */
+  #pageStep2 {
+    width: 10cm !important;
+    height: 15cm !important;
+    padding: 0 !important;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #pageStep2 .mapWrap {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 0;
+  }
+
+  #pageStep2 #map {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Hide Leaflet controls/attribution while printing */
+  #pageStep2 #map .leaflet-control-container,
+  #pageStep2 #map .leaflet-control-attribution {
+    display: none !important;
+  }
+
+}
+
+/* Screen preview: 10x15cm postcard overlay (mirrors print layout) */
+.postcardPreviewOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: none;
+}
+
+body.postcardPreviewOpen .postcardPreviewOverlay {
+  display: block;
+}
+
+/* Silent postcard mode: used for direct printing without showing the modal UI.
+   Keep the overlay in layout (for Leaflet sizing) but invisible. */
+body.postcardPreviewSilent .postcardPreviewOverlay {
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.postcardPreviewSilent .postcardPreviewBackdrop,
+body.postcardPreviewSilent .postcardPreviewToolbar {
+  display: none !important;
+}
+
+.postcardPreviewOverlay.hidden {
+  display: none;
+}
+
+.postcardPreviewBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.postcardPreviewToolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 4200;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #ffffff;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.postcardPreviewTitle {
+  font-family: "80-kb-Sharp", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  opacity: 0.95;
+}
+
+.postcardPreviewActions {
+  display: flex;
+  gap: 10px;
+}
+
+.postcardPreviewBtn {
+  pointer-events: auto;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--lifepath-map-button-font-size);
+}
+
+.postcardPreviewBtn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+body.postcardPreviewOpen {
+  overflow: hidden;
+}
+
+.postcardCard {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* Scale is computed in JS so the 10x15cm card never overflows the viewport. */
+  transform: translate(-50%, -50%) scale(var(--postcardPreviewScale, 1));
+  transform-origin: center center;
+  width: 10cm;
+  height: 15cm;
+  background: #f4f2ea;
+  border: 1px solid #000000;
+  box-sizing: border-box;
+  border-radius: 10px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  z-index: 4100;
+}
+
+.postcardCardArt {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.postcardCardMapHost {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.postcardCardMapInner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--postcardMapInnerWpx, 100%);
+  height: var(--postcardMapInnerHpx, 100%);
+  transform: translate(-50%, -50%) rotate(var(--postcardMapRotate, 0deg));
+  transform-origin: center center;
+}
+
+.postcardCardMapInner .postcardSnapshotImg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.postcardCardMapInner .postcardOverlaySvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+/* In the native print dialog, match the old “fills the frame” feel. */
+body.postcardPrintMode .postcardCardMapInner .postcardSnapshotImg {
+  object-fit: contain;
+  transform: scale(var(--postcardPrintSnapshotScale, 1));
+  transform-origin: center center;
+}
+
+body.postcardPrintMode .postcardCardMapInner .postcardOverlaySvg {
+  transform: scale(var(--postcardPrintSnapshotScale, 1));
+  transform-origin: center center;
+}
+
+@media print {
+  /* Remove the decorative border overlay so nothing clips the map edges. */
+  body.postcardPrintMode::before {
+    display: none !important;
+  }
+}
+
+/* When the live Leaflet map is moved into the card, force it to fill the inner box. */
+.postcardCardMapInner #map {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.postcardCardMapInner #map .leaflet-control-container,
+.postcardCardMapInner #map .leaflet-control-attribution {
+  display: none !important;
+}
+
+.postcardCardLogo {
+  position: absolute;
+  top: 0.35cm;
+  left: 0.35cm;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #ff4800;
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  font-size: 8pt;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  border-radius: 999px;
+}
+
+img.postcardCardLogo {
+  width: 1.75cm;
+  height: auto;
+  display: block;
+  border-radius: 0;
+}
+
+.postcardLogoWord {
+  display: inline-block;
+}
+
+.postcardLogoDivider {
+  display: inline-block;
+  width: 37px;
+  height: 1px;
+  background: currentColor;
+  border-radius: 0;
+}
+
+.postcardLogoDot {
+  display: inline-block;
+  font-size: 13pt;
+  transform: translate(calc(-50% + 1px), -1px);
+}
+
+.postcardCardMapName {
+  position: absolute;
+  left: 50%;
+  bottom: 0.35cm;
+  transform: translateX(-50%);
+  z-index: 12;
+  color: #000000;
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  font-size: 8pt;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: none;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+#pageArchive .archiveLabelBtn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  width: 100%;
+  cursor: pointer;
+  font-size: var(--lifepath-map-button-font-size);
+}
+
+#pageArchive .archiveLabelBtn:hover {
+  text-decoration: none;
+}
+
+/* All Maps page */
+#pageAllMaps {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+}
+
+#pageAllMaps .topbar {
+  padding: 36px 42px 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2100;
+  background: rgba(255, 255, 255, 0);
+}
+
+#pageAllMaps .allMapsActions {
+  position: fixed;
+  right: 40px;
+  top: 36px;
+  z-index: 2200;
+  display: flex;
+  gap: 18px;
+  align-items: baseline;
+}
+
+#pageAllMaps .allMapsBackBtn {
+  display: inline-block;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
+  text-transform: lowercase !important;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+  text-decoration: underline;
+}
+
+#pageAllMaps .allMapsTotalLabel {
+  position: fixed;
+  left: 42px;
+  top: 107px;
+  z-index: 2000;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  text-transform: lowercase !important;
+  pointer-events: none;
+}
+
+/* All Maps: back hover is orange (matches other pages). */
+#pageAllMaps .closeToHomeBtn:hover:not(:disabled) {
+  color: #ff4800;
+}
+
+#pageAllMaps .allMapsBody {
+  margin-top: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+#pageAllMaps .allMapsEmpty {
+  position: absolute;
+  left: 42px;
+  top: 24px;
+  z-index: 10;
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+}
+
+#pageAllMaps .allMapsMap {
+  position: absolute;
+  left: 0 !important;
+  right: 0 !important;
+  /* Shift map up 5px within the frame, without changing its size. */
+  top: -10px !important;
+  bottom: 0 !important;
+}
+
+#pageAllMaps .allMapsMap .leaflet-tile-pane {
+  opacity: 0.3;
+}
+
+#pageAllMaps .allMapsPanel {
+  position: fixed;
+  left: auto;
+  right: 42px;
+  top: 36px;
+  z-index: 2000;
+  max-width: 520px;
+  text-align: right;
+}
+
+#pageAllMaps #allMapsEditBtn {
+  font-family: "80-kb-SharpBold", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 700;
+  font-size: var(--lifepath-map-button-font-size);
+}
+
+/* All Maps: visible maps count label matches Step 2 signature placement */
+#pageAllMaps .allMapsCount {
+  display: none !important;
+  position: fixed;
+  left: 42px;
+  top: auto;
+  bottom: 30px;
+  z-index: 2000;
+  font-size: 14px;
+  white-space: nowrap;
+
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  pointer-events: none;
+}
+
+/* All Maps: zoom percentage label matches Step 2 placement */
+#pageAllMaps .allMapsZoom {
+  position: fixed;
+  left: 235px;
+  top: auto;
+  bottom: 30px;
+  z-index: 2000;
+  font-size: 16px;
+  white-space: nowrap;
+
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  pointer-events: none;
+}
+
+/* All Maps: show/hide map button matches Step 2 placement */
+#pageAllMaps #allMapsHideMapBtn {
+  position: fixed;
+  left: 42px;
+  right: auto;
+  top: auto;
+  bottom: 36px;
+  z-index: 2000;
+
+  display: inline-block;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
+  text-transform: lowercase !important;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+  text-decoration: underline;
+  text-decoration-thickness: 0.75px;
+  text-underline-offset: 1px;
+}
+
+#pageAllMaps #allMapsHideMapBtn:hover:not(:disabled) {
+  color: #000000;
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+}
+
+#pageAllMaps .allMapsList {
+  margin: 40px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+
+  /* After ~32 maps, keep the list height fixed and reveal the rest by scrolling
+     (same behavior as the Step 1 address list). */
+  max-height: min(680px, calc(100vh - 198px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  /* Scrollable without showing a scrollbar (still scrolls via trackpad/mouse wheel). */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+
+/* WebKit scrollbar hiding (Chrome/Safari). */
+#pageAllMaps .allMapsList::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+#pageAllMaps .allMapsListItem {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+#pageAllMaps .allMapsListName {
+  display: inline-block;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
+  text-transform: none !important;
+  text-decoration: underline;
+  text-decoration-thickness: 0.75px;
+  text-underline-offset: 1px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+  cursor: pointer;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+  direction: ltr;
+}
+
+#pageAllMaps .allMapsListName:hover:not(:disabled) {
+  color: #000000;
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+}
+
+#pageAllMaps .allMapsListName .step2SignatureMain {
+  display: inline-flex;
+  align-items: baseline;
+  text-transform: none !important;
+}
+
+#pageAllMaps .allMapsListName .step2SignatureCount {
+  margin-left: 13px;
+  text-transform: none !important;
+}
+
+#pageAllMaps .allMapsListName.isHidden {
+  color: #a0a0a0;
+}
+
+#pageAllMaps .allMapsListName.isHighlighted {
+  color: #000000;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+}
+
+#pageAllMaps .allMapsListName.isHighlighted:hover:not(:disabled) {
+  color: #000000;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+}
+
+#pageAllMaps .allMapsListName.isDimmed {
+  color: #c9c8c1;
+}
+
+.lifepathAllMapsTooltip {
+  font-size: 12px;
+  line-height: 14px;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 40px;
+  margin-top: 30px;
+  align-items: start;
+}
+
+.lifeForm {
+  display: grid;
+  gap: 22px;
+}
+
+.rowLine {
+  display: grid;
+}
+
+.lineField {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.label {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.lineInput {
+  width: 100%;
+  border: 0;
+  border-bottom: 0.3px solid #000000;
+  border-radius: 0;
+  padding: 6px 0;
+  font-size: 18px;
+  background: transparent;
+  color: inherit;
+  outline: none;
+}
+
+.lineInput:focus {
+  outline: none;
+}
+
+.instructions {
+  margin: 0;
+  font-size: 16px;
+  max-width: 520px;
+}
+
+.sectionTitle {
+  margin: 10px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.formGrid {
+  display: grid;
+  gap: 14px;
+  max-width: 520px;
+}
+
+.belongingBlock {
+  display: grid;
+  gap: 10px;
+  max-width: 520px;
+}
+
+.belongingRow {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.rangeWrap {
+  display: grid;
+  gap: 6px;
+}
+
+input[type="range"] {
+  width: 100%;
+}
+
+.rangeLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 16px;
+}
+
+.bottomBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.textLink {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-family: "80-kb-SharpBold", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: var(--lifepath-map-button-font-size);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+.textLink:hover:not(:disabled),
+.linkButton:hover:not(:disabled),
+input[type="button"]:hover:not(:disabled),
+input[type="submit"]:hover:not(:disabled),
+input[type="reset"]:hover:not(:disabled) {
+  color: #ff4800;
+}
+
+.linkButton:hover:not(:disabled) {
+  border-color: #ff4800;
+}
+
+.textLink:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.linkButton {
+  border: 1px solid #000000;
+  background: transparent;
+  color: inherit;
+  padding: 10px 16px;
+  font-size: var(--lifepath-map-button-font-size);
+  cursor: pointer;
+}
+
+.listSection {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.plainList {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.status {
+  font-size: 16px;
+}
+
+.stepSummary {
+  font-size: 18px;
+  white-space: pre-line;
+  text-align: left;
+  max-width: 360px;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.mapWrap {
+  margin-top: 24px;
+}
+
+/* Keep Leaflet map sizing */
+.map {
+  width: 100%;
+  height: 520px;
+  border: 1px solid #000000;
+}
+
+@media (max-width: 900px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Pixel-aligned layout targets for 1920x1080 */
+@media (min-width: 1920px) and (min-height: 1080px) {
+  .app {
+    max-width: 1920px;
+    padding: 0;
+    margin: 0;
+  }
+
+  #pageStep1 {
+    min-height: 1080px;
+  }
+
+  #pageStep1 .content {
+    margin: 0;
+    padding-left: 193px;
+    padding-top: 174px;
+    gap: 60px;
+  }
+
+  #pageStep1 .lifeForm {
+    width: 718px;
+    min-height: 813px;
+  }
+
+  #pageStep1 .lineField {
+    grid-template-columns: 140px 285px;
+  }
+
+  #pageStep1 .lineInput {
+    width: 285px;
+    max-width: 285px;
+    border-bottom-width: 1px;
+    border-bottom-color: #000000;
+  }
+}
+
+/* Legacy styles below (kept to minimize diff). */
+.pill.unverified {
+  color: #4b5563;
+}
+
+.fileInput {
+  display: none;
+}
+
+.meta {
+  color: #6b7280;
+  font-size: 12px;
+
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.status {
+  margin-top: 10px;
+  color: #374151;
+  font-size: 13px;
+  min-height: 18px;
+}
+
+.map {
+  height: 520px;
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f4f2ea;
+  position: relative;
+}
+
+.splashCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 450; /* above tiles/vectors, below controls */
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Leaflet tweaks: keep it clean (vector-only canvas) */
+#map:not(.geo-on) .leaflet-control-attribution {
+  display: none;
+}
+
+#pageStep2 #map .leaflet-tile-pane {
+  transition: filter 160ms ease;
+}
+
+/* Basemap style: black & white (high contrast) for tiles only. */
+#map.basemap-bw .leaflet-tile-pane,
+#allMapsMap.basemap-bw .leaflet-tile-pane,
+#step1GeoMap.basemap-bw .leaflet-tile-pane {
+  /* High-contrast B/W for tiles only (aim for crisp black on white) */
+  filter: grayscale(1) contrast(14) brightness(0.96);
+}
+
+/* Basemap style: dark map label clarity (tiles only). */
+#map.basemap-dark .leaflet-tile-pane,
+#allMapsMap.basemap-dark .leaflet-tile-pane,
+#step1GeoMap.basemap-dark .leaflet-tile-pane {
+  /* Boost tile contrast so city/street names read clearly on dark tiles. */
+  filter: brightness(2.35) contrast(1.12) saturate(1.05);
+}
+
+#pageStep2.step2GeoHoverDimming #map .leaflet-tile-pane {
+  filter: brightness(0.88);
+}
+
+#pageStep2.step2GeoHoverDimming #map.basemap-bw .leaflet-tile-pane {
+  filter: grayscale(1) contrast(14) brightness(0.84);
+}
+
+#pageStep2.step2GeoHoverDimming #map.basemap-dark .leaflet-tile-pane {
+  filter: brightness(2.05) contrast(1.12) saturate(1.05);
+}
+
+/* Remove Leaflet +/- zoom UI (we don't want the + button visible). */
+#pageStep2 #map .leaflet-control-zoom {
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  .form .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panelHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (min-width: 980px) {
+  /* Do not constrain the whole app; Step 2 map should be full-screen. */
+  .app {
+    max-width: none;
+  }
+
+  /* Keep Welcome page readable on wide screens. */
+  #pageWelcome {
+    max-width: 1120px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .frame {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .map {
+    height: 640px;
+  }
+}
+
+/* Ensure Step 2 map is truly full-bleed (no rounded frame/border). */
+#pageStep2 #map.map {
+  border: 0 !important;
+  border-radius: 0 !important;
+  height: 100% !important;
+}
+
+/* Step 2: signature label */
+/* Position matches Step 1's name display (.step1TopProgress: fixed,
+   horizontally centered, top:34px) — the name shouldn't visibly jump when
+   navigating between pages. */
+#pageStep2 .step2Signature {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  top: 34px;
+  bottom: auto;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 2000;
+  font-size: 14px;
+  white-space: nowrap;
+
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+  text-transform: none;
+
+  pointer-events: none;
+}
+
+#pageStep2 .step2SignatureMain {
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+}
+
+#pageStep2 .step2SignatureCount {
+  font-size: 14px;
+  margin-left: 40px;
+}
+
+#pageStep2 .step2SignatureAverage {
+  margin-top: 2px;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+}
+
+#pageStep2 .step2Coordinates {
+  position: fixed;
+  left: 42px;
+  right: auto;
+  top: 127px;
+  bottom: auto;
+  z-index: 2000;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Dark map UI: bottom labels become white. */
+#pageStep2.dark-map-ui .step2Signature,
+#pageStep2.dark-map-ui .step2Coordinates,
+#pageStep2.dark-map-ui .step2Zoom {
+  color: #f2f0e8;
+}
+
+#pageAllMaps.dark-map-ui .allMapsCount,
+#pageAllMaps.dark-map-ui .allMapsZoom {
+  color: #ffffff;
+}
+
+/* All Maps: when the map is displayed (dark basemap), make UI text white. */
+#pageAllMaps.dark-map-ui .brand,
+#pageAllMaps.dark-map-ui .closeToHomeBtn,
+#pageAllMaps.dark-map-ui .allMapsListName,
+#pageAllMaps.dark-map-ui .allMapsListToggle {
+  color: #ffffff;
+}
+
+/* Preserve list semantic colors even in dark-map-ui. */
+#pageAllMaps.dark-map-ui .allMapsListName.isHidden {
+  color: #a0a0a0;
+}
+
+#pageAllMaps.dark-map-ui .allMapsListName.isHighlighted {
+  color: #000000;
+}
+
+#pageAllMaps.dark-map-ui .allMapsListName.isDimmed {
+  color: #c9c8c1;
+}
+
+#pageAllMaps.dark-map-ui .closeToHomeBtn:hover:not(:disabled),
+#pageAllMaps.dark-map-ui .allMapsListToggle:hover:not(:disabled),
+#pageAllMaps.dark-map-ui .allMapsListName:hover:not(:disabled):not(.isHidden) {
+  color: #000000;
+}
+
+/* Step 2: zoom percentage label (x=252, y=1050) */
+#pageStep2 .step2Zoom {
+  position: fixed;
+  left: 235px;
+  top: auto;
+  bottom: 30px;
+  z-index: 2000;
+  font-size: 16px;
+  white-space: nowrap;
+
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+
+  pointer-events: none;
+}
+
+/* Step 2: Edit + Show/Hide Map buttons (bottom-left, side-by-side) */
+#pageStep2 .step2BottomActions {
+  position: fixed;
+  left: auto;
+  right: 37px;
+  top: auto;
+  bottom: 35px;
+  z-index: 2000;
+
+  display: flex;
+  gap: 21px;
+  align-items: baseline;
+}
+
+#pageStep2 .step2BottomActions .textLink {
+  display: inline-block;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
+  text-transform: lowercase !important;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+  text-decoration: underline;
+  text-decoration-thickness: 0.75px;
+  text-underline-offset: 1px;
+}
+
+/* Step 2: keep header actions consistent (Edit + Save). */
+#pageStep2 .step2Actions {
+  display: flex;
+  gap: 18px;
+  align-items: baseline;
+  margin-left: auto;
+}
+
+#pageStep2 .step2Actions .textLink {
+  display: inline-block;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
+  text-transform: lowercase !important;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+  text-decoration: underline;
+}
+
+#pageStep2 .step2BottomActions .textLink:hover:not(:disabled),
+#pageStep2 .closeToHomeBtn:hover:not(:disabled) {
+  color: #000000;
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+}
+
+#pageStep2 .closeToHomeBtn {
+  position: fixed;
+  right: 40px;
+  top: 36px;
+  z-index: 2000;
+  font-size: 14.5px;
+}
+
+/* Step 2: reduce specific action button sizes by 2pt. */
+#pageStep2 #hideMapBtn,
+#pageStep2 #backToStep1Btn {
+  font-size: 14.5px;
+}
+
+#pageStep2 #backToStep1Btn {
+  position: fixed;
+  left: 42px;
+  top: auto;
+  bottom: 60px;
+  z-index: 2000;
+}
+
+#pageStep2 #hideMapBtn {
+  position: fixed;
+  left: 42px;
+  top: auto;
+  bottom: 36px;
+  z-index: 2000;
+}
+
+#pageStep2 #printPostcardBtn {
+  position: fixed;
+  left: 213px;
+  top: auto;
+  bottom: 36px;
+  z-index: 2000;
+}
+
+/* Dark map UI:
+   - Keep top buttons black (Edit/Save + All Maps Edit)
+   - Keep the bottom "Show/Hide map" control readable on dark tiles
+*/
+#pageAllMaps.dark-map-ui #allMapsEditBtn {
+  color: #000000;
+}
+
+/* Step 2: when the map is displayed, turn logo + Edit white. */
+#pageStep2.map-visible .brand,
+#pageStep2.map-visible .closeToHomeBtn {
+  color: #f2f0e8;
+}
+
+#pageStep2.map-visible .closeToHomeBtn:hover:not(:disabled) {
+  color: #f2f0e8;
+}
+#pageStep2.map-visible #backToStep1Btn {
+  color: #f2f0e8;
+}
+
+#pageStep2.map-visible #backToStep1Btn:hover:not(:disabled) {
+  color: #f2f0e8;
+}
+
+/* Step 2: when the map is displayed, turn Print white. */
+#pageStep2.map-visible #printPostcardBtn {
+  color: #f2f0e8;
+}
+
+#pageStep2.map-visible #printPostcardBtn:hover:not(:disabled) {
+  color: #f2f0e8;
+}
+
+#pageStep2.dark-map-ui #hideMapBtn {
+  color: #f2f0e8;
+}
+
+#pageAllMaps.dark-map-ui #allMapsHideMapBtn {
+  color: #f2f0e8;
+}
+
+#pageAllMaps.dark-map-ui #allMapsHideMapBtn:hover:not(:disabled) {
+  color: #f2f0e8;
+}
+
+#pageStep2.dark-map-ui #hideMapBtn:hover:not(:disabled) {
+  color: #f2f0e8;
+}
+
+#pageStep2 #printPostcardBtn:hover:not(:disabled),
+#pageStep2 .step2Actions .closeToHomeBtn:hover:not(:disabled) {
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+}
+
+/* Step 2: basemap style select should look like the other text actions. */
+#pageStep2 .step2Actions select.textLink {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+#pageStep2 .step2Actions select.textLink::-ms-expand {
+  display: none;
+}
+
+/* -----------------------------
+   Step 1: Figma-exported layout
+   ----------------------------- */
+#pageStep1 {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#pageStep1 .frame {
+  background-color: #f4f2ea;
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  display: block;
+  transform: scale(var(--step1-scale, 1));
+  transform-origin: top left;
+
+  /* Step 1 typography rule:
+     default = 80-kb-sharp (regular), except specific fields below. */
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+}
+
+#pageStep1,
+#pageStep1 .frame,
+#pageStep1 input,
+#pageStep1 textarea,
+#pageStep1 select,
+#pageStep1 .text-wrapper-2,
+#pageStep1 .text-wrapper-3,
+#pageStep1 .text-wrapper-4,
+#pageStep1 .text-wrapper-5,
+#pageStep1 .text-wrapper-8,
+#pageStep1 .enter-all-the-homes,
+#pageStep1 .rate-your-sense-of,
+#pageStep1 .stepSummary,
+#pageStep1 .plainList,
+#pageStep1 .status,
+#pageStep1 .address-status {
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif !important;
+  font-weight: 400;
+}
+
+#pageStep1 #homeNumberTitle,
+#pageStep1 .text-wrapper-6,
+#pageStep1 .step1ListHome {
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif !important;
+  font-weight: 700;
+}
+
+/* Step 1: these specific items must be 80-kb-sharpbold. #addBtn/#createLifePathBtn
+   are buttons, so their font now comes from the global button rule instead. */
+#pageStep1 .text-wrapper-2,
+#pageStep1 #homeNumberTitle,
+#pageStep1 .text-wrapper-3,
+#pageStep1 .text-wrapper-6,
+#pageStep1 .step1ListHome {
+  font-family: "80-kb-SharpBold", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 700;
+}
+
+/* #addBtn/#createLifePathBtn also carry .text-wrapper-6 (shared with the
+   non-button labels above), whose !important font-family — and the
+   NarkissYair-Bold-TRIAL !important rule further up — would otherwise win
+   over the global button rule by specificity (ID+class beats a bare
+   `button` selector). This wins by being more specific still (ID+ID). */
+#pageStep1 #addBtn,
+#pageStep1 #createLifePathBtn {
+  font-family: "AlfaBravo-Normal", "80-kb-SharpBold", "80kb Sharp", Helvetica, sans-serif !important;
+}
+
+/* Step 1: listed addresses + belonging must be regular 80-kb-sharp */
+#pageStep1 .step1ListAddress,
+#pageStep1 .step1ListBelonging {
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+}
+
+#pageStep1 .life-path {
+  display: none;
+}
+
+#pageStep1 img.life-path.appLogoImage {
+  display: block;
+  position: absolute;
+  top: 34px;
+  left: 40px;
+  width: 96px;
+  z-index: 20;
+}
+
+/* Mirrors the logo's top-left placement, top-right instead. Which buttons
+   show depends only on step1-finished-state: "go back" + "start over" before
+   finish, "edit" + "share" + "print" + "start over" after. Hidden entirely
+   on the intro (name + home count) screen, before any phase class exists. */
+#pageStep1 .step1TopActions {
+  position: absolute;
+  top: 34px;
+  right: 40px;
+  z-index: 20;
+  display: none;
+  align-items: center;
+  gap: 32px;
+}
+
+#pageStep1.step1-address-phase .step1TopActions,
+#pageStep1.step1-belonging-phase .step1TopActions,
+#pageStep1.step1-summary-phase .step1TopActions,
+#pageStep1.step1-finished-state .step1TopActions {
+  display: flex;
+}
+
+#pageStep1 .step1TopActionBtn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: #000000;
+  text-decoration: none;
+  white-space: nowrap;
+  text-transform: lowercase;
+}
+
+/* Pulled out of the row's flex flow onto its own line, right-aligned to the
+   container's own right edge (same fixed 40px page margin as the row
+   above it) — keeps its own margin constant regardless of which buttons are
+   in the row above. */
+#pageStep1 #step1StartOverBtn {
+  position: absolute;
+  top: 26px;
+  right: 0;
+}
+
+#pageStep1 .step1TopActionBtn:hover {
+  color: #602000;
+}
+
+#pageStep1 .step1FinishedOnlyBtn {
+  display: none;
+}
+
+#pageStep1.step1-finished-state .step1FinishedOnlyBtn {
+  display: inline-block;
+}
+
+#pageStep1.step1-finished-state .step1PreFinishOnlyBtn {
+  display: none;
+}
+
+#pageStep1 .step1TopProgress {
+  display: none;
+  position: absolute;
+  top: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 21;
+  width: 560px;
+  text-align: center;
+  color: #000000;
+  pointer-events: none;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
+  font-weight: 400;
+  line-height: 1.1;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+#pageStep1.step1-address-phase .step1TopProgress,
+#pageStep1.step1-belonging-phase .step1TopProgress,
+#pageStep1.step1-summary-phase .step1TopProgress {
+  display: block;
+}
+
+#pageStep1 .step1TopProgressSummary {
+  font-size: 18px;
+  unicode-bidi: plaintext;
+}
+
+#pageStep1 .step1TopProgressName,
+#pageStep1 .step1TopProgressHomes {
+  display: inline-block;
+}
+
+#pageStep1 .step1TopProgressEdit {
+  display: inline-block;
+  margin-left: 8px;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-weight: 400;
+}
+
+#pageStep1 .step1TopProgressCounter {
+  display: none;
+}
+
+#pageStep1.step1-summary-phase .step1TopProgressHomes,
+#pageStep1.step1-summary-phase .step1TopProgressEdit,
+#pageStep1.step1-finished-state .step1TopProgressHomes,
+#pageStep1.step1-finished-state .step1TopProgressEdit {
+  display: none !important;
+}
+
+#pageStep1 .step1LogoIntro {
+  display: none;
+  position: absolute;
+  top: 131px;
+  left: 40px;
+  z-index: 20;
+  color: #000000;
+  text-align: left;
+  pointer-events: none;
+}
+
+#pageStep1.step1-address-phase .step1LogoIntro,
+#pageStep1.step1-belonging-phase .step1LogoIntro {
+  display: block;
+}
+
+#pageStep1 .step1LogoIntroTitle {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.2;
+  text-transform: none;
+}
+
+#pageStep1 .step1LogoIntroSubtitle {
+  margin-top: 8px;
+  position: relative;
+  top: -8px;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.25;
+  text-transform: none;
+  max-width: none;
+  white-space: nowrap;
+}
+
+/* Removed: dark left-side overlay was covering the data-entry area. */
+#pageStep1 .step1LeftOverlay {
+  display: none;
+}
+
+#pageStep1.step1-address-phase .step1LeftOverlay,
+#pageStep1.step1-belonging-phase .step1LeftOverlay,
+#pageStep1.step1-summary-phase .step1LeftOverlay {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Ensure form sits above other layers */
+#pageStep1 .div {
+  z-index: 3;
+}
+
+/* Step 1 heading: centered in the left (data-entry) area, at the Full name height. */
+#pageStep1 .createYourMapTitle {
+  position: absolute;
+  left: 0;
+  width: 614px; /* left part, up to the vertical divider */
+  top: 128px;
+  margin: 0;
+  text-align: center;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  color: #000000;
+  z-index: 4;
+  pointer-events: none;
+}
+
+#pageStep1 .createYourMapTitle::first-letter {
+  text-transform: uppercase;
+}
+
+/* "your map is complete" heading: same spot as CREATE YOUR MAP, shown only
+   once Step 1 is finished (and hidden again if the user re-enters edit mode,
+   since the address form reclaims that space then). */
+#pageStep1 .step1MapCompleteTitle {
+  display: none;
+  position: absolute;
+  left: 40px;
+  width: 460px;
+  top: 128px;
+  margin: 0;
+  text-align: left;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  color: #000000;
+  z-index: 4;
+  pointer-events: none;
+}
+
+#pageStep1 .step1MapCompleteTitle::first-letter {
+  text-transform: uppercase;
+}
+
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1MapCompleteTitle {
+  display: block;
+}
+
+/* EMOTION MAP title: centered in the left area below the horizontal white line. */
+#pageStep1 .step1EmotionMapTitle {
+  position: absolute;
+  left: 560px;
+  width: 460px;
+  top: 325px;
+  margin: 0;
+  padding-left: 30px;
+  text-align: left;
+  text-transform: lowercase;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0;
+  color: #000000;
+  z-index: 4;
+  pointer-events: none;
+}
+
+#pageStep1 .step1EmotionMapTitle::first-letter,
+#pageStep1 .step1MovementMapTitle::first-letter {
+  text-transform: uppercase;
+}
+
+/* MOVEMENT MAP title: centered over the geographic map, at the same height
+   as the CREATE YOUR MAP heading. */
+#pageStep1 .step1MovementMapTitle {
+  position: absolute;
+  left: 67px;
+  width: 518px;
+  top: 325px;
+  margin: 0;
+  text-align: left;
+  text-transform: lowercase;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0;
+  color: #f3f1e6;
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* --- Intro phase (entry screen): only name + homes count visible.
+   Hide maps, titles, and previews until the user clicks NEXT.
+   Center the form on the full screen. */
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .createYourMapTitle {
+  left: 40px;
+  width: 460px;
+  text-align: left;
+}
+
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .div {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1NextBtn {
+  left: 50%;
+  /* Bottom edge flush with the homes-count field's underline. */
+  top: 614px;
+  transform: translateX(248px);
+}
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1-right,
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1MovementMapTitle,
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1MovementMapTitleCenter,
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1EmotionMapTitle,
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1EmotionMap,
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1RoutePreview,
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1HomesList,
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1HomesListTitle,
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1PanelStat,
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1RingReading,
+#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1TimeBelonging {
+  display: none !important;
+}
+
+/* Step 1 phases: the intro (name + homes count) is shown first; the address
+   section is revealed after clicking NEXT. */
+#pageStep1 .div-3 > .div-2 {
+  display: none !important;
+}
+
+#pageStep1.step1-address-phase .div-3 > .div-2 {
+  display: block !important;
+  position: relative;
+  animation: step1FadeIn 0.4s ease-out both;
+}
+
+/* Hide intro fields and title once we're in address, belonging, or summary phase */
+#pageStep1.step1-address-phase .createYourMapTitle,
+#pageStep1.step1-address-phase .group,
+#pageStep1.step1-address-phase .homesCountGroup,
+#pageStep1.step1-address-phase .step1NextBtn,
+#pageStep1.step1-belonging-phase .group,
+#pageStep1.step1-belonging-phase .homesCountGroup,
+#pageStep1.step1-belonging-phase .step1NextBtn,
+#pageStep1.step1-summary-phase .group,
+#pageStep1.step1-summary-phase .homesCountGroup,
+#pageStep1.step1-summary-phase .step1NextBtn {
+  display: none !important;
+}
+
+/* --- Summary phase (screen 4): list of all homes --- */
+
+#pageStep1 .step1Summary {
+  display: none;
+}
+
+
+/* Pre-entry: title and name in black (on faded map). */
+#pageStep1.map-colors-dark .step1MovementMapTitle {
+  color: #f3f1e6;
+  transition: color 1.5s ease;
+}
+
+#pageStep1.map-colors-dark .step1GeoMapName {
+  color: #000000 !important;
+  transition: color 1.5s ease;
+}
+
+/* Post-entry: title and name match the background (on full map). */
+#pageStep1:not(.map-colors-dark) .step1MovementMapTitle {
+  transition: color 1.5s ease;
+}
+
+#pageStep1:not(.map-colors-dark) .step1GeoMapName {
+  transition: color 1.5s ease;
+}
+
+
+/* Summary phase: same 20% as during data entry. */
+#pageStep1.step1-summary-phase .step1GeoMap .leaflet-tile-pane {
+  opacity: 0.2;
+}
+
+#pageStep1.step1-summary-phase .step1MovementMapTitle {
+  color: #f3f1e6 !important;
+  transition: color 1.5s ease;
+}
+
+#pageStep1.step1-summary-phase .step1GeoMapName {
+  color: #000000 !important;
+  transition: color 1.5s ease;
+}
+
+#pageStep1.step1-summary-phase .step1Summary {
+  display: block;
+  animation: step1FadeIn 0.5s ease-out both;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 819px;
+  height: 607px;
+  padding: 170px 50px 50px;
+  box-sizing: border-box;
+  background: #f4f2ea;
+  max-height: none;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#pageStep1.step1-summary-phase .step1Summary::-webkit-scrollbar {
+  display: none;
+}
+
+#pageStep1.step1-summary-phase .div-3 > .div-2,
+#pageStep1.step1-summary-phase .rate-your-sense-of,
+#pageStep1.step1-summary-phase .group-3,
+#pageStep1.step1-summary-phase .step1AddrNavBtn,
+#pageStep1.step1-summary-phase .step1BelongNavBtn {
+  display: none !important;
+}
+
+/* step1-edit-mode (armed by openStep1HomeEditMode() when a ring/address is
+   clicked after finishing, via the "edit" top-action button) exempts these
+   so the address form reappears for editing instead of staying suppressed. */
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .div-3 > .div-2,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .rate-your-sense-of,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .group-3,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1AddrNavBtn,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1BelongNavBtn,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .addHomeBtn {
+  display: none !important;
+}
+
+#pageStep1.step1-summary-phase .div,
+#pageStep1.step1-summary-phase .createYourMapTitle,
+#pageStep1.step1-summary-phase .step1LogoIntro,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .div,
+#pageStep1.step1-finished-state .createYourMapTitle,
+#pageStep1.step1-finished-state .step1LogoIntro {
+  display: none !important;
+}
+
+
+#pageStep1 .step1Summary .summaryTitle {
+  display: none;
+}
+
+/* Summary phase EDIT button — same position as NEXT */
+#pageStep1 .step1SummaryNavBtn {
+  display: none;
+  position: absolute;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-weight: 400;
+  color: #000000;
+  text-decoration: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+#pageStep1.step1-summary-phase .step1SummaryNavBtn {
+  display: block;
+  animation: step1FadeIn 0.4s ease-out 0.2s both;
+}
+
+#pageStep1 #step1SummaryEditBtn {
+  top: 180px;
+  left: 560px;
+}
+
+#pageStep1 .step1Summary .summaryItem {
+  margin-bottom: 18px;
+  text-transform: lowercase;
+}
+
+#pageStep1 .step1Summary .summaryHomeLabel {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-size: 18px;
+  color: #000000;
+  line-height: 1.4;
+}
+
+#pageStep1 .step1Summary .summaryAddress {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 18px;
+  color: #000000;
+  line-height: 1.4;
+}
+
+/* Address phase navigation buttons (BACK / NEXT).
+   Direct children of .frame, only visible in address phase. */
+#pageStep1 .step1AddrNavBtn {
+  display: none;
+  position: absolute;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-weight: 400;
+  color: #000000;
+  text-decoration: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+#pageStep1.step1-address-phase .step1AddrNavBtn {
+  display: none !important;
+}
+
+/* BACK: left-aligned with form text */
+#pageStep1 #step1AddrBackBtn {
+  top: 180px;
+  left: 50px;
+}
+
+/* NEXT: same x as the intro NEXT button. Inactive (gray) until all fields filled. */
+#pageStep1 #step1AddrNextBtn {
+  top: 180px;
+  left: 560px;
+  color: #c9c8c1;
+  pointer-events: none;
+}
+
+#pageStep1 #step1AddrNextBtn.active {
+  color: #000000;
+  pointer-events: auto;
+}
+
+/* MOVEMENT MAP centered title — spans full screen width */
+#pageStep1 .step1MovementMapTitleCenter {
+  position: absolute;
+  left: 1050px;
+  width: 460px;
+  top: 325px;
+  margin: 0;
+  padding-left: 30px;
+  text-align: left;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0;
+  color: #000000;
+  z-index: 4;
+  pointer-events: none;
+  text-transform: lowercase;
+}
+
+#pageStep1 .step1MovementMapTitleCenter::first-letter {
+  text-transform: uppercase;
+}
+
+/* Route preview: third panel from left */
+#pageStep1 .step1RoutePreview {
+  position: absolute;
+  left: 1050px;
+  top: 305px;
+  width: 460px;
+  height: 790px;
+  border-left: none;
+  z-index: 3;
+  pointer-events: auto;
+  background: transparent;
+  overflow: visible;
+}
+
+#pageStep1 .step1RoutePreview::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 20px;
+  width: 0.1px;
+  height: calc(100% - 20px);
+  background: #000000;
+  opacity: 0.65;
+  z-index: 5;
+}
+
+#pageStep1 .step1FullscreenBtn {
+  position: absolute;
+  z-index: 12;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-weight: 400;
+  line-height: normal;
+  color: #000000;
+  text-decoration: none;
+  text-transform: lowercase;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.45s ease, visibility 0s linear 0.45s;
+}
+
+#pageStep1.step1-summary-phase .step1FullscreenBtn,
+#pageStep1.step1-finished-state .step1FullscreenBtn {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.45s ease;
+}
+
+/* Both fullscreen links sit just below their section's title. */
+#pageStep1 .step1EmotionFullscreenBtn {
+  left: 590px;
+  top: 360px;
+}
+
+#pageStep1 .step1RouteFullscreenBtn {
+  left: 1080px;
+  top: 360px;
+}
+
+#pageStep1 .step1FullscreenBtn:hover {
+  color: #8e3300;
+}
+
+#pageStep1 .step1EmotionMap:fullscreen,
+#pageStep1 .step1RoutePreview:fullscreen,
+#pageStep1 .step1EmotionMap:-webkit-full-screen,
+#pageStep1 .step1RoutePreview:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  background: #f4f2ea;
+  overflow: hidden;
+}
+
+#pageStep1 .step1EmotionMap:fullscreen .step1EmotionSvg,
+#pageStep1 .step1EmotionMap:-webkit-full-screen .step1EmotionSvg {
+  top: 0;
+}
+
+/* Emotion map full screen page (opened from Step 1's "full screen" link) */
+#pageStep1EmotionFullscreen {
+  position: relative;
+  padding: 0;
+  height: 100vh;
+  background: #f4f2ea;
+  display: flex;
+  flex-direction: column;
+}
+
+#pageStep1EmotionFullscreen .topbar {
+  padding: 36px 40px 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2000;
+  justify-content: flex-end;
+}
+
+/* Name badge, matching the finished-state name display at the top of Step 1
+   (same font-size formula as Step 1's, which shrinks with --step1-scale on
+   smaller viewports — a fixed px size here would look bigger than it did there). */
+#pageStep1EmotionFullscreen .step1EmotionFullscreenName {
+  position: absolute;
+  top: calc(34px * var(--step1-scale, 1));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2001;
+  color: #000000;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: calc(18px * var(--step1-scale, 1));
+  line-height: 1.1;
+  text-transform: lowercase;
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+  pointer-events: none;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenName:empty {
+  display: none;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenBackBtn {
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
+  text-transform: lowercase !important;
+  text-decoration: underline;
+  text-decoration-thickness: 0.75px;
+  text-underline-offset: 1px;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenBackBtn:hover:not(:disabled) {
+  color: #000000;
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenWrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenSvg {
+  width: 100%;
+  height: 100%;
+  max-width: 1200px;
+  max-height: 1200px;
+  overflow: visible;
+}
+
+/* Softens the black/gray swap on hover while rings are spread out (see
+   showStep1EmotionFullscreenSpreadHoverLabel()), instead of an instant cut. */
+#pageStep1EmotionFullscreen .step1EmotionFullscreenSvg [data-emotion-ring="1"] {
+  transition: stroke 260ms ease;
+}
+
+/* Ring reading section — below the emotion map horizontal line */
+#pageStep1 .step1RingReading {
+  position: absolute;
+  left: 560px;
+  top: calc(285px + 810px * 0.60 + 30px);
+  width: 460px;
+  height: calc(810px * 0.40 - 30px);
+  z-index: 4;
+  pointer-events: auto;
+  overflow: visible;
+  padding-left: 30px;
+  box-sizing: border-box;
+}
+
+#pageStep1 .step1RingReadingTitle {
+  margin: 7px 0 10px 0;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-size: 18px;
+  color: #000000;
+  text-transform: lowercase;
+}
+
+#pageStep1 .step1RingReadingTitle::first-letter {
+  text-transform: uppercase;
+}
+
+#pageStep1 .step1RingReadingContent {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 230px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  padding-bottom: 28px;
+  padding-top: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+
+#pageStep1 .step1RingReadingContent::-webkit-scrollbar {
+  height: 4px;
+}
+
+#pageStep1 .step1RingReadingContent::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 2px;
+}
+
+#pageStep1 .step1RingReadingContent::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+#pageStep1 .step1RingReadingContent {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.03);
+}
+
+#pageStep1 .step1RingReadingContent svg {
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+#pageStep1 .step1RingReadingContent path[data-step1-ring-reading-path="1"] {
+  transition: stroke 180ms ease-out;
+}
+
+/* Time & Belonging section — below the movement map horizontal line */
+#pageStep1 .step1TimeBelonging {
+  position: absolute;
+  left: 1050px;
+  top: calc(285px + 810px * 0.60 + 30px);
+  width: 460px;
+  height: calc(810px * 0.40 - 30px);
+  z-index: 4;
+  pointer-events: none;
+  overflow: visible;
+  padding-left: 30px;
+  box-sizing: border-box;
+}
+
+#pageStep1 .step1TimeBelongingTitle {
+  margin: 7px 0 10px 0;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-size: 18px;
+  color: #000000;
+  text-transform: none;
+}
+
+#pageStep1 .step1TimeBelongingChart {
+  width: 100%;
+  overflow: visible;
+  text-transform: none;
+}
+
+/* Panel stats (below titles) */
+#pageStep1 .step1PanelStat {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 17px;
+  color: #000000;
+  text-transform: lowercase;
+  letter-spacing: 0.5px;
+  white-space: pre;
+  transition: color 0.4s ease;
+}
+
+/* The value half of a panel stat (e.g. "442 km", "6") — a different, more
+   pronounced font than the label it follows. */
+#pageStep1 .step1PanelStatValue {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+}
+
+#pageStep1 .step1JourneyDistance {
+  left: 40px;
+  top: 206px;
+  display: none;
+}
+
+#pageStep1 .step1AvgBelonging {
+  left: 40px;
+  top: 232px;
+  display: none;
+}
+
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1JourneyDistance,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1AvgBelonging {
+  display: block;
+}
+
+/* Small headers above the journey/avg stats and the timeline. */
+#pageStep1 .step1SectionMiniLabel {
+  display: none;
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 17px;
+  color: #000000;
+  text-transform: lowercase;
+}
+
+#pageStep1 .step1HomeCountLabel {
+  left: 40px;
+  top: 178px;
+}
+
+/* Directly above the timeline — keep this left value in sync with it. */
+#pageStep1 .step1MoveFrequencyLabel {
+  left: 850px;
+  top: 206px;
+}
+
+#pageStep1 .step1MoveFrequencyLabel::first-letter {
+  text-transform: uppercase;
+}
+
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1SectionMiniLabel {
+  display: block;
+}
+
+/* Timeline: right edge fixed at the rightmost vertical divider line of the
+   finished layout (.step1HomesListTitle::before, x=1540); left edge extends
+   200px past the leftmost divider (.step1RoutePreview::before, x=1050).
+   Vertically aligned with the "avg belonging" row. */
+#pageStep1 .step1JourneyTimeline {
+  display: none;
+  position: absolute;
+  left: 850px;
+  top: 232px;
+  width: 690px;
+  height: 24px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1JourneyTimeline {
+  display: block;
+}
+
+#pageStep1 .step1JourneyTimeline svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  text-transform: none;
+}
+
+#pageStep1 .step1JourneyTimeline text {
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
+  font-size: 15px;
+  fill: #000000;
+}
+
+/* Homes list title */
+#pageStep1 .step1HomesListTitle {
+  position: absolute;
+  left: 1540px;
+  width: 460px;
+  top: 325px;
+  margin: 0;
+  padding-left: 30px;
+  text-align: left;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1;
+  color: #000000;
+  z-index: 4;
+  pointer-events: none;
+  text-transform: lowercase;
+}
+
+#pageStep1 .step1HomesListTitle::first-letter {
+  text-transform: uppercase;
+}
+
+/* Homes list: fourth panel from left */
+#pageStep1 .step1HomesList {
+  position: absolute;
+  left: 1540px;
+  top: 355px;
+  width: 460px;
+  height: 810px;
+  border-left: none;
+  z-index: 3;
+  overflow-y: auto;
+}
+
+#pageStep1 .step1HomesListTitle::before {
+  content: "";
+  position: fixed;
+  left: 1540px;
+  top: 322px;
+  width: 0.1px;
+  height: 788px;
+  background: #000000;
+  opacity: 0.65;
+  z-index: 5;
+  pointer-events: none;
+}
+
+#pageStep1 .step1HomesList::-webkit-scrollbar {
+  display: none;
+}
+
+#pageStep1 .step1HomesList .homesListItem {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 16px;
+  color: #000000;
+  line-height: 1.5;
+  text-transform: lowercase;
+  padding-left: 30px;
+  height: 120px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#pageStep1 .step1HomesList .homesListItem[data-home-idx] .homesListNum {
+  cursor: pointer;
+}
+
+#pageStep1 .step1HomesList .homesListItem.step1HomesListMuted .homesListNum,
+#pageStep1 .step1HomesList .homesListItem.step1HomesListMuted .homesListDetail {
+  color: #c3c1b7;
+}
+
+#pageStep1 .step1HomesList .homesListItem.step1HomesListFocused .homesListNum,
+#pageStep1 .step1HomesList .homesListItem.step1HomesListFocused .homesListDetail {
+  color: #000000;
+}
+
+#pageStep1 .step1HomesList .homesListNum {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-size: 16px;
+  color: #c3c1b7;
+  transition: color 0.4s ease;
+  line-height: 1.4;
+}
+
+#pageStep1 .step1HomesList .homesListNum.filled {
+  color: #000000;
+}
+
+#pageStep1 .step1HomesList .homesListDetail {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 16px;
+  color: #000000;
+  line-height: 1.4;
+  min-height: 1.4em;
+  transition: color 0.4s ease;
+}
+
+#pageStep1 .step1HomesList .homesListAddress {
+  margin-top: 1px;
+}
+
+#pageStep1 .step1HomesList .homesListBelonging {
+  margin-bottom: 8px;
+}
+
+/* Still hidden regardless of phase */
+#pageStep1 .rate-your-sense-of,
+#pageStep1 .group-3,
+#pageStep1 #addBtn,
+#pageStep1 #createLifePathBtn,
+#pageStep1 #status,
+#pageStep1 .enter-all-the-homes {
+  display: none !important;
+}
+
+/* --- Belonging phase (screen 3): question + slider --- */
+
+/* Hide address fields in belonging phase, but keep homeNumberTitle visible */
+#pageStep1.step1-belonging-phase .div-3 > .div-2 {
+  display: block !important;
+}
+
+#pageStep1.step1-belonging-phase .div-5,
+#pageStep1.step1-belonging-phase .enter-all-the-homes {
+  display: none !important;
+}
+
+#pageStep1.step1-belonging-phase .step1AddrNavBtn {
+  display: none !important;
+}
+
+/* Show the belonging question + slider */
+#pageStep1.step1-belonging-phase .rate-your-sense-of,
+#pageStep1.step1-belonging-phase .group-3 {
+  display: block !important;
+  animation: step1FadeIn 0.4s ease-out both;
+}
+
+/* "How connected did you feel to this home?" — centered below title */
+#pageStep1.step1-belonging-phase .rate-your-sense-of {
+  position: absolute;
+  left: -50px;
+  width: 614px;
+  text-align: center;
+  top: 142px;
+  margin: 0;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-weight: 400;
+  font-size: 18px;
+  text-transform: lowercase;
+}
+
+#pageStep1.step1-belonging-phase .rate-your-sense-of::first-letter {
+  text-transform: uppercase;
+}
+
+/* Slider centered in the left area */
+#pageStep1.step1-belonging-phase .group-3 {
+  position: absolute;
+  left: 157px;
+  top: 200px;
+  width: 400px;
+  margin: 0;
+}
+
+/* Hide belonging label text, keep 1 and 10 markers */
+#pageStep1.step1-belonging-phase .group-3 > .text-wrapper-2 {
+  display: none;
+}
+
+/* Reposition slider within the belonging phase */
+#pageStep1.step1-belonging-phase .figma-range {
+  left: 0;
+  width: 400px;
+}
+
+/* Hide the 1 and 10 endpoint markers */
+#pageStep1.step1-belonging-phase .text-wrapper-4,
+#pageStep1.step1-belonging-phase .text-wrapper-5 {
+  display: none !important;
+}
+
+/* Floating number above the slider thumb */
+#pageStep1.step1-belonging-phase .text-wrapper-8 {
+  display: block !important;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-size: 16px;
+  top: -14px;
+}
+
+/* Belonging phase navigation buttons */
+#pageStep1 .step1BelongNavBtn {
+  display: none;
+  position: absolute;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-weight: 400;
+  color: #000000;
+  text-decoration: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+#pageStep1.step1-belonging-phase .step1BelongNavBtn {
+  display: block;
+  animation: step1FadeIn 0.4s ease-out 0.15s both;
+}
+
+#pageStep1 #step1BelongBackBtn {
+  top: 180px;
+  left: 50px;
+}
+
+#pageStep1 #step1BelongNextBtn {
+  top: 180px;
+  left: 390px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#pageStep1 #step1BelongNextBtn.finishBtn {
+  left: 530px;
+}
+
+/* Decorative white horizontal line on the left side (the area without the map),
+   placed a bit below the vertical center of the screen. Stops at the vertical
+   divider so it never runs over the map. */
+#pageStep1 .frame::after {
+  display: none;
+}
+
+#pageStep1 .frame::before {
+  display: none;
+  pointer-events: none;
+  z-index: 1;
+}
+
+#pageStep1 .div {
+  display: flex;
+  flex-direction: column;
+  width: 1840px;
+  align-items: flex-start;
+  gap: 18px;
+  position: absolute;
+  top: 82px;
+  left: 40px;
+}
+
+#pageStep1 .div-2 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+#pageStep1 .div-3 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+#pageStep1 .group {
+  position: relative;
+  width: 448px;
+  height: 23px;
+  /* Vertically centers the name+homes-count block in the viewport (this and
+     .homesCountGroup's top below were both shifted by the same amount so
+     their relative spacing is unchanged). */
+  top: 353px;
+  align-self: center;
+}
+
+#pageStep1 .text-wrapper-2 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 18px;
+  letter-spacing: 0;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+/* Step 1: move only the 'Belonging' label (not the slider) */
+#pageStep1 .group-3 > .text-wrapper-2 {
+  top: 11px;
+}
+
+/* "your name" label uses Narkiss Block Light, lowercase except the first letter. */
+#pageStep1 .group > .text-wrapper-2 {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-weight: 400;
+  font-size: 20px;
+  text-transform: lowercase;
+  top: 7px;
+}
+
+#pageStep1 .group > .text-wrapper-2::first-letter {
+  text-transform: uppercase;
+}
+
+/* Replace Figma SVG lines with real inputs */
+#pageStep1 .figma-line-input {
+  position: absolute;
+  left: 156px;
+  top: 0;
+  width: 285px;
+  height: 22px;
+  box-sizing: border-box;
+  border: 0;
+  border-bottom: 0.1px solid rgba(0, 0, 0, 0.65);
+  border-radius: 0;
+  /* Keep typed text vertically centered within the 22px line. */
+  padding: 1px 0;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-weight: 400;
+  color: #000000;
+  font-size: 18px !important;
+  line-height: 20px;
+  text-transform: lowercase;
+  background: transparent;
+  outline: none;
+}
+
+#pageStep1.step1-edit-mode .div-5 .figma-line-input {
+  color: #c3c1b7;
+  caret-color: #000000;
+  transition: color 140ms ease-out;
+}
+
+#pageStep1.step1-edit-mode .div-5 .figma-line-input.step1EditFieldActive,
+#pageStep1.step1-edit-mode .div-5 .figma-line-input:focus {
+  color: #000000;
+}
+
+/* Step 1: Full name must type in English (LTR). */
+#pageStep1 #studentName.figma-line-input {
+  direction: ltr;
+  unicode-bidi: plaintext;
+  /* Line sits below the "Your name" label, left-aligned with it. */
+  left: 0;
+  top: 43px;
+  width: 285px;
+}
+
+/* Subtle blinking caret at the start of the name line, shown while it's empty
+   and not focused, to indicate it's typeable. */
+#pageStep1 .nameCaret {
+  display: none !important;
+  position: absolute;
+  left: 0;
+  top: 45px;
+  width: 1px;
+  height: 18px;
+  background: #000000;
+  opacity: 0.6;
+  pointer-events: none;
+  animation: nameCaretBlink 1.1s steps(1) infinite;
+}
+
+#pageStep1 #studentName:placeholder-shown:not(:focus) ~ .nameCaret {
+  display: block;
+}
+
+@keyframes step1FadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes emotionRingGrow {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes nameCaretBlink {
+  0%,
+  50% {
+    opacity: 0.6;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+#pageStep1 .ellipse,
+#pageStep1 .ellipse-2 {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background-color: #8e3300;
+  border-radius: 3.5px;
+}
+
+/* Dot at the end of the name line removed. */
+#pageStep1 .ellipse {
+  display: none;
+}
+
+/* NEXT button: bottom-right of the data-entry (left) area. */
+#pageStep1 .step1NextBtn {
+  position: absolute;
+  left: 560px;
+  top: 180px;
+  z-index: 5;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-weight: 400;
+  color: #c9c8c1;
+  text-decoration: none;
+  text-transform: lowercase;
+  letter-spacing: 0;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#pageStep1 .step1NextBtn.active {
+  color: #000000;
+  pointer-events: auto;
+}
+
+/* "how many homes" field: same layout as "your name" but shifted down. */
+#pageStep1 .homesCountGroup {
+  top: 433px;
+}
+
+#pageStep1 .homesCountGroup > .text-wrapper-2 {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-weight: 400;
+  font-size: 20px;
+  text-transform: lowercase;
+  top: 7px;
+}
+
+#pageStep1 .homesCountGroup > .text-wrapper-2::first-letter {
+  text-transform: uppercase;
+}
+
+#pageStep1 #homesCount.figma-line-input {
+  left: 0;
+  top: 43px;
+  width: 285px;
+}
+
+#pageStep1 .homesCountGroup > .nameCaret {
+  top: 45px;
+}
+
+#pageStep1 .ellipse-2 {
+  top: 18px;
+  left: 439px;
+}
+
+#pageStep1 .enter-all-the-homes {
+  position: relative;
+  align-self: stretch;
+  margin-top: 4px;
+  top: 28px;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 16px;
+  letter-spacing: 0;
+  line-height: 23px;
+}
+
+#pageStep1 .div-4 {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  align-items: flex-start;
+  gap: 16px;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+#pageStep1 .text-wrapper-3 {
+  position: relative;
+  align-self: stretch;
+  margin-top: 0;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 18px;
+  letter-spacing: 0;
+  line-height: 22px;
+}
+
+#pageStep1 #homeNumberTitle {
+  color: #000000;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.2;
+  text-transform: none;
+  position: static;
+  left: auto;
+  width: auto;
+  text-align: left;
+  top: auto;
+  margin: 0;
+}
+
+/* Address fields: 2-column grid — Country/City on the left, Street/Home number on the right.
+   Absolutely positioned so Country/Street labels align exactly with "your name"
+   on the intro screen (which is at form top 118 + group top 100 + label 7 = 225px
+   from the frame, i.e. 107px from the form .div top). */
+#pageStep1 .div-5 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  column-gap: 3px;
+  row-gap: 0;
+  width: 100%;
+  position: relative;
+  top: 108px;
+  left: 0;
+}
+
+/* Address input rows: label above, input line below, matching the intro style. */
+#pageStep1 .group-2 {
+  position: relative;
+  width: 100%;
+  height: 55px;
+  margin-bottom: 0;
+}
+
+#pageStep1 .group-2 > .text-wrapper-2 {
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif !important;
+  font-weight: 400;
+  font-size: 18px;
+  text-transform: lowercase;
+  position: relative;
+  top: 0;
+  left: 0;
+}
+
+#pageStep1 .group-2 > .text-wrapper-2::first-letter {
+  text-transform: uppercase;
+}
+
+/* Required-field dot: small black circle at the top-right of the label */
+#pageStep1 .group-2 > .text-wrapper-2.has-dot::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  background: #8e3300;
+  border-radius: 50%;
+  margin-left: 5px;
+  vertical-align: top;
+  position: relative;
+  top: 4px;
+}
+
+/* Address input lines — fit in the horizontal row, thin and uniform */
+#pageStep1 .group-2 > .figma-line-input {
+  left: 0 !important;
+  top: 36px;
+  width: 215px !important;
+  border-bottom: 0.1px solid rgba(0, 0, 0, 0.65) !important;
+}
+
+/* Row 2 (City, Home number): input line aligned with "how many homes" input (frame y = 341px) */
+#pageStep1 .div-5 > .group-2:nth-child(3) > .figma-line-input {
+  top: 36px;
+}
+
+/* City (2nd child) */
+#pageStep1 .div-5 > .group-2:nth-child(2) {
+  position: relative;
+  left: -70px;
+}
+
+/* Street, home number (3rd child) */
+#pageStep1 .div-5 > .group-2:nth-child(3) {
+  position: relative;
+  left: -140px;
+}
+
+/* What year (4th child) */
+#pageStep1 .div-5 > .group-2:nth-child(4) {
+  position: relative;
+  left: -210px;
+}
+
+/* How connected (5th child) */
+#pageStep1 .div-5 > .group-2:nth-child(5) {
+  position: relative;
+  left: -160px;
+}
+
+/* "What year" field spans the left column only, on its own row.
+   Shift up 60px from default position. */
+#pageStep1 .startYearGroup {
+  grid-column: auto;
+  margin-top: 0;
+}
+
+#pageStep1 .belongingInlineGroup {
+  grid-column: auto;
+  margin-top: 0;
+}
+
+#pageStep1 .figma-range-inline {
+  position: absolute;
+  left: 0;
+  top: 40px;
+  width: calc(100% - 42px);
+  height: 22px;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+#pageStep1 .figma-range-inline::-webkit-slider-runnable-track {
+  height: 0.1px;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+#pageStep1.step1-edit-mode .figma-range-inline::-webkit-slider-runnable-track {
+  background: #c3c1b7;
+}
+
+#pageStep1.step1-edit-mode .group-2.step1EditFieldActive .figma-range-inline::-webkit-slider-runnable-track,
+#pageStep1.step1-edit-mode .figma-range-inline.step1EditFieldActive::-webkit-slider-runnable-track,
+#pageStep1.step1-edit-mode .figma-range-inline:focus::-webkit-slider-runnable-track {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+#pageStep1 .figma-range-inline::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f4f2ea;
+  box-sizing: border-box;
+  border: var(--inline-belonging-stroke, 0.5px) solid #000000;
+  margin-top: -7px;
+  transition: border-width 0.15s ease;
+}
+
+#pageStep1.step1-edit-mode .figma-range-inline::-webkit-slider-thumb {
+  border-color: #c3c1b7;
+}
+
+#pageStep1.step1-edit-mode .group-2.step1EditFieldActive .figma-range-inline::-webkit-slider-thumb,
+#pageStep1.step1-edit-mode .figma-range-inline.step1EditFieldActive::-webkit-slider-thumb,
+#pageStep1.step1-edit-mode .figma-range-inline:focus::-webkit-slider-thumb {
+  border-color: #000000;
+}
+
+#pageStep1 .figma-range-inline::-moz-range-track {
+  height: 0.1px;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+#pageStep1.step1-edit-mode .figma-range-inline::-moz-range-track {
+  background: #c3c1b7;
+}
+
+#pageStep1.step1-edit-mode .group-2.step1EditFieldActive .figma-range-inline::-moz-range-track,
+#pageStep1.step1-edit-mode .figma-range-inline.step1EditFieldActive::-moz-range-track,
+#pageStep1.step1-edit-mode .figma-range-inline:focus::-moz-range-track {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+#pageStep1 .figma-range-inline::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f4f2ea;
+  box-sizing: border-box;
+  border: var(--inline-belonging-stroke, 0.5px) solid #000000;
+  transition: border-width 0.15s ease;
+}
+
+#pageStep1.step1-edit-mode .figma-range-inline::-moz-range-thumb {
+  border-color: #c3c1b7;
+}
+
+#pageStep1.step1-edit-mode .group-2.step1EditFieldActive .figma-range-inline::-moz-range-thumb,
+#pageStep1.step1-edit-mode .figma-range-inline.step1EditFieldActive::-moz-range-thumb,
+#pageStep1.step1-edit-mode .figma-range-inline:focus::-moz-range-thumb {
+  border-color: #000000;
+}
+
+/* "add home" button — to the right of the belonging slider */
+#pageStep1 .addHomeBtn {
+  position: absolute;
+  left: calc(100% + 50px);
+  top: 38px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-weight: 400;
+  color: #c9c8c1;
+  text-decoration: none;
+  text-transform: lowercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#pageStep1 .addHomeBtn.active {
+  color: #000000;
+  pointer-events: auto;
+}
+
+#pageStep1 .addHomeBtn.active:hover {
+  color: #8e3300;
+}
+
+#pageStep1.step1-edit-mode .addHomeBtn {
+  text-transform: none;
+}
+
+#pageStep1 .step1NextBtn:hover,
+#pageStep1 .step1AddrNavBtn:hover,
+#pageStep1 .step1BelongNavBtn:hover,
+#pageStep1 .step1SummaryNavBtn:hover {
+  color: #8e3300;
+}
+
+#pageStep1 .belongingInlineValue {
+  position: absolute;
+  top: 23px;
+  left: 0;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 14px;
+  color: #000000;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+#pageStep1.step1-edit-mode .belongingInlineValue {
+  color: #c3c1b7;
+  transition: color 140ms ease-out;
+}
+
+#pageStep1.step1-edit-mode .group-2.step1EditFieldActive .belongingInlineValue {
+  color: #000000;
+}
+
+/* Horizontal divider in the bottom third of emotion map and movement map sections */
+#pageStep1 .step1EmotionMap::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  right: -22px;
+  top: calc(63.7% - 19px);
+  height: 0.1px;
+  background: #000000;
+  opacity: 0.65;
+  pointer-events: none;
+  z-index: 5;
+}
+
+#pageStep1 .step1RoutePreview::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  right: -22px;
+  top: calc(62.9% - 20px);
+  height: 0.1px;
+  background: #000000;
+  opacity: 0.65;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Address field error: red input line when address verification fails. */
+#pageStep1 .figma-line-input.address-error {
+  border-bottom-color: #ff0000 !important;
+}
+
+#pageStep1 .figma-line-input.step1AddressFieldClearing {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  caret-color: transparent;
+  transition: color 120ms ease, -webkit-text-fill-color 120ms ease;
+}
+
+/* Hide the dots at the end of address input lines */
+#pageStep1 .group-2 > .ellipse-2 {
+  display: none;
+}
+
+/* Placeholder shown on the City / Street,number input line itself,
+   set dynamically (app.js) to "בעברית" or "English" depending on Country. */
+#pageStep1 #city.figma-line-input::placeholder,
+#pageStep1 #streetAndNumber.figma-line-input::placeholder {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-weight: 400;
+  font-size: 18px;
+  color: #c3c1b7;
+  text-transform: none;
+  opacity: 1;
+}
+
+/* Remove last margin for last input group */
+#pageStep1 .div-5 > .group-2:last-child {
+  margin-bottom: 0;
+}
+
+#pageStep1 .rate-your-sense-of {
+  position: relative;
+  width: fit-content;
+  margin-top: 4px;
+  top: 52px;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 16px;
+  letter-spacing: 0;
+  line-height: 23px;
+}
+
+#pageStep1 .group-3 {
+  position: relative;
+  width: 455px;
+  height: 47px;
+  margin-top: 52px;
+}
+
+#pageStep1 .text-wrapper-4 {
+  position: absolute;
+  top: 25px;
+  left: 149px;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 14px;
+  letter-spacing: 0;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+#pageStep1 .text-wrapper-5 {
+  position: absolute;
+  top: 25px;
+  left: 433px;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 14px;
+  letter-spacing: 0;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+#pageStep1 .text-wrapper-8 {
+  position: absolute;
+  top: -10px;
+  left: 0;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 14px;
+  letter-spacing: 0;
+  line-height: 22px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+#pageStep1 .figma-range {
+  position: absolute;
+  left: 156px;
+  top: 8px;
+  width: 285px;
+  height: 22px;
+  --belonging-thumb-stroke-width: 0.5px;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+#pageStep1 .figma-range::-webkit-slider-runnable-track {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+#pageStep1 .figma-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #f4f2ea;
+  box-sizing: border-box;
+  border: var(--belonging-thumb-stroke-width, 0.5px) solid #000000;
+  margin-top: -10px;
+  transition: border-width 0.3s ease;
+}
+
+#pageStep1 .figma-range::-moz-range-track {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+#pageStep1 .figma-range::-moz-range-thumb {
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #f4f2ea;
+  box-sizing: border-box;
+  border: var(--belonging-thumb-stroke-width, 0.5px) solid #000000;
+  transition: border-width 0.3s ease;
+}
+
+#pageStep1 .div-wrapper {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 16px;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+/* Align 'Add to list' button height to 'Create life path' */
+#pageStep1 .text-wrapper-6 {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  position: relative;
+  width: 156px;
+  height: 32px;
+  font-family: "80-kb-SharpBold", Helvetica, sans-serif;
+  font-weight: 700;
+  color: #000000;
+  font-size: var(--lifepath-map-button-font-size);
+  letter-spacing: 0;
+  line-height: normal;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#pageStep1 #addBtn:hover:not(:disabled),
+#pageStep1 #createLifePathBtn:hover:not(:disabled) {
+  color: #ff4800;
+}
+
+#pageStep1 #createLifePathBtn {
+  display: none !important;
+}
+
+/* Emotion map: second panel from left */
+#pageStep1 .step1EmotionMap {
+  position: absolute;
+  left: 560px;
+  top: 285px;
+  width: 460px;
+  height: 810px;
+  border-left: none;
+  z-index: 3;
+  pointer-events: none;
+}
+
+#pageStep1 .step1EmotionSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  position: relative;
+  top: -140px;
+}
+
+#pageStep1 .step1EmotionSvg circle,
+#pageStep1 .step1EmotionSvg path {
+  transition: stroke 0.1s ease, stroke-width 0.6s ease, opacity 0.5s ease;
+  pointer-events: visibleStroke;
+}
+
+#pageStep1 .step1EmotionMap:empty {
+  display: none;
+}
+
+#pageStep1 .step1EmotionPlaceholderText::first-letter {
+  text-transform: uppercase;
+}
+
+#pageStep1 .step1EmotionPlaceholderText {
+  position: absolute;
+  top: calc(50% - 35px);
+  left: 0;
+  width: 100%;
+  text-align: center;
+  transform: translateY(-50%);
+  text-transform: lowercase;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 20px;
+  color: #c9c8c1;
+  pointer-events: none;
+}
+
+#pageStep1 .text-wrapper-6:disabled,
+#pageStep1 .text-wrapper-7:disabled {
+  color: #828282;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* In address phase: geo map is bottom-left panel */
+#pageStep1 .step1-right {
+  position: absolute;
+  left: 42px;
+  top: 285px;
+  width: 518px;
+  height: 810px;
+  overflow: hidden;
+}
+
+#pageStep1 .step1GeoMap {
+  position: absolute;
+  top: 30px;
+  left: 0;
+  width: 100%;
+  height: calc(100% - 30px);
+  opacity: 1;
+  pointer-events: auto;
+  background: transparent;
+  z-index: 0;
+}
+
+#pageStep1 .step1GeoMapName {
+  display: none !important;
+}
+
+#pageStep1 .step1GeoMapName:empty {
+  display: none;
+}
+
+#pageStep1 .step1GeoMap .lifepathStep2Dot {
+  transition: stroke-width 0.3s ease, r 0.3s ease;
+}
+
+#pageStep1 .step1GeoMap .leaflet-control-container,
+#pageStep1 .step1GeoMap .leaflet-control-attribution {
+  display: none !important;
+}
+
+#pageStep1 .stepSummary {
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-line;
+}
+
+#pageStep1 .plainList {
+  margin: 0 0 0 50px;
+  padding-left: 0;
+  list-style: none;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 18px;
+  line-height: 22px;
+
+  /* If there are more than ~12 addresses, keep the list height fixed and
+     reveal additional entries by scrolling. */
+  max-height: 707px; /* (22px * 2 lines + 10px gap) * 13 + 5px */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  /* Scrollable without showing a scrollbar (still scrolls via trackpad/mouse wheel). */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+
+#pageStep1 #addressList {
+  display: none !important;
+}
+
+/* WebKit scrollbar hiding (Chrome/Safari). */
+#pageStep1 .plainList::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+#pageStep1 .step1ListItem {
+  padding: 0;
+  margin: 0 0 10px;
+
+  /* Use a single grid for both the address row and the belonging row so
+     the belonging label can align with the address column. */
+  display: grid;
+  grid-template-columns: 20px max-content 1fr;
+  column-gap: 18px;
+  row-gap: 4px;
+  align-items: center;
+}
+
+#pageStep1 .step1ListItem:first-child {
+  margin-top: 5px;
+}
+
+#pageStep1 .step1ListRow {
+  /* Let row children participate in the parent grid columns. */
+  display: contents;
+}
+
+#pageStep1 .step1DeleteBtn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  width: 20px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  font-size: var(--lifepath-map-button-font-size);
+  line-height: 1;
+  color: #000000;
+}
+
+#pageStep1 .step1DeleteBtn:hover {
+  color: #ff4800;
+}
+
+#pageStep1 .step1ListHome {
+  font-family: "80-kb-SharpBold", Helvetica, sans-serif;
+  font-weight: 700;
+  margin-top: 5px;
+  white-space: nowrap;
+}
+
+#pageStep1 .step1ListAddress {
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+#pageStep1 .step1ListBelonging {
+  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+
+  /* Align belonging text with the address column (3rd grid column). */
+  grid-column: 3;
+  grid-row: 2;
+  margin-left: 0;
+  margin-top: -5px;
+  text-align: left;
+}
+
+
+#pageStep1 .status {
+  margin-top: 0;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 12px;
+}
+
+.address-status {
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: 12px;
+  margin-top: 4px;
+  min-height: 16px;
+}

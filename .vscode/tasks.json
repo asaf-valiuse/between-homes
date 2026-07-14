@@ -1,0 +1,47 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Stop LifePath server (python)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -euo pipefail; if [ -f server.pid ]; then pid=$(cat server.pid); if kill -0 \"$pid\" 2>/dev/null; then echo \"Stopping server PID $pid\"; kill \"$pid\" || true; for i in {1..30}; do kill -0 \"$pid\" 2>/dev/null || break; sleep 0.1; done; if kill -0 \"$pid\" 2>/dev/null; then echo \"PID $pid still alive; force killing\"; kill -9 \"$pid\" || true; fi; fi; rm -f server.pid; else echo \"No server.pid found\"; fi; pids=$(lsof -nP -t -iTCP:5173 -sTCP:LISTEN 2>/dev/null || true); if [ -n \"${pids:-}\" ]; then for p in $pids; do cmd=$(ps -p \"$p\" -o command= 2>/dev/null || true); echo \"Stopping port 5173 listener PID $p ($cmd)\"; kill \"$p\" || true; for i in {1..20}; do kill -0 \"$p\" 2>/dev/null || break; sleep 0.1; done; if kill -0 \"$p\" 2>/dev/null; then echo \"Listener $p still alive; force killing\"; kill -9 \"$p\" || true; fi; done; fi"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "Run LifePath server (python)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -euo pipefail; if [ -f server.pid ]; then pid=$(cat server.pid); if kill -0 \"$pid\" 2>/dev/null; then echo \"Server already running (PID $pid)\"; exit 0; fi; fi; rm -f server.pid; env PYTHONUNBUFFERED=1 python3 -u server.py --daemon --log-file server.log --supervise --restart-delay 1.0 --host 127.0.0.1 --port 5173; for i in {1..30}; do [ -s server.pid ] && break; sleep 0.1; done; if [ -s server.pid ]; then echo \"Started server PID $(cat server.pid) (log: server.log)\"; else echo \"Failed to start server (no server.pid written). Check server.log\"; exit 1; fi"
+			],
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Restart LifePath server (python)",
+			"dependsOrder": "sequence",
+			"dependsOn": [
+				"Stop LifePath server (python)",
+				"Run LifePath server (python)"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "Extract LifePath project to serverbk",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -euo pipefail; mkdir -p ../serverbk; rsync -a --exclude '.venv' --exclude '.DS_Store' --exclude 'server.pid' --exclude 'serverbk' ./ ../serverbk/; echo 'Done: copied to ../serverbk'"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

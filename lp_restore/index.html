@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LifePath</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="styles.css?v=2026-06-16b" />
+  </head>
+  <body>
+    <main class="app">
+      <!-- Page 0: Welcome -->
+      <section id="pageWelcome" class="page" aria-label="Welcome">
+        <header class="topbar">
+          <h1 class="brand welcomeWordmark" aria-label="LifePath">
+            <span class="welcomeWord">LIFE</span>
+            <span class="welcomeDivider" aria-hidden="true"></span>
+            <span class="welcomeWord">PATH</span>
+            <span class="welcomeCircle" aria-hidden="true"></span>
+          </h1>
+
+          <div class="welcomeScrollHint" aria-hidden="true">Scroll down to create your life path map</div>
+        </header>
+
+        <div class="welcomeBody">
+          <div class="welcomeBottomButtons" aria-label="Welcome links">
+            <button id="allMapsBtn" class="linkButton" type="button">All maps</button>
+            <button id="archiveBtn" class="linkButton" type="button">Archive</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Page 5: Archive (grid of saved snapshots) -->
+      <section id="pageArchive" class="page hidden" aria-label="Archive">
+        <header class="topbar">
+          <h1 class="brand lifepathWordmark" aria-label="LifePath">
+            <span class="lifepathWord">LIFE</span>
+            <span class="lifepathDivider" aria-hidden="true"></span>
+            <span class="lifepathWord">PATH</span>
+            <span class="lifepathCircle" aria-hidden="true"></span>
+          </h1>
+        </header>
+
+        <div class="archiveBody">
+          <div id="archiveEmpty" class="archiveEmpty hidden">No saved maps yet.</div>
+          <div id="archiveGrid" class="archiveGrid" aria-label="Saved maps archive"></div>
+        </div>
+      </section>
+
+      <!-- Page 4: All Maps (saved snapshots) -->
+      <section id="pageAllMaps" class="page hidden" aria-label="All maps">
+        <header class="topbar">
+          <h1 class="brand lifepathWordmark" aria-label="LifePath">
+            <span class="lifepathWord">LIFE</span>
+            <span class="lifepathDivider" aria-hidden="true"></span>
+            <span class="lifepathWord">PATH</span>
+            <span class="lifepathCircle" aria-hidden="true"></span>
+          </h1>
+          <div class="allMapsActions">
+            <button type="button" class="closeToHomeBtn textLink" aria-label="Close">X</button>
+          </div>
+        </header>
+
+        <div class="allMapsBody">
+          <div id="savedMapsEmpty" class="allMapsEmpty hidden">No saved maps yet.</div>
+          <div id="allMapsMap" class="allMapsMap" aria-label="All maps combined"></div>
+          <div id="allMapsCountLabel" class="allMapsCount" aria-hidden="true"></div>
+          <button type="button" id="allMapsHideMapBtn" class="textLink">Show map</button>
+          <div class="allMapsPanel" aria-label="Saved maps list">
+            <ol id="savedMapsList" class="allMapsList"></ol>
+          </div>
+        </div>
+      </section>
+
+      <!-- Page 1: Step 1 (details + addresses) -->
+      <section id="pageStep1" class="page hidden" aria-label="Step 1">
+        <div class="frame">
+          <div class="life-path lifepathWordmark" aria-label="LifePath">
+            <span class="lifepathWord">LIFE</span>
+            <span class="lifepathDivider" aria-hidden="true"></span>
+            <span class="lifepathWord">PATH</span>
+            <span class="lifepathCircle" aria-hidden="true"></span>
+          </div>
+
+          <div class="step1-right">
+            <span id="addToListMsg" class="step1AddToListMsg hidden" role="status" aria-live="polite"></span>
+            <ol id="addressList" class="plainList"></ol>
+            <div id="status" class="status" role="status" aria-live="polite"></div>
+          </div>
+
+          <form id="addressForm" class="div" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <div class="div-2">
+              <div class="div-3">
+                <div class="group">
+                  <div class="text-wrapper-2">Full name</div>
+                  <input id="studentName" name="studentName" class="figma-line-input" lang="en" dir="ltr" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                  <div class="ellipse" aria-hidden="true"></div>
+                </div>
+
+                <div class="div-2">
+                  <p class="enter-all-the-homes">
+                    Enter all the homes you have lived in throughout your life,<br />
+                    in chronological order.
+                  </p>
+
+                  <div class="div-4">
+                    <div class="text-wrapper-3" id="homeNumberTitle">Home no.01</div>
+
+                    <div class="div-5">
+                      <div class="group-2">
+                        <div class="text-wrapper-2">Country</div>
+                        <input id="country" name="country" class="figma-line-input" required value="Israel" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                        <div class="ellipse-2" aria-hidden="true"></div>
+                      </div>
+
+                      <div class="group-2">
+                        <div class="text-wrapper-2">City</div>
+                        <input id="city" name="city" class="figma-line-input" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                        <div class="ellipse-2" aria-hidden="true"></div>
+                      </div>
+
+                      <div class="group-2">
+                        <div class="text-wrapper-2">Street</div>
+                        <input id="street" name="street" class="figma-line-input" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                        <div class="ellipse-2" aria-hidden="true"></div>
+                      </div>
+
+                      <div class="group-2">
+                        <div class="text-wrapper-2">Home number</div>
+                        <input id="number" name="number" class="figma-line-input" inputmode="numeric" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                        <div class="ellipse-2" aria-hidden="true"></div>
+                      </div>
+                      <div id="addressStatus" class="address-status" role="status" aria-live="polite"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <p class="rate-your-sense-of">Rate your sense of belonging to this home (1–10).</p>
+
+              <div class="group-3">
+                <div class="text-wrapper-2">Belonging</div>
+                <div class="text-wrapper-8" id="belongingValueLabel"></div>
+                <div class="text-wrapper-4">1</div>
+                <div class="text-wrapper-5">10</div>
+                <input id="belonging_rate" name="belonging_rate" class="figma-range" type="range" min="1" max="10" step="1" value="1" />
+              </div>
+            </div>
+
+            <!-- Hidden fields kept for existing geocode model compatibility -->
+            <input id="state" name="state" type="hidden" value="" />
+          </form>
+
+          <button type="submit" id="addBtn" class="text-wrapper-6" form="addressForm">Add to list</button>
+          <button type="button" id="createLifePathBtn" class="text-wrapper-6">Create life path</button>
+        </div>
+      </section>
+
+      <!-- Page 2: Step 2 (life path view) -->
+      <section id="pageStep2" class="page hidden" aria-label="Step 2">
+        <header class="topbar">
+          <h1 class="brand lifepathWordmark" aria-label="LifePath">
+            <span class="lifepathWord">LIFE</span>
+            <span class="lifepathDivider" aria-hidden="true"></span>
+            <span class="lifepathWord">PATH</span>
+            <span class="lifepathCircle" aria-hidden="true"></span>
+          </h1>
+          <div class="step2Actions">
+            <button type="button" class="closeToHomeBtn textLink" aria-label="Close">X</button>
+          </div>
+        </header>
+
+        <div class="mapWrap">
+          <div id="map" class="map" aria-label="Vector path map"></div>
+        </div>
+
+        <div id="signatureLabel" class="step2Signature" aria-hidden="true"></div>
+
+        <div class="step2BottomActions" aria-label="Step 2 actions">
+          <button type="button" id="hideMapBtn" class="textLink">Show map</button>
+          <button type="button" id="emotionMapBtn" class="textLink">Emotion Map</button>
+          <button type="button" id="backToStep1Btn" class="textLink">Edit</button>
+          <button type="button" id="printPostcardBtn" class="textLink">Print</button>
+        </div>
+
+        <!-- Keep existing controls in DOM (hidden) to avoid breaking JS references -->
+        <div class="hidden">
+          <button type="button" id="drawBtn">Draw signature</button>
+          <button type="button" id="drawBelongingBtn">Draw belonging</button>
+          <button type="button" id="drawAllBtn">Draw all signatures</button>
+          <button type="button" id="clearBtn">Clear timeline</button>
+          <button type="button" id="saveBtn">Save &amp; Clear</button>
+          <button type="button" id="loadBtn">Load signature</button>
+          <button type="button" id="exportBtn">Export</button>
+          <button type="button" id="toggleGeoBtn">Show geographic layer</button>
+          <button type="button" id="toggleMapBtn">Hide canvas</button>
+          <button type="button" id="toggleSplashBtn">Paint colors</button>
+        </div>
+      </section>
+
+      <!-- Page 3: Emotion Map -->
+      <section id="pageEmotion" class="page hidden" aria-label="Emotion Map">
+        <header class="topbar">
+          <div class="emotionLeft">
+            <h1 class="brand lifepathWordmark" aria-label="LifePath">
+              <span class="lifepathWord">LIFE</span>
+              <span class="lifepathDivider" aria-hidden="true"></span>
+              <span class="lifepathWord">PATH</span>
+              <span class="lifepathCircle" aria-hidden="true"></span>
+            </h1>
+          </div>
+
+          <div class="emotionActions">
+            <button type="button" id="backToMapBtn" class="textLink">Life Path Map</button>
+          </div>
+        </header>
+
+        <div class="emotionWrap" aria-label="Emotion map rings">
+          <svg id="emotionSvg" class="emotionSvg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+        </div>
+
+        <div id="emotionTitle" class="emotionSignature" aria-hidden="true"></div>
+      </section>
+
+      <!-- Create Life Path transition overlay -->
+      <div id="createLifePathTransition" class="createLifePathTransition hidden" aria-hidden="true">
+        <div class="createLifePathTransitionCircle" aria-hidden="true"></div>
+      </div>
+
+      <!-- Postcard preview overlay (screen-only) -->
+      <div id="postcardPreviewOverlay" class="postcardPreviewOverlay hidden" aria-hidden="true">
+        <div class="postcardPreviewBackdrop" aria-hidden="true"></div>
+        <div class="postcardPreviewToolbar" role="toolbar" aria-label="Postcard preview">
+          <div class="postcardPreviewTitle">Postcard preview (10×15 cm)</div>
+          <div class="postcardPreviewActions">
+            <button type="button" id="postcardPreviewCloseBtn" class="postcardPreviewBtn">Close</button>
+            <button type="button" id="postcardRotateBtn" class="postcardPreviewBtn">Rotate 90°</button>
+            <button type="button" id="postcardPreviewNativePrintBtn" class="postcardPreviewBtn">Print</button>
+            <button type="button" id="postcardPreviewPrintBtn" class="postcardPreviewBtn">Download PNG</button>
+          </div>
+        </div>
+
+        <div class="postcardCard" role="dialog" aria-label="Postcard 10×15 preview" aria-modal="true">
+          <div id="postcardCardArt" class="postcardCardArt" aria-hidden="true">
+            <div class="postcardCardLogo" aria-label="LifePath">
+              <span class="postcardLogoWord">LIFE</span>
+              <span class="postcardLogoDivider" aria-hidden="true"></span>
+              <span class="postcardLogoWord">PATH</span>
+              <span class="postcardLogoDot" aria-hidden="true">•</span>
+            </div>
+
+            <div id="postcardCardMapHost" class="postcardCardMapHost" aria-label="Postcard map">
+              <div id="postcardCardMapInner" class="postcardCardMapInner"></div>
+            </div>
+
+            <div id="postcardCardMapName" class="postcardCardMapName" aria-label="Map name"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+      <script src="app.js?v=2026-06-16b"></script>
+  </body>
+</html>
