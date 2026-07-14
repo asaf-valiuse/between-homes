@@ -2218,6 +2218,14 @@ async function fetchServerState() {
   return json.state && typeof json.state === "object" ? json.state : null;
 }
 
+async function fetchServerMaps() {
+  const res = await fetch("/api/maps", { cache: "no-store" });
+  if (!res.ok) return null;
+  const json = await res.json();
+  if (!json || typeof json !== "object" || !json.ok) return null;
+  return Array.isArray(json.maps) ? json.maps : [];
+}
+
 async function postServerState(partialState) {
   const payload = partialState && typeof partialState === "object" ? partialState : {};
   const res = await fetch("/api/state", {
@@ -2271,6 +2279,7 @@ async function bootstrapServerBackedState() {
 
   try {
     const state = await fetchServerState();
+    const dbMaps = await fetchServerMaps();
 
     // One-time migration: if server has no saved maps but localStorage does, push local to server.
     const localMaps = readLocalStorageSavedMaps();
@@ -2291,6 +2300,12 @@ async function bootstrapServerBackedState() {
       if (migrated) applyServerState(migrated);
     } else if (state) {
       applyServerState(state);
+    }
+
+    // Source-of-truth for All Maps comes from DB-backed /api/maps.
+    if (Array.isArray(dbMaps)) {
+      savedMapsCache = ensureSavedMapsHaveSerials(dbMaps);
+      savedMapsSerialCache = inferMaxSavedMapSerialFromList(savedMapsCache);
     }
 
     serverStateLoaded = true;
@@ -2951,6 +2966,32 @@ function getCurrentMapLabel() {
   const count = formatAddrCount(addresses.length);
   if (!name) return "";
   return `${name}.${count}addrs`;
+}
+
+function buildCurrentMapSnapshotPayload(studentName, { serial = 0 } = {}) {
+  const fullName = String(studentName || "").trim();
+  const name = normalizeNameForMapLabel(fullName);
+  const count = formatAddrCount(addresses.length);
+  const label = name ? `${name}.${count}addrs` : "";
+  const center = map && typeof map.getCenter === "function" ? map.getCenter() : null;
+  const zoom = map && typeof map.getZoom === "function" ? map.getZoom() : 7;
+  return {
+    version: 1,
+    id: cryptoId(),
+    label,
+    serial: Math.max(0, Math.floor(Number(serial) || 0)),
+    fullName: fullName,
+    count: addresses.length,
+    savedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    view: {
+      lat: isFinite(Number(center?.lat)) ? Number(center.lat) : 31.5,
+      lng: isFinite(Number(center?.lng)) ? Number(center.lng) : 35.1,
+      zoom: isFinite(Number(zoom)) ? Number(zoom) : 7,
+    },
+    geoLayerEnabled: Boolean(geoLayerEnabled),
+    addresses: Array.isArray(addresses) ? JSON.parse(JSON.stringify(addresses)) : [],
+  };
 }
 
 function saveCurrentMapSnapshot() {
@@ -15946,8 +15987,8 @@ if (elStep1AddrNextBtn) {
       // instead, when the whole map — and its sound — is meant to go away.
       updateStep1TopProgress();
       clearStep1HomesListFocus();
-      // Hide the add home button and the address form fields.
-      if (elAddHomeBtn) elAddHomeBtn.style.display = "none";
+      // Hide controls for finished non-edit mode via centralized button-state logic.
+      if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
       // Hide address form inputs.
       const divAddr = elPageStep1 && elPageStep1.querySelector(".div-3 > .div-2");
       if (divAddr) divAddr.style.display = "none";
@@ -15961,10 +16002,11 @@ if (elStep1AddrNextBtn) {
         (async () => {
           try {
             const signature = await buildSignature(studentName);
+            const map = buildCurrentMapSnapshotPayload(studentName);
             await fetch("/api/signatures", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: cryptoId(), studentName, signature }),
+              body: JSON.stringify({ id: cryptoId(), studentName, signature, map }),
             });
           } catch {}
         })();
@@ -16005,7 +16047,7 @@ if (elStep1AddrNextBtn) {
       if (lastHome) {
         const divAddrEdit = elPageStep1 && elPageStep1.querySelector(".div-3 > .div-2");
         if (divAddrEdit) divAddrEdit.style.display = "none";
-        if (editingIdx >= 0 && elAddHomeBtn) elAddHomeBtn.style.display = "none";
+        if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
       }
 
       updateStep1AddrNextBtnState();
@@ -16130,6 +16172,7 @@ if (elStep1BelongNextBtn) {
         (async () => {
           try {
             const signature = await buildSignature(studentName);
+            const map = buildCurrentMapSnapshotPayload(studentName);
             await fetch("/api/signatures", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -16137,6 +16180,7 @@ if (elStep1BelongNextBtn) {
                 id: cryptoId(),
                 studentName,
                 signature,
+                map,
               }),
             });
           } catch {
@@ -16982,6 +17026,13 @@ const elAddHomeBtn = document.getElementById("addHomeBtn");
 
 function updateAddHomeBtnState() {
   if (!elAddHomeBtn) return;
+  const shouldHide = Boolean(
+    elPageStep1
+    && elPageStep1.classList.contains("step1-finished-state")
+    && !isStep1EditModeActive(),
+  );
+  elAddHomeBtn.style.display = shouldHide ? "none" : "";
+  if (shouldHide) return;
   const country = String(elCountry?.value || "").trim();
   const city = String(elCity?.value || "").trim();
   const cityVal = String(elCity?.value || "").trim();
@@ -17479,6 +17530,7 @@ if (elSaveBtn) elSaveBtn.addEventListener("click", async () => {
   try {
     setStatus("Preparing signature…");
     const signature = await buildSignature(studentName);
+    const map = buildCurrentMapSnapshotPayload(studentName);
 
     setStatus("Saving…");
     const res = await fetch("/api/signatures", {
@@ -17490,6 +17542,7 @@ if (elSaveBtn) elSaveBtn.addEventListener("click", async () => {
         id: cryptoId(),
         studentName,
         signature,
+        map,
       }),
     });
 
