@@ -3553,7 +3553,7 @@ input[type="reset"]:hover:not(:disabled) {
   left: 1050px;
   top: 305px;
   width: 460px;
-  height: calc(var(--step1-dashboard-height, 810px) - 20px);
+  height: calc(var(--step1-dashboard-top-section, 486px) - 20px);
   border-left: none;
   z-index: 3;
   pointer-events: auto;
@@ -3745,7 +3745,8 @@ input[type="reset"]:hover:not(:disabled) {
   align-items: center;
   gap: 4px;
   width: 100%;
-  height: 230px;
+  height: calc(100% - 44px);
+  min-height: 120px;
   overflow-x: scroll;
   overflow-y: hidden;
   padding-bottom: 28px;
@@ -3795,6 +3796,19 @@ input[type="reset"]:hover:not(:disabled) {
   box-sizing: border-box;
 }
 
+#pageStep1 .step1TimeBelonging::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -30px;
+  width: 0.1px;
+  height: calc(100% + 30px);
+  background: #000000;
+  opacity: 0.65;
+  pointer-events: none;
+  z-index: 5;
+}
+
 #pageStep1 .step1TimeBelongingTitle {
   margin: 7px 0 10px 0;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
@@ -3805,8 +3819,16 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageStep1 .step1TimeBelongingChart {
   width: 100%;
+  height: calc(100% - 44px);
+  min-height: 120px;
   overflow: visible;
   text-transform: none;
+}
+
+#pageStep1 .step1TimeBelongingChart svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
 /* Panel stats (below titles) */
@@ -4694,7 +4716,7 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   left: 7px;
   right: -22px;
-  top: var(--step1-dashboard-divider, 516px);
+  top: calc(100% - 1px);
   height: 0.1px;
   background: #000000;
   opacity: 0.65;
@@ -4707,7 +4729,7 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   left: 7px;
   right: -22px;
-  top: calc(var(--step1-dashboard-divider, 516px) - 20px);
+  top: calc(100% - 1px);
   height: 0.1px;
   background: #000000;
   opacity: 0.65;
@@ -4900,7 +4922,7 @@ input[type="reset"]:hover:not(:disabled) {
   left: 560px;
   top: 285px;
   width: 460px;
-  height: var(--step1-dashboard-height, 810px);
+  height: var(--step1-dashboard-top-section, 486px);
   border-left: none;
   z-index: 3;
   pointer-events: none;
@@ -4912,7 +4934,7 @@ input[type="reset"]:hover:not(:disabled) {
   height: 100%;
   overflow: visible;
   position: relative;
-  top: -140px;
+  top: 0;
 }
 
 #pageStep1 .step1EmotionSvg circle,

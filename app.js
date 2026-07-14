@@ -4957,7 +4957,7 @@ function updateStep1Scale() {
   const dashboardHeight = Math.max(520, Math.min(810, visibleDesignHeight - dashboardTop));
   const dashboardTopSection = dashboardHeight * 0.6;
   const dashboardBottomSection = dashboardHeight * 0.4;
-  const dashboardDivider = dashboardTopSection + 30;
+  const dashboardDivider = dashboardTopSection + 23;
   const offsetX = 0;
   const offsetY = 0;
   document.documentElement.style.setProperty("--step1-scale", String(scale));
@@ -7486,9 +7486,12 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   // Only remove connectors and labels — dur-line/dur-dot are managed incrementally.
   svg.querySelectorAll(".tb-connector, .tb-label").forEach((el) => el.remove());
 
-  const padTop = 17;
-  const padBottom = -38;
-  const chartH = 180;
+  const vb = parseSvgViewBox(svg.getAttribute("viewBox") || "0 0 400 180");
+  const chartW = Number(vb?.w) > 0 ? Number(vb.w) : 400;
+  const chartH = Number(vb?.h) > 0 ? Number(vb.h) : 180;
+  const padX = Math.max(26, Math.round(chartW * 0.1));
+  const padTop = Math.max(12, Math.round(chartH * 0.09));
+  const padBottom = Math.max(10, Math.round(chartH * 0.06));
   const plotH = chartH - padTop - padBottom;
   const maxScale = 10;
 
@@ -7602,9 +7605,9 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   for (let v = 1; v <= 10; v++) {
     const y = padTop + plotH - (v / maxScale) * plotH;
     const label = document.createElementNS(NS, "text");
-    label.setAttribute("x", "-1");
+    label.setAttribute("x", "2");
     label.setAttribute("y", String(y));
-    label.setAttribute("text-anchor", "end");
+    label.setAttribute("text-anchor", "start");
     label.setAttribute("dominant-baseline", "middle");
     label.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
     label.setAttribute("font-size", "16");
@@ -7617,8 +7620,11 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   // "belonging" label below left 01
   const belongingLabel = document.createElementNS(NS, "text");
   const y01Left = padTop + plotH - (1 / maxScale) * plotH;
-  belongingLabel.setAttribute("x", "-17");
-  belongingLabel.setAttribute("y", String(y01Left + 25));
+  const maxOffsetInside = Math.max(4, chartH - y01Left - 4);
+  // Keep legend labels visually close to the bottom edge without clipping.
+  const bottomLabelOffset = Math.max(0, maxOffsetInside - 4);
+  belongingLabel.setAttribute("x", "2");
+  belongingLabel.setAttribute("y", String(y01Left + bottomLabelOffset));
   belongingLabel.setAttribute("text-anchor", "start");
   belongingLabel.setAttribute("dominant-baseline", "middle");
   belongingLabel.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
@@ -7629,11 +7635,11 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   svg.appendChild(belongingLabel);
 
   // Legend line (solid) to the right of "belonging"
-  const belongLegendY = y01Left + 25;
+  const belongLegendY = y01Left + bottomLabelOffset;
   const belongLegendLine = document.createElementNS(NS, "line");
-  belongLegendLine.setAttribute("x1", "60");
+  belongLegendLine.setAttribute("x1", String(Math.max(60, padX + 18)));
   belongLegendLine.setAttribute("y1", String(belongLegendY));
-  belongLegendLine.setAttribute("x2", "89");
+  belongLegendLine.setAttribute("x2", String(Math.max(89, padX + 47)));
   belongLegendLine.setAttribute("y2", String(belongLegendY));
   belongLegendLine.setAttribute("stroke", "#afada5");
   belongLegendLine.setAttribute("stroke-width", "1.2");
@@ -7644,9 +7650,9 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   for (let v = 1; v <= 10; v++) {
     const y = padTop + plotH - (v / maxScale) * plotH;
     const label = document.createElementNS(NS, "text");
-    label.setAttribute("x", "403");
+    label.setAttribute("x", String(chartW - 2));
     label.setAttribute("y", String(y));
-    label.setAttribute("text-anchor", "start");
+    label.setAttribute("text-anchor", "end");
     label.setAttribute("dominant-baseline", "middle");
     label.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
     label.setAttribute("font-size", "16");
@@ -7659,8 +7665,8 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   // "years" label below right 01
   const yearsLabel = document.createElementNS(NS, "text");
   const y01Right = padTop + plotH - (1 / maxScale) * plotH;
-  yearsLabel.setAttribute("x", "418");
-  yearsLabel.setAttribute("y", String(y01Right + 25));
+  yearsLabel.setAttribute("x", String(chartW - 2));
+  yearsLabel.setAttribute("y", String(y01Right + bottomLabelOffset));
   yearsLabel.setAttribute("text-anchor", "end");
   yearsLabel.setAttribute("dominant-baseline", "middle");
   yearsLabel.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
@@ -7671,11 +7677,11 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   svg.appendChild(yearsLabel);
 
   // Legend line (dashed) to the left of "years"
-  const yearsLegendY = y01Right + 25;
+  const yearsLegendY = y01Right + bottomLabelOffset;
   const yearsLegendLine = document.createElementNS(NS, "line");
-  yearsLegendLine.setAttribute("x1", "341");
+  yearsLegendLine.setAttribute("x1", String(chartW - 59));
   yearsLegendLine.setAttribute("y1", String(yearsLegendY));
-  yearsLegendLine.setAttribute("x2", "370");
+  yearsLegendLine.setAttribute("x2", String(chartW - 30));
   yearsLegendLine.setAttribute("y2", String(yearsLegendY));
   yearsLegendLine.setAttribute("stroke", "#afada5");
   yearsLegendLine.setAttribute("stroke-width", "1");
@@ -7691,11 +7697,11 @@ function updateStep1TimeBelonging() {
 
   const NS = "http://www.w3.org/2000/svg";
   const maxRate = 10;
-  const padX = 12;
-  const padTop = 17;
-  const padBottom = -38;
-  const chartW = 400;
-  const chartH = 180;
+  const chartW = Math.max(320, Math.round(elStep1TimeBelongingChart.getBoundingClientRect().width || 400));
+  const padX = Math.max(26, Math.round(chartW * 0.1));
+  const chartH = Math.max(120, Math.round(elStep1TimeBelongingChart.getBoundingClientRect().height || 180));
+  const padTop = Math.max(12, Math.round(chartH * 0.09));
+  const padBottom = Math.max(10, Math.round(chartH * 0.06));
   const plotW = chartW - padX * 2;
   const plotH = chartH - padTop - padBottom;
 
