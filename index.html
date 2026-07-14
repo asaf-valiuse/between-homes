@@ -48,6 +48,9 @@
             <button id="archiveEmotionBtn" class="textLink archiveFilterBtn" type="button">emotion maps</button>
             <button id="archiveAllBtn" class="textLink archiveFilterBtn active" type="button">all maps</button>
           </div>
+          <div class="archiveSearchWrap">
+            <input id="archiveSearchInput" class="archiveSearchInput" type="text" placeholder="search name" aria-label="Search maps by name" />
+          </div>
         </header>
 
         <img class="step2LogoText appLogoImage" src="logo.png" alt="LifePath" />
@@ -77,6 +80,9 @@
           <div id="allMapsCountLabel" class="allMapsCount" aria-hidden="true"></div>
           <button type="button" id="allMapsHideMapBtn" class="textLink">show map</button>
           <div class="allMapsPanel" aria-label="Saved maps list">
+            <div class="allMapsSearchWrap">
+              <input id="allMapsSearchInput" class="allMapsSearchInput" type="text" placeholder="search name" aria-label="Search all maps by name" />
+            </div>
             <ol id="savedMapsList" class="allMapsList"></ol>
           </div>
         </div>

@@ -1283,6 +1283,33 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   text-decoration: underline;
 }
 
+#pageArchive .archiveSearchWrap {
+  position: fixed;
+  right: 140px;
+  top: 58px;
+  z-index: 3000;
+  pointer-events: auto;
+}
+
+#pageArchive .archiveSearchInput {
+  width: 240px;
+  height: 28px;
+  border: 0;
+  border-bottom: 0.1px solid rgba(0, 0, 0, 0.65);
+  background: transparent;
+  outline: none;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 16px;
+  color: #000000;
+  text-transform: lowercase;
+  padding: 1px 0;
+}
+
+#pageArchive .archiveSearchInput::placeholder {
+  color: #c3c1b7;
+  text-transform: lowercase;
+}
+
 #pageArchive .archiveBody {
   padding: 124px 42px 42px;
   flex: 1;
@@ -2136,9 +2163,44 @@ img.postcardCardLogo {
   left: auto;
   right: 42px;
   top: 36px;
+  bottom: 24px;
   z-index: 2000;
   max-width: 520px;
   text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-height: 0;
+}
+
+#pageAllMaps .allMapsSearchWrap {
+  width: 240px;
+  margin: 40px 0 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+#pageAllMaps .allMapsSearchInput {
+  width: 240px;
+  height: 28px;
+  border: 0;
+  border-bottom: 0.1px solid rgba(0, 0, 0, 0.65);
+  background: transparent;
+  outline: none;
+  color: #000000;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 16px;
+  text-transform: lowercase;
+  padding: 1px 0;
+}
+
+#pageAllMaps .allMapsSearchInput::placeholder {
+  color: #c3c1b7;
+  text-transform: lowercase;
+}
+
+#pageAllMaps .allMapsSearchInput:focus {
+  outline: none;
 }
 
 #pageAllMaps #allMapsEditBtn {
@@ -2206,18 +2268,20 @@ img.postcardCardLogo {
 }
 
 #pageAllMaps .allMapsList {
-  margin: 40px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
   gap: 10px;
   font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
   font-weight: 400;
-  font-size: 16px;
+  font-size: 17px;
+  width: min(480px, calc(100vw - 84px));
+  flex: 1;
+  min-height: 0;
 
-  /* After ~32 maps, keep the list height fixed and reveal the rest by scrolling
-     (same behavior as the Step 1 address list). */
-  max-height: min(680px, calc(100vh - 198px));
+  /* Fill panel height and keep long lists scrollable. */
+  max-height: none;
   overflow-y: auto;
   overscroll-behavior: contain;
 
@@ -2244,7 +2308,7 @@ img.postcardCardLogo {
   display: inline-block;
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 14.5px;
+  font-size: 15.5px;
   text-transform: none !important;
   text-decoration: underline;
   text-decoration-thickness: 0.75px;
@@ -2294,6 +2358,11 @@ img.postcardCardLogo {
   color: #000000;
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
   font-weight: 400;
+}
+
+#pageAllMaps .allMapsListName.isSearchMatch:not(.isHighlighted):not(.isHidden) {
+  background-color: rgba(169, 167, 160, 0.28);
+  border-radius: 3px;
 }
 
 #pageAllMaps .allMapsListName.isDimmed {
@@ -2731,9 +2800,15 @@ input[type="reset"]:hover:not(:disabled) {
   color: #ffffff;
 }
 
+
+
 /* Preserve list semantic colors even in dark-map-ui. */
 #pageAllMaps.dark-map-ui .allMapsListName.isHidden {
   color: #a0a0a0;
+}
+
+#pageAllMaps.dark-map-ui .allMapsListName.isSearchMatch:not(.isHighlighted):not(.isHidden) {
+  background-color: rgba(255, 255, 255, 0.18);
 }
 
 #pageAllMaps.dark-map-ui .allMapsListName.isHighlighted {

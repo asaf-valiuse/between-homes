@@ -4880,10 +4880,12 @@ const elArchiveEmpty = document.getElementById("archiveEmpty");
 const elArchiveMovementBtn = document.getElementById("archiveMovementBtn");
 const elArchiveEmotionBtn = document.getElementById("archiveEmotionBtn");
 const elArchiveAllBtn = document.getElementById("archiveAllBtn");
+const elArchiveSearchInput = document.getElementById("archiveSearchInput");
 const elArchiveTitle = document.querySelector("#pageArchive .step2MapTitle");
 
 // Archive filter state: 'movement' | 'emotion' | 'all'
 let archiveFilterMode = "movement";
+let archiveSearchQuery = "";
 
 function setArchiveFilter(mode) {
   const prev = archiveFilterMode;
@@ -4921,6 +4923,16 @@ function setArchiveFilter(mode) {
 if (elArchiveMovementBtn) elArchiveMovementBtn.addEventListener("click", (e) => { e.preventDefault(); setArchiveFilter("movement"); });
 if (elArchiveEmotionBtn) elArchiveEmotionBtn.addEventListener("click", (e) => { e.preventDefault(); setArchiveFilter("emotion"); });
 if (elArchiveAllBtn) elArchiveAllBtn.addEventListener("click", (e) => { e.preventDefault(); showPage("allmaps"); });
+if (elArchiveSearchInput) {
+  elArchiveSearchInput.addEventListener("input", () => {
+    archiveSearchQuery = String(elArchiveSearchInput.value || "").trim().toLowerCase();
+    try {
+      renderArchiveGrid();
+    } catch {
+      // ignore
+    }
+  });
+}
 
 const elAllMapsMap = document.getElementById("allMapsMap");
 const elAllMapsHideMapBtn = document.getElementById("allMapsHideMapBtn");
@@ -4928,6 +4940,7 @@ const elAllMapsEditBtn = document.getElementById("allMapsEditBtn");
 const elAllMapsCountLabel = document.getElementById("allMapsCountLabel");
 const elAllMapsTotalLabel = document.getElementById("allMapsTotalLabel");
 const elAllMapsZoomLabel = document.getElementById("allMapsZoomLabel");
+const elAllMapsSearchInput = document.getElementById("allMapsSearchInput");
 
 const elCountry = document.getElementById("country");
 const elCity = document.getElementById("city");
@@ -5648,6 +5661,12 @@ function createArchiveMiniMapSvg(snapshot) {
   };
 
   const projected = pts.map((p) => ({ ...proj(p.lon, p.lat), rate: p.rate }));
+
+  // Single-home maps should always show one marker centered in the thumbnail.
+  if (projected.length === 1) {
+    projected[0].x = 50;
+    projected[0].y = 50;
+  }
 
   // Precompute a tighter viewBox for optional zoom-in.
   let minX = Infinity;
@@ -6381,7 +6400,6 @@ function renderArchiveGrid() {
 
   const list = getSavedMaps();
   const items = Array.isArray(list) ? list.filter(Boolean) : [];
-  elArchiveEmpty.classList.toggle("hidden", items.length !== 0);
 
   // Order tiles by save time (oldest first), filling left-to-right.
   // Prefer the saved serial when present so lifemap06 is always the 6th save.
@@ -6405,9 +6423,18 @@ function renderArchiveGrid() {
     })
     .map((x) => x.snap);
 
+  const filtered = ordered.filter((snap) => {
+    if (!archiveSearchQuery) return true;
+    const fullName = String(snap?.fullName || "").trim().toLowerCase();
+    const label = String(snap?.label || "").trim().toLowerCase();
+    return fullName.includes(archiveSearchQuery) || label.includes(archiveSearchQuery);
+  });
+
+  elArchiveEmpty.classList.toggle("hidden", filtered.length !== 0);
+
   elArchiveGrid.innerHTML = "";
-  for (let i = 0; i < ordered.length; i++) {
-    const snap = ordered[i];
+  for (let i = 0; i < filtered.length; i++) {
+    const snap = filtered[i];
     const item = document.createElement("div");
     item.className = "archiveItem";
 
@@ -6560,9 +6587,16 @@ function forceStep2OpenFitToAddressesSoon(triesLeft = 200) {
   // Apply the snap on the next frame, after Leaflet recalculates its size.
   requestAnimationFrame(() => {
     try {
-      // Snap to a view that zooms in as much as possible while still including
-      // all Israel-located points.
-      focusMapOnIsraelLocationsMax();
+      // For one-home maps, focus directly on that home (including Israel cases).
+      // For multi-home maps, keep the Israel-focused max-fit behavior.
+      const validLatLngs = getValidAddressLatLngs();
+      if (validLatLngs.length <= 1) {
+        focusMapOnAddresses();
+      } else {
+        // Snap to a view that zooms in as much as possible while still including
+        // all Israel-located points.
+        focusMapOnIsraelLocationsMax();
+      }
       setStep2ZoomLabelBaseToCurrentView();
       updateStep2ZoomLabel();
       step2OpenShouldFitToAddresses = false;
@@ -6687,6 +6721,53 @@ let allMapsViewBeforeHighlightFocus = null;
 
 /** @type {{ center: L.LatLng, zoom: number } | null} */
 let allMapsPendingRestoreView = null;
+
+let allMapsSearchQuery = "";
+
+function normalizeAllMapsSearchText(text) {
+  return String(text || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function focusAllMapsListNameByQuery(query) {
+  if (!elSavedMapsList) return;
+  const q = normalizeAllMapsSearchText(query);
+  if (!q) return;
+
+  const buttons = Array.from(elSavedMapsList.querySelectorAll(".allMapsListName"));
+  const match = buttons.find((btn) => {
+    const hay = normalizeAllMapsSearchText(btn.getAttribute("data-search-text") || btn.textContent || "");
+    return hay.includes(q);
+  });
+  if (!match) return;
+
+  try {
+    const listRect = elSavedMapsList.getBoundingClientRect();
+    const itemRect = match.getBoundingClientRect();
+    const currentTop = Number(elSavedMapsList.scrollTop) || 0;
+    const targetTop = Math.max(0, currentTop + (itemRect.top - listRect.top));
+    elSavedMapsList.scrollTo({ top: targetTop, behavior: "smooth" });
+  } catch {
+    try {
+      match.scrollIntoView({ block: "start", inline: "nearest", behavior: "smooth" });
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function applyAllMapsSearchMatchHighlight(query) {
+  if (!elSavedMapsList) return;
+  const q = normalizeAllMapsSearchText(query);
+  const buttons = Array.from(elSavedMapsList.querySelectorAll(".allMapsListName"));
+  for (const btn of buttons) {
+    const hay = normalizeAllMapsSearchText(btn.getAttribute("data-search-text") || btn.textContent || "");
+    const isMatch = Boolean(q) && hay.includes(q);
+    btn.classList.toggle("isSearchMatch", isMatch);
+  }
+}
 
 // Keep the All Maps view stable when the user interacts with the list.
 // We only auto-fit once when entering the All Maps page.
@@ -10036,21 +10117,31 @@ function focusAllMapsOnIsraelLocationsMax() {
   const items = Array.isArray(list) ? list.filter(Boolean) : [];
   const visibleItems = items;
 
-  const pts = [];
+  const allValidPts = [];
+  const israelPts = [];
   for (const snap of visibleItems) {
     const addrs = Array.isArray(snap?.addresses) ? snap.addresses : [];
     for (const a of addrs) {
       const ok = a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon);
       if (!ok) continue;
       const ll = L.latLng(Number(a.lat), Number(a.lon));
-      if (ISRAEL_BOUNDS.contains(ll)) pts.push(ll);
+      allValidPts.push(ll);
+      if (ISRAEL_BOUNDS.contains(ll)) israelPts.push(ll);
     }
   }
 
-  const bounds = pts.length > 0 ? L.latLngBounds(pts) : ISRAEL_BOUNDS;
+  if (allValidPts.length === 1) {
+    allMapsMap.setView(allValidPts[0], 6, { animate: false });
+    enforceMinZoomToAvoidBlankViewport(allMapsMap);
+    return;
+  }
+
+  const bounds = israelPts.length > 0
+    ? L.latLngBounds(israelPts)
+    : (allValidPts.length > 0 ? L.latLngBounds(allValidPts) : ISRAEL_BOUNDS);
   if (!bounds.isValid()) return;
 
-  const pad = pts.length > 0 ? 0.06 : ISRAEL_FIT_PADDING;
+  const pad = (israelPts.length > 0 || allValidPts.length > 0) ? 0.06 : ISRAEL_FIT_PADDING;
   allMapsMap.fitBounds(bounds.pad(pad), {
     animate: false,
     maxZoom: getMapMaxZoom(allMapsMap) ?? undefined,
@@ -10075,19 +10166,34 @@ function focusAllMapsOnHighlightedSnapshotIsraelOnly(targetKey) {
   if (!snap) return false;
 
   /** @type {L.LatLng[]} */
-  const pts = [];
+  const allValidPts = [];
+  /** @type {L.LatLng[]} */
+  const israelPts = [];
   const addrs = Array.isArray(snap?.addresses) ? snap.addresses : [];
   for (const a of addrs) {
     const ok = a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon);
     if (!ok) continue;
     const ll = L.latLng(Number(a.lat), Number(a.lon));
-    if (ISRAEL_BOUNDS.contains(ll)) pts.push(ll);
+    allValidPts.push(ll);
+    if (ISRAEL_BOUNDS.contains(ll)) israelPts.push(ll);
   }
 
-  const bounds = pts.length > 0 ? L.latLngBounds(pts) : ISRAEL_BOUNDS;
+  if (allValidPts.length === 1) {
+    try {
+      allMapsMap.setView(allValidPts[0], 6, { animate: false });
+      enforceMinZoomToAvoidBlankViewport(allMapsMap);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const bounds = israelPts.length > 0
+    ? L.latLngBounds(israelPts)
+    : (allValidPts.length > 0 ? L.latLngBounds(allValidPts) : ISRAEL_BOUNDS);
   if (!bounds.isValid()) return false;
 
-  const pad = pts.length > 0 ? 0.06 : ISRAEL_FIT_PADDING;
+  const pad = (israelPts.length > 0 || allValidPts.length > 0) ? 0.06 : ISRAEL_FIT_PADDING;
   try {
     allMapsMap.fitBounds(bounds.pad(pad), {
       animate: false,
@@ -10285,6 +10391,15 @@ function renderAllMapsCombinedMap() {
 
   const list = getSavedMaps();
   const items = Array.isArray(list) ? list.filter(Boolean) : [];
+  const sortedItems = items.slice().sort((a, b) => {
+    const aName = normalizeAllMapsSearchText(String(a?.fullName || a?.label || ""));
+    const bName = normalizeAllMapsSearchText(String(b?.fullName || b?.label || ""));
+    const byName = aName.localeCompare(bName, undefined, { sensitivity: "base" });
+    if (byName !== 0) return byName;
+    const aLabel = normalizeAllMapsSearchText(String(a?.label || ""));
+    const bLabel = normalizeAllMapsSearchText(String(b?.label || ""));
+    return aLabel.localeCompare(bLabel, undefined, { sensitivity: "base" });
+  });
   elSavedMapsEmpty.classList.toggle("hidden", items.length !== 0);
 
   const hidden = getAllMapsHiddenLabels();
@@ -10317,7 +10432,7 @@ function renderAllMapsCombinedMap() {
 
   if (elSavedMapsList) {
     elSavedMapsList.innerHTML = "";
-    for (const snap of items) {
+    for (const snap of sortedItems) {
       const li = document.createElement("li");
       li.className = "allMapsListItem";
 
@@ -10328,6 +10443,7 @@ function renderAllMapsCombinedMap() {
       const nameBtn = document.createElement("button");
       nameBtn.type = "button";
       nameBtn.className = "allMapsListName";
+      nameBtn.dataset.searchText = `${String(snap?.fullName || "")} ${snapLabel}`;
       renderMapLabelLikeSignature(nameBtn, snap, snapLabel);
       const isNameHighlighted = Boolean(allMapsHighlightedKey) && Boolean(effectiveKey) && effectiveKey === allMapsHighlightedKey;
       if (isNameHighlighted) nameBtn.classList.add("isHighlighted");
@@ -10361,6 +10477,13 @@ function renderAllMapsCombinedMap() {
 
       li.appendChild(nameBtn);
       elSavedMapsList.appendChild(li);
+    }
+
+    // Keep search behavior stable after list re-renders: do not filter,
+    // only jump focus to the first matching name.
+    applyAllMapsSearchMatchHighlight(allMapsSearchQuery);
+    if (allMapsSearchQuery) {
+      focusAllMapsListNameByQuery(allMapsSearchQuery);
     }
   }
 
@@ -10606,6 +10729,14 @@ if (elAllMapsEditBtn) {
     if (willOpen) {
       setTimeout(() => alignAllMapsPanelToEditButton(), 0);
     }
+  });
+}
+
+if (elAllMapsSearchInput) {
+  elAllMapsSearchInput.addEventListener("input", () => {
+    allMapsSearchQuery = String(elAllMapsSearchInput.value || "");
+    applyAllMapsSearchMatchHighlight(allMapsSearchQuery);
+    focusAllMapsListNameByQuery(allMapsSearchQuery);
   });
 }
 
@@ -12817,8 +12948,19 @@ function focusMapOnIsraelLocationsMax() {
   // Goal: zoom in as much as possible while still including all relevant
   // locations inside Israel. If no points are inside Israel, fall back to
   // the default Israel rectangle.
+  const validPts = (Array.isArray(addresses) ? addresses : [])
+    .filter((a) => a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon))
+    .map((a) => L.latLng(Number(a.lat), Number(a.lon)));
+
+  // Single-home maps should open with the home centered, even if it is outside Israel.
+  if (validPts.length === 1) {
+    map.setView(validPts[0], 6, { animate: false });
+    enforceMinZoomToAvoidBlankViewport(map);
+    return;
+  }
+
   const pts = (Array.isArray(addresses) ? addresses : [])
-    .filter((a) => a && isFinite(a.lat) && isFinite(a.lon))
+    .filter((a) => a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon))
     .map((a) => L.latLng(Number(a.lat), Number(a.lon)))
     .filter((ll) => ISRAEL_BOUNDS.contains(ll));
 
