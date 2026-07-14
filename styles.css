@@ -2309,6 +2309,7 @@ img.postcardCardLogo {
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
   font-weight: 400;
   font-size: 15.5px;
+  color: #000000;
   text-transform: none !important;
   text-decoration: underline;
   text-decoration-thickness: 0.75px;
@@ -2795,9 +2796,12 @@ input[type="reset"]:hover:not(:disabled) {
 /* All Maps: when the map is displayed (dark basemap), make UI text white. */
 #pageAllMaps.dark-map-ui .brand,
 #pageAllMaps.dark-map-ui .closeToHomeBtn,
-#pageAllMaps.dark-map-ui .allMapsListName,
 #pageAllMaps.dark-map-ui .allMapsListToggle {
   color: #ffffff;
+}
+
+#pageAllMaps.dark-map-ui .allMapsListName {
+  color: #000000;
 }
 
 

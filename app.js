@@ -10733,8 +10733,23 @@ if (elAllMapsEditBtn) {
 }
 
 if (elAllMapsSearchInput) {
+  const clearAllMapsSelectionForSearch = () => {
+    if (!allMapsHighlightedKey && !allMapsPendingFocusKey && !allMapsPendingRestoreView) return false;
+    allMapsHighlightedKey = null;
+    allMapsPendingFocusKey = null;
+    allMapsPendingRestoreView = null;
+    allMapsViewBeforeHighlightFocus = null;
+    renderAllMapsCombinedMap();
+    return true;
+  };
+
+  elAllMapsSearchInput.addEventListener("keydown", () => {
+    clearAllMapsSelectionForSearch();
+  });
+
   elAllMapsSearchInput.addEventListener("input", () => {
     allMapsSearchQuery = String(elAllMapsSearchInput.value || "");
+    clearAllMapsSelectionForSearch();
     applyAllMapsSearchMatchHighlight(allMapsSearchQuery);
     focusAllMapsListNameByQuery(allMapsSearchQuery);
   });
