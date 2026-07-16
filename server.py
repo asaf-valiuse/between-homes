@@ -389,14 +389,21 @@ def _init_db() -> None:
         )
 
         initialized = conn.execute("SELECT value FROM store_meta WHERE key = 'initialized'").fetchone()
-        if initialized:
-            return
+        if not initialized:
+            conn.execute("INSERT OR REPLACE INTO store_meta (key, value) VALUES ('initialized', ?)", (_now_iso(),))
 
-        # A brand-new (persistent) database gets populated from signatures.json
-        # exactly once, on this very first boot. Once 'initialized' is set
-        # above, this never runs again automatically -- so it can't silently
-        # mask a future data-loss bug the way repeated auto-seeding would.
-        _seed_signatures_from_json_body(conn, include_saved_maps=True, clear_signatures=True)
+        # signatures.json gets merged in exactly once, tracked by its own flag
+        # (separate from 'initialized') so it still runs even on a database
+        # that was already marked initialized before this merge step existed.
+        # clear_signatures=False: this only inserts/updates rows by their
+        # signatures.json id -- it never deletes existing signatures, so any
+        # real data already saved (online, before this merge ever runs)
+        # is left untouched.
+        json_seeded = conn.execute("SELECT value FROM store_meta WHERE key = 'json_seeded'").fetchone()
+        if json_seeded:
+            return
+        _seed_signatures_from_json_body(conn, include_saved_maps=True, clear_signatures=False)
+        conn.execute("INSERT OR REPLACE INTO store_meta (key, value) VALUES ('json_seeded', ?)", (_now_iso(),))
 
 
 def _read_store() -> dict:
