@@ -863,7 +863,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path not in ("/api/signatures", "/api/overpass", "/api/nominatim", "/api/state", "/api/maps/rebuild"):
+        if parsed.path not in ("/api/signatures", "/api/overpass", "/api/nominatim", "/api/state", "/api/maps/rebuild", "/api/admin/seed-from-json"):
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
             return
 
@@ -1022,6 +1022,29 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/maps/rebuild":
             overwrite = bool(payload.get("overwrite")) if isinstance(payload, dict) else False
             result = _rebuild_maps_in_db(overwrite=overwrite)
+            self._send_json(HTTPStatus.OK, result)
+            return
+
+        if parsed.path == "/api/admin/seed-from-json":
+            # Temporary one-time recovery endpoint: repopulates the live DB
+            # from the committed signatures.json snapshot. Remove this route
+            # (and the home-page button that calls it) once the database is
+            # confirmed to be persisting correctly across deploys.
+            if not isinstance(payload, dict) or payload.get("confirm") is not True:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "confirm_required"})
+                return
+            force = bool(payload.get("force"))
+            with _lock:
+                _init_db()
+                with _connect_db() as conn:
+                    existing = conn.execute("SELECT COUNT(*) FROM signatures").fetchone()[0]
+                if existing > 0 and not force:
+                    self._send_json(
+                        HTTPStatus.CONFLICT,
+                        {"ok": False, "error": "db_not_empty", "existing_signatures": existing},
+                    )
+                    return
+                result = _seed_signatures_from_json(include_saved_maps=True, clear_signatures=True)
             self._send_json(HTTPStatus.OK, result)
             return
 

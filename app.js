@@ -16501,6 +16501,44 @@ if (elHomeAboutBtn) {
   });
 }
 
+// TEMPORARY: one-time DB recovery action. Remove this block and the
+// #homeSeedFromJsonBtn button in index.html once the live database is
+// confirmed to persist correctly across deploys.
+const elHomeSeedFromJsonBtn = document.getElementById("homeSeedFromJsonBtn");
+if (elHomeSeedFromJsonBtn) {
+  elHomeSeedFromJsonBtn.addEventListener("click", async () => {
+    const sure = confirm(
+      "This clears the live database and reloads it from signatures.json. " +
+        "Any maps created online since that file was last updated will be lost. Continue?"
+    );
+    if (!sure) return;
+
+    elHomeSeedFromJsonBtn.disabled = true;
+    const originalLabel = elHomeSeedFromJsonBtn.textContent;
+    elHomeSeedFromJsonBtn.textContent = "seeding…";
+    try {
+      const res = await fetch("/api/admin/seed-from-json", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json && json.ok) {
+        showToast(`Seeded: ${json.db_total} records in DB (${json.inserted_signatures} from signatures.json, ${json.inserted_saved_maps} from saved maps)`, 5000);
+      } else if (res.status === 409 && json && json.error === "db_not_empty") {
+        showToast(`Skipped: DB already has ${json.existing_signatures} signature(s). Not overwriting.`, 4000);
+      } else {
+        showToast(`Seed failed: ${(json && json.error) || res.status}`, 3000);
+      }
+    } catch (err) {
+      showToast(`Seed failed: ${err && err.message ? err.message : "network error"}`, 3000);
+    } finally {
+      elHomeSeedFromJsonBtn.disabled = false;
+      elHomeSeedFromJsonBtn.textContent = originalLabel;
+    }
+  });
+}
+
 if (elAboutBackBtn) {
   elAboutBackBtn.addEventListener("click", () => {
     showPage("welcome");
