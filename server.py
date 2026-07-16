@@ -389,35 +389,15 @@ def _init_db() -> None:
         if initialized:
             return
 
-        seed = _store_from_json_raw(_read_json_file(SIGNATURES_JSON_SEED_PATH))
-        state = seed.get("state") if isinstance(seed.get("state"), dict) else _default_state()
+        # A brand-new database starts empty. Signatures are never auto-seeded
+        # from signatures.json here — that silently masked real data-loss bugs
+        # (e.g. DATABASE_PATH resolving to the wrong, non-persistent path) by
+        # making an accidentally-reset database look like normal old data.
+        # Use `--seed-from-json` explicitly if a manual seed is ever needed.
         conn.execute(
             "INSERT OR REPLACE INTO app_state (id, state_json) VALUES (1, ?)",
-            (json.dumps(state, ensure_ascii=False),),
+            (json.dumps(_default_state(), ensure_ascii=False),),
         )
-
-        for record in seed.get("signatures") if isinstance(seed.get("signatures"), list) else []:
-            if not isinstance(record, dict):
-                continue
-            record_id = str(record.get("id") or f"sig-{int(datetime.now().timestamp() * 1000)}").strip()
-            if not record_id:
-                continue
-            map_obj = record.get("map") if isinstance(record.get("map"), dict) else None
-            if not _is_valid_map_snapshot(map_obj):
-                map_obj = _build_map_snapshot_from_record(record, 0)
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO signatures (id, created_at, student_name, record_json, map_json)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    record_id,
-                    str(record.get("createdAt") or _now_iso()),
-                    str(record.get("studentName") or ""),
-                    json.dumps(record, ensure_ascii=False),
-                    json.dumps(map_obj, ensure_ascii=False) if map_obj else None,
-                ),
-            )
 
         conn.execute("INSERT OR REPLACE INTO store_meta (key, value) VALUES ('initialized', ?)", (_now_iso(),))
 
