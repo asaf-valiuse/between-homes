@@ -392,17 +392,11 @@ def _init_db() -> None:
         if initialized:
             return
 
-        # A brand-new database starts empty. Signatures are never auto-seeded
-        # from signatures.json here — that silently masked real data-loss bugs
-        # (e.g. DATABASE_PATH resolving to the wrong, non-persistent path) by
-        # making an accidentally-reset database look like normal old data.
-        # Use `--seed-from-json` explicitly if a manual seed is ever needed.
-        conn.execute(
-            "INSERT OR REPLACE INTO app_state (id, state_json) VALUES (1, ?)",
-            (json.dumps(_default_state(), ensure_ascii=False),),
-        )
-
-        conn.execute("INSERT OR REPLACE INTO store_meta (key, value) VALUES ('initialized', ?)", (_now_iso(),))
+        # A brand-new (persistent) database gets populated from signatures.json
+        # exactly once, on this very first boot. Once 'initialized' is set
+        # above, this never runs again automatically -- so it can't silently
+        # mask a future data-loss bug the way repeated auto-seeding would.
+        _seed_signatures_from_json_body(conn, include_saved_maps=True, clear_signatures=True)
 
 
 def _read_store() -> dict:
@@ -530,8 +524,9 @@ def _record_from_saved_map_snapshot(snapshot: dict, serial: int) -> dict | None:
     }
 
 
-def _seed_signatures_from_json(*, include_saved_maps: bool = True, clear_signatures: bool = True) -> dict:
-    _init_db()
+def _seed_signatures_from_json_body(conn: sqlite3.Connection, *, include_saved_maps: bool, clear_signatures: bool) -> dict:
+    """Seed logic only -- assumes tables already exist and conn is open. Does
+    not call _init_db(), so this is safe to call from inside _init_db() itself."""
     seed = _store_from_json_raw(_read_json_file(SIGNATURES_JSON_SEED_PATH))
     signatures = seed.get("signatures") if isinstance(seed.get("signatures"), list) else []
     state = seed.get("state") if isinstance(seed.get("state"), dict) else _default_state()
@@ -543,74 +538,73 @@ def _seed_signatures_from_json(*, include_saved_maps: bool = True, clear_signatu
     built_maps = 0
     seen_ids: set[str] = set()
 
-    with _connect_db() as conn:
-        if clear_signatures:
-            conn.execute("DELETE FROM signatures")
+    if clear_signatures:
+        conn.execute("DELETE FROM signatures")
+
+    conn.execute(
+        "INSERT OR REPLACE INTO app_state (id, state_json) VALUES (1, ?)",
+        (json.dumps(state, ensure_ascii=False),),
+    )
+
+    serial = 0
+
+    def insert_record(record: dict, map_obj: dict | None = None, *, from_saved_map: bool = False) -> None:
+        nonlocal inserted_signatures, inserted_saved_maps, skipped, built_maps, serial
+        if not isinstance(record, dict):
+            skipped += 1
+            return
+        record_id = str(record.get("id") or f"sig-json-{serial + 1}").strip()
+        if not record_id or record_id in seen_ids:
+            skipped += 1
+            return
+
+        serial += 1
+        seen_ids.add(record_id)
+        if not _is_valid_map_snapshot(map_obj):
+            map_obj = record.get("map") if isinstance(record.get("map"), dict) else None
+        if not _is_valid_map_snapshot(map_obj):
+            map_obj = _build_map_snapshot_from_record(record, serial)
+        if _is_valid_map_snapshot(map_obj):
+            map_obj["serial"] = serial
+            built_maps += 1
 
         conn.execute(
-            "INSERT OR REPLACE INTO app_state (id, state_json) VALUES (1, ?)",
-            (json.dumps(state, ensure_ascii=False),),
+            """
+            INSERT OR REPLACE INTO signatures (id, created_at, student_name, record_json, map_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                record_id,
+                str(record.get("createdAt") or _now_iso()),
+                str(record.get("studentName") or ""),
+                json.dumps(record, ensure_ascii=False),
+                json.dumps(map_obj, ensure_ascii=False) if map_obj else None,
+            ),
         )
+        if from_saved_map:
+            inserted_saved_maps += 1
+        else:
+            inserted_signatures += 1
 
-        serial = 0
+    for record in signatures:
+        insert_record(record)
 
-        def insert_record(record: dict, map_obj: dict | None = None, *, from_saved_map: bool = False) -> None:
-            nonlocal inserted_signatures, inserted_saved_maps, skipped, built_maps, serial
-            if not isinstance(record, dict):
+    if include_saved_maps:
+        for snapshot in saved_maps:
+            if not isinstance(snapshot, dict):
                 skipped += 1
-                return
-            record_id = str(record.get("id") or f"sig-json-{serial + 1}").strip()
-            if not record_id or record_id in seen_ids:
+                continue
+            record = _record_from_saved_map_snapshot(snapshot, serial + 1)
+            if not record:
                 skipped += 1
-                return
+                continue
+            map_obj = dict(snapshot)
+            insert_record(record, map_obj, from_saved_map=True)
 
-            serial += 1
-            seen_ids.add(record_id)
-            if not _is_valid_map_snapshot(map_obj):
-                map_obj = record.get("map") if isinstance(record.get("map"), dict) else None
-            if not _is_valid_map_snapshot(map_obj):
-                map_obj = _build_map_snapshot_from_record(record, serial)
-            if _is_valid_map_snapshot(map_obj):
-                map_obj["serial"] = serial
-                built_maps += 1
+    conn.execute("INSERT OR REPLACE INTO store_meta (key, value) VALUES ('initialized', ?)", (_now_iso(),))
 
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO signatures (id, created_at, student_name, record_json, map_json)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    record_id,
-                    str(record.get("createdAt") or _now_iso()),
-                    str(record.get("studentName") or ""),
-                    json.dumps(record, ensure_ascii=False),
-                    json.dumps(map_obj, ensure_ascii=False) if map_obj else None,
-                ),
-            )
-            if from_saved_map:
-                inserted_saved_maps += 1
-            else:
-                inserted_signatures += 1
-
-        for record in signatures:
-            insert_record(record)
-
-        if include_saved_maps:
-            for snapshot in saved_maps:
-                if not isinstance(snapshot, dict):
-                    skipped += 1
-                    continue
-                record = _record_from_saved_map_snapshot(snapshot, serial + 1)
-                if not record:
-                    skipped += 1
-                    continue
-                map_obj = dict(snapshot)
-                insert_record(record, map_obj, from_saved_map=True)
-
-        conn.execute("INSERT OR REPLACE INTO store_meta (key, value) VALUES ('initialized', ?)", (_now_iso(),))
-
-        db_total = conn.execute("SELECT COUNT(*) FROM signatures").fetchone()[0]
-        db_maps = conn.execute("SELECT COUNT(*) FROM signatures WHERE map_json IS NOT NULL AND length(map_json) > 2").fetchone()[0]
+    db_total = conn.execute("SELECT COUNT(*) FROM signatures").fetchone()[0]
+    db_maps = conn.execute("SELECT COUNT(*) FROM signatures WHERE map_json IS NOT NULL AND length(map_json) > 2").fetchone()[0]
 
     return {
         "ok": True,
@@ -625,6 +619,12 @@ def _seed_signatures_from_json(*, include_saved_maps: bool = True, clear_signatu
         "cleared_signatures": bool(clear_signatures),
         "included_saved_maps": bool(include_saved_maps),
     }
+
+
+def _seed_signatures_from_json(*, include_saved_maps: bool = True, clear_signatures: bool = True) -> dict:
+    _init_db()
+    with _connect_db() as conn:
+        return _seed_signatures_from_json_body(conn, include_saved_maps=include_saved_maps, clear_signatures=clear_signatures)
 
 
 def _is_valid_map_snapshot(map_obj: object) -> bool:
@@ -866,7 +866,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path not in ("/api/signatures", "/api/overpass", "/api/nominatim", "/api/state", "/api/maps/rebuild", "/api/admin/seed-from-json"):
+        if parsed.path not in ("/api/signatures", "/api/overpass", "/api/nominatim", "/api/state", "/api/maps/rebuild"):
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
             return
 
@@ -1025,29 +1025,6 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/maps/rebuild":
             overwrite = bool(payload.get("overwrite")) if isinstance(payload, dict) else False
             result = _rebuild_maps_in_db(overwrite=overwrite)
-            self._send_json(HTTPStatus.OK, result)
-            return
-
-        if parsed.path == "/api/admin/seed-from-json":
-            # Temporary one-time recovery endpoint: repopulates the live DB
-            # from the committed signatures.json snapshot. Remove this route
-            # (and the home-page button that calls it) once the database is
-            # confirmed to be persisting correctly across deploys.
-            if not isinstance(payload, dict) or payload.get("confirm") is not True:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "confirm_required"})
-                return
-            force = bool(payload.get("force"))
-            with _lock:
-                _init_db()
-                with _connect_db() as conn:
-                    existing = conn.execute("SELECT COUNT(*) FROM signatures").fetchone()[0]
-                if existing > 0 and not force:
-                    self._send_json(
-                        HTTPStatus.CONFLICT,
-                        {"ok": False, "error": "db_not_empty", "existing_signatures": existing},
-                    )
-                    return
-                result = _seed_signatures_from_json(include_saved_maps=True, clear_signatures=True)
             self._send_json(HTTPStatus.OK, result)
             return
 
