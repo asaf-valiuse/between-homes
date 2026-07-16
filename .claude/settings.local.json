@@ -38,7 +38,9 @@
       "Bash(python3 -)",
       "Bash(awk -F: '$1>10850 && $1<11100')",
       "Bash(awk 'NR==324,NR==336{print NR\": \"$0}' styles.css)",
-      "Bash(awk 'NR==408,NR==420{print NR\": \"$0}' styles.css)"
+      "Bash(awk 'NR==408,NR==420{print NR\": \"$0}' styles.css)",
+      "Bash(command -v python3.10 python3.11 python3.12 python3.13)",
+      "Bash(brew list *)"
     ]
   }
 }

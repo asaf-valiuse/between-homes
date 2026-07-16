@@ -475,7 +475,23 @@ body {
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
+}
+
+/* Titles are plain labels; logos in this shared position must stay clickable
+   (they navigate back to the home page — see wireHomeLogoNavigation in app.js). */
+#pageStep2 .step2MapTitle,
+#pageArchive .step2MapTitle,
+#pageAllMaps .step2MapTitle,
+#pageEmotion .emotionMapTitle {
   pointer-events: none;
+}
+
+#pageStep2 .step2LogoText,
+#pageArchive .step2LogoText,
+#pageAllMaps .step2LogoText,
+#pageEmotion .emotionLogoText {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 #pageStep2 .step2LogoText,
