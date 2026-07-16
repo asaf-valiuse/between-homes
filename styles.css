@@ -368,7 +368,7 @@ body {
 }
 
 .homePageLogo {
-  width: 150px;
+  width: 135px;
   height: auto;
   display: block;
   object-fit: contain;
@@ -509,7 +509,7 @@ body {
 }
 
 .appLogoImage {
-  width: calc(96px * var(--step1-scale, 1));
+  width: calc(86.4px * var(--step1-scale, 1));
   height: auto;
   display: block;
   object-fit: contain;
@@ -3108,7 +3108,7 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   top: 34px;
   left: 40px;
-  width: 96px;
+  width: 86.4px;
   z-index: 20;
 }
 
