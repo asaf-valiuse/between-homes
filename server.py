@@ -28,9 +28,12 @@ def _default_database_path() -> Path:
     if configured:
         return Path(configured).expanduser()
 
-    home = os.environ.get("HOME")
-    if os.environ.get("WEBSITE_SITE_NAME") and home:
-        return Path(home) / "data" / "lifepath.sqlite3"
+    if os.environ.get("WEBSITE_SITE_NAME"):
+        # Azure App Service's persistent storage is always mounted at /home,
+        # regardless of what $HOME resolves to for the running user (in some
+        # container configurations it's /root, which is NOT persistent and
+        # gets wiped on every restart/redeploy).
+        return Path("/home") / "data" / "lifepath.sqlite3"
 
     return ROOT / "lifepath.sqlite3"
 
