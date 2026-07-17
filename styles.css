@@ -545,7 +545,7 @@ body {
   left: 0;
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 16px;
+  font-size: 15px;
   text-transform: lowercase;
   color: #000000;
 }
@@ -692,9 +692,11 @@ body {
 /* Image-replaced button labels (buttons/*.png), used in place of plain text
    inside their <button>. The <img alt="..."> supplies the button's
    accessible name, so no extra ARIA is needed beyond what each button
-   already had. Add "<name>-hover.png" files to buttons/ and a matching
-   `#btnId:hover .btnImg { content: url(...); }` rule per button to wire up
-   hover states once those images exist.
+   already had. Each <img> also carries a per-image-type class (.btnImgBack,
+   .btnImgNext, etc., set in index.html) so the hover rules below (which
+   swap in buttons/<name>-hover.png) only need to be written once per image,
+   not once per button -- many buttons (e.g. every "back" button) share the
+   same base image.
 
    Source PNGs are now exported on a consistent-height canvas (~198px),
    so a single shared height here renders every word at the same actual
@@ -726,6 +728,52 @@ body {
    scale and make them too small relative to every other page's buttons. */
 #pageStep1 .frame .btnImg {
   height: 18.48px;
+}
+
+/* Hover states: content-swap the <img> to buttons/<name>-hover.png. Hover
+   has to be detected on the <button> (.btnImg itself is pointer-events:none
+   so it never receives the hover directly), then applied to the img
+   descendant that matches this image type. */
+button:hover .btnImgArchive {
+  content: url("buttons/archive-hover.png");
+}
+button:hover .btnImgAllMaps {
+  content: url("buttons/all-maps-hover.png");
+}
+button:hover .btnImgAbout {
+  content: url("buttons/about-hover.png");
+}
+button:hover .btnImgBack {
+  content: url("buttons/back-hover.png");
+}
+button:hover .btnImgNext {
+  content: url("buttons/next-hover.png");
+}
+button:hover .btnImgExpand {
+  content: url("buttons/expand-hover.png");
+}
+button:hover .btnImgAddHome {
+  content: url("buttons/add-home-hover.png");
+}
+/* addHomeBtn swaps to this class (see updateAddHomeBtnState()) once the
+   last expected home is being entered. */
+button:hover .btnImgFinish {
+  content: url("buttons/finish-hover.png");
+}
+
+/* "Before" states: shown while the button's own .active gate (set by JS
+   once its required data is filled in) hasn't been added yet. Scoped to
+   the specific buttons that actually toggle .active -- step1BelongNextBtn
+   also uses .btnImgNext but never gates on .active, so it's excluded. */
+#pageWelcome .step1NextBtn:not(.active) .btnImgNext,
+#pageStep1 #step1AddrNextBtn:not(.active) .btnImgNext {
+  content: url("buttons/next-before.png");
+}
+#pageStep1 #addHomeBtn:not(.active) .btnImgAddHome {
+  content: url("buttons/add-home-before.png");
+}
+#pageStep1 #addHomeBtn:not(.active) .btnImgFinish {
+  content: url("buttons/finish-before.png");
 }
 
 #pageEmotion .emotionMapTitle {
@@ -3306,16 +3354,6 @@ input[type="reset"]:hover:not(:disabled) {
   text-transform: lowercase;
 }
 
-/* Pulled out of the row's flex flow onto its own line, right-aligned to the
-   container's own right edge (same fixed 40px page margin as the row
-   above it) — keeps its own margin constant regardless of which buttons are
-   in the row above. */
-#pageStep1 #step1StartOverBtn {
-  position: absolute;
-  top: 26px;
-  right: 0;
-}
-
 #pageStep1 .step1TopActionBtn:hover {
   color: #602000;
 }
@@ -3326,10 +3364,6 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageStep1.step1-finished-state .step1FinishedOnlyBtn {
   display: inline-block;
-}
-
-#pageStep1.step1-finished-state .step1PreFinishOnlyBtn {
-  display: none;
 }
 
 #pageStep1 .step1TopProgress {
@@ -3387,7 +3421,7 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1LogoIntro {
   display: none;
   position: absolute;
-  top: 131px;
+  top: 115px;
   left: 40px;
   z-index: 20;
   color: #000000;
@@ -3403,7 +3437,7 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1LogoIntroTitle {
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
   font-weight: 400;
-  font-size: 18px;
+  font-size: 19px;
   line-height: 1.2;
   text-transform: none;
 }
@@ -3414,7 +3448,7 @@ input[type="reset"]:hover:not(:disabled) {
   top: -8px;
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
   font-weight: 400;
-  font-size: 16px;
+  font-size: 17px;
   line-height: 1.25;
   text-transform: none;
   max-width: none;
@@ -3448,7 +3482,13 @@ input[type="reset"]:hover:not(:disabled) {
   text-align: center;
   font-family: "NarkissBlock-Light-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 20px;
+  /* #pageStep1 .frame is scaled by --step1-scale to fit the viewport, so a
+     flat 20px here would render smaller than declared on any window
+     narrower than 1920px. Dividing by the same scale cancels it out, so
+     the rendered size stays a true, viewport-independent 16px -- matching
+     the home page's screen-2 questions, which aren't inside any scaled
+     container. */
+  font-size: calc(15px / var(--step1-scale, 1));
   line-height: 1;
   letter-spacing: 0;
   text-transform: lowercase;
@@ -3503,7 +3543,8 @@ input[type="reset"]:hover:not(:disabled) {
   text-transform: lowercase;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 18px;
+  /* Scale-independent 16px -- see .createYourMapTitle's comment. */
+  font-size: calc(15px / var(--step1-scale, 1));
   line-height: 1;
   letter-spacing: 0;
   color: #000000;
@@ -3511,29 +3552,8 @@ input[type="reset"]:hover:not(:disabled) {
   pointer-events: none;
 }
 
-#pageStep1 .step1EmotionMapTitle::first-letter,
-#pageStep1 .step1MovementMapTitle::first-letter {
+#pageStep1 .step1EmotionMapTitle::first-letter {
   text-transform: uppercase;
-}
-
-/* MOVEMENT MAP title: centered over the geographic map, at the same height
-   as the CREATE YOUR MAP heading. */
-#pageStep1 .step1MovementMapTitle {
-  position: absolute;
-  left: 67px;
-  width: 518px;
-  top: 325px;
-  margin: 0;
-  text-align: left;
-  text-transform: lowercase;
-  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 1;
-  letter-spacing: 0;
-  color: #f3f1e6;
-  z-index: 4;
-  pointer-events: none;
 }
 
 /* --- Intro phase (entry screen): only name + homes count visible.
@@ -3557,7 +3577,6 @@ input[type="reset"]:hover:not(:disabled) {
   transform: translateX(248px);
 }
 #pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1-right,
-#pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1MovementMapTitle,
 #pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1MovementMapTitleCenter,
 #pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1EmotionMapTitle,
 #pageStep1:not(.step1-address-phase):not(.step1-belonging-phase):not(.step1-summary-phase) .step1EmotionMap,
@@ -3603,22 +3622,13 @@ input[type="reset"]:hover:not(:disabled) {
 }
 
 
-/* Pre-entry: title and name in black (on faded map). */
-#pageStep1.map-colors-dark .step1MovementMapTitle {
-  color: #f3f1e6;
-  transition: color 1.5s ease;
-}
-
+/* Pre-entry: name in black (on faded map). */
 #pageStep1.map-colors-dark .step1GeoMapName {
   color: #000000 !important;
   transition: color 1.5s ease;
 }
 
-/* Post-entry: title and name match the background (on full map). */
-#pageStep1:not(.map-colors-dark) .step1MovementMapTitle {
-  transition: color 1.5s ease;
-}
-
+/* Post-entry: name matches the background (on full map). */
 #pageStep1:not(.map-colors-dark) .step1GeoMapName {
   transition: color 1.5s ease;
 }
@@ -3627,11 +3637,6 @@ input[type="reset"]:hover:not(:disabled) {
 /* Summary phase: same 20% as during data entry. */
 #pageStep1.step1-summary-phase .step1GeoMap .leaflet-tile-pane {
   opacity: 0.2;
-}
-
-#pageStep1.step1-summary-phase .step1MovementMapTitle {
-  color: #f3f1e6 !important;
-  transition: color 1.5s ease;
 }
 
 #pageStep1.step1-summary-phase .step1GeoMapName {
@@ -3790,7 +3795,8 @@ input[type="reset"]:hover:not(:disabled) {
   text-align: left;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 18px;
+  /* Scale-independent 16px -- see .createYourMapTitle's comment. */
+  font-size: calc(15px / var(--step1-scale, 1));
   line-height: 1;
   letter-spacing: 0;
   color: #000000;
@@ -3991,9 +3997,10 @@ input[type="reset"]:hover:not(:disabled) {
 }
 
 #pageStep1 .step1RingReadingTitle {
-  margin: 7px 0 10px 0;
+  margin: -2px 0 10px 0;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
-  font-size: 18px;
+  /* Scale-independent 16px -- see .createYourMapTitle's comment. */
+  font-size: calc(15px / var(--step1-scale, 1));
   color: #000000;
   text-transform: lowercase;
 }
@@ -4073,9 +4080,10 @@ input[type="reset"]:hover:not(:disabled) {
 }
 
 #pageStep1 .step1TimeBelongingTitle {
-  margin: 7px 0 10px 0;
+  margin: -2px 0 10px 0;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
-  font-size: 18px;
+  /* Scale-independent 16px -- see .createYourMapTitle's comment. */
+  font-size: calc(15px / var(--step1-scale, 1));
   color: #000000;
   text-transform: none;
 }
@@ -4205,7 +4213,8 @@ input[type="reset"]:hover:not(:disabled) {
   text-align: left;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 18px;
+  /* Scale-independent 16px -- see .createYourMapTitle's comment. */
+  font-size: calc(15px / var(--step1-scale, 1));
   line-height: 1;
   color: #000000;
   z-index: 4;
@@ -4720,7 +4729,7 @@ input[type="reset"]:hover:not(:disabled) {
   color: #000000;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
   font-weight: 400;
-  font-size: 18px;
+  font-size: 19px;
   line-height: 1.2;
   text-transform: none;
   position: static;
@@ -4757,7 +4766,8 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .group-2 > .text-wrapper-2 {
   font-family: "NarkissBlock-Light-TRIAL", sans-serif !important;
   font-weight: 400;
-  font-size: 18px;
+  /* Scale-independent 16px -- see .createYourMapTitle's comment. */
+  font-size: calc(15px / var(--step1-scale, 1));
   text-transform: lowercase;
   position: relative;
   top: 0;

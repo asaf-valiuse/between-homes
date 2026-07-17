@@ -6,16 +6,16 @@
     <title>LifePath</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="styles.css?v=2026-07-16-shorter-lines-v3" />
+    <link rel="stylesheet" href="styles.css?v=2026-07-17-titles-raised-2" />
   </head>
   <body>
     <main class="app">
       <!-- Page 0: Home (logo, tagline, start) -->
       <section id="pageWelcome" class="page hidden homePage" aria-label="Home">
         <div class="homePageTopActions" aria-label="Home page actions">
-          <button type="button" id="homeArchiveBtn" class="step1TopActionBtn"><img class="btnImg" src="buttons/archive.png" alt="archive" /></button>
-          <button type="button" id="homeAllMapsBtn" class="step1TopActionBtn"><img class="btnImg" src="buttons/all-maps.png" alt="all maps" /></button>
-          <button type="button" id="homeAboutBtn" class="step1TopActionBtn"><img class="btnImg" src="buttons/about.png" alt="about" /></button>
+          <button type="button" id="homeArchiveBtn" class="step1TopActionBtn"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
+          <button type="button" id="homeAllMapsBtn" class="step1TopActionBtn"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
+          <button type="button" id="homeAboutBtn" class="step1TopActionBtn"><img class="btnImg btnImgAbout" src="buttons/about.png" alt="about" /></button>
         </div>
 
         <div id="homeScrollHint" class="homeScrollHint" aria-hidden="true">
@@ -40,7 +40,7 @@
               <input id="homesCount" name="homesCount" class="figma-line-input" inputmode="numeric" pattern="[0-9]*" placeholder=" " autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
               <span class="nameCaret" aria-hidden="true"></span>
             </div>
-            <button type="button" id="step1NextBtn" class="step1NextBtn"><img class="btnImg" src="buttons/next.png" alt="next" /></button>
+            <button type="button" id="step1NextBtn" class="step1NextBtn"><img class="btnImg btnImgNext" src="buttons/next.png" alt="next" /></button>
           </div>
         </div>
       </section>
@@ -48,7 +48,7 @@
       <!-- Page: About (placeholder) -->
       <section id="pageAbout" class="page hidden homePage" aria-label="About">
         <div class="homePageTopActions" aria-label="About page actions">
-          <button type="button" id="aboutBackBtn" class="step1TopActionBtn"><img class="btnImg" src="buttons/back.png" alt="back" /></button>
+          <button type="button" id="aboutBackBtn" class="step1TopActionBtn"><img class="btnImg btnImgBack" src="buttons/back.png" alt="back" /></button>
         </div>
         <div class="homePageContent">
           <p class="homePageTagline">about — coming soon</p>
@@ -58,7 +58,7 @@
       <!-- Page 5: Archive (grid of saved snapshots) -->
       <section id="pageArchive" class="page hidden" aria-label="Archive">
         <header class="topbar">
-          <button id="archiveBackBtn" class="archiveBackBtn closeToHomeBtn textLink" type="button"><img class="btnImg" src="buttons/back.png" alt="back" /></button>
+          <button id="archiveBackBtn" class="archiveBackBtn closeToHomeBtn textLink" type="button"><img class="btnImg btnImgBack" src="buttons/back.png" alt="back" /></button>
           <div class="archiveSearchWrap">
             <input id="archiveSearchInput" class="archiveSearchInput" type="text" placeholder="search name" aria-label="Search maps by name" />
           </div>
@@ -76,7 +76,7 @@
       <section id="pageAllMaps" class="page hidden" aria-label="All maps">
         <header class="topbar">
           <div class="allMapsActions">
-            <button type="button" id="allMapsBackBtn" class="allMapsBackBtn closeToHomeBtn textLink" aria-label="Back"><img class="btnImg" src="buttons/back.png" alt="" /></button>
+            <button type="button" id="allMapsBackBtn" class="allMapsBackBtn closeToHomeBtn textLink" aria-label="Back"><img class="btnImg btnImgBack" src="buttons/back.png" alt="" /></button>
           </div>
         </header>
 
@@ -103,12 +103,11 @@
         <div class="frame">
           <img class="life-path lifepathWordmark appLogoImage" src="logo.png" alt="LifePath" />
           <div id="step1TopActions" class="step1TopActions" aria-label="Page actions">
-            <button type="button" id="step1GoBackBtn" class="step1TopActionBtn step1PreFinishOnlyBtn">go back</button>
+            <button type="button" id="step1GoBackBtn" class="step1TopActionBtn"><img class="btnImg btnImgBack" src="buttons/back.png" alt="back" /></button>
             <button type="button" id="step1EditFinishedBtn" class="step1TopActionBtn step1FinishedOnlyBtn">edit</button>
             <button type="button" id="step1ShareBtn" class="step1TopActionBtn step1FinishedOnlyBtn">share</button>
             <button type="button" id="step1PrintBtn" class="step1TopActionBtn step1FinishedOnlyBtn">print</button>
-            <button type="button" id="step1TopAllMapsBtn" class="step1TopActionBtn step1FinishedOnlyBtn"><img class="btnImg" src="buttons/all-maps.png" alt="all maps" /></button>
-            <button type="button" id="step1StartOverBtn" class="step1TopActionBtn">start over</button>
+            <button type="button" id="step1TopAllMapsBtn" class="step1TopActionBtn step1FinishedOnlyBtn"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
           </div>
           <div id="step1TopProgress" class="step1TopProgress" aria-live="polite">
             <div id="step1TopProgressSummary" class="step1TopProgressSummary"></div>
@@ -127,14 +126,13 @@
             <h3 class="step1RingReadingTitle">Ring reading</h3>
             <div id="step1RingReadingContent" class="step1RingReadingContent"></div>
           </div>
-          <h2 class="step1MovementMapTitle">MAP</h2>
           <h2 class="step1MovementMapTitleCenter">MOVEMENT MAP</h2>
           <div id="step1HomeCountLabel" class="step1SectionMiniLabel step1HomeCountLabel" aria-hidden="true"></div>
           <div class="step1SectionMiniLabel step1MoveFrequencyLabel" aria-hidden="true">move frequency</div>
           <div id="step1JourneyDistance" class="step1PanelStat step1JourneyDistance"></div>
           <div id="step1JourneyTimeline" class="step1JourneyTimeline" aria-hidden="true"></div>
           <div id="step1RoutePreview" class="step1RoutePreview" aria-label="Route preview"></div>
-          <button type="button" id="step1RouteFullscreenBtn" class="step1FullscreenBtn step1RouteFullscreenBtn"><img class="btnImg" src="buttons/expand.png" alt="expand" /></button>
+          <button type="button" id="step1RouteFullscreenBtn" class="step1FullscreenBtn step1RouteFullscreenBtn"><img class="btnImg btnImgExpand" src="buttons/expand.png" alt="expand" /></button>
           <div class="step1TimeBelonging">
             <h3 class="step1TimeBelongingTitle">Time & Belonging</h3>
             <div id="step1TimeBelongingChart" class="step1TimeBelongingChart"></div>
@@ -191,7 +189,7 @@
                         <div class="text-wrapper-2 has-dot">How connected did you feel to this home?</div>
                         <input id="belonging_rate_inline" name="belonging_rate_inline" class="figma-range-inline" type="range" min="1" max="10" step="0.01" value="1" />
                         <div class="belongingInlineValue"></div>
-                        <button type="button" id="addHomeBtn" class="addHomeBtn"><img class="btnImg" src="buttons/add-home.png" alt="add home" /></button>
+                        <button type="button" id="addHomeBtn" class="addHomeBtn"><img class="btnImg btnImgAddHome" src="buttons/add-home.png" alt="add home" /></button>
                       </div>
 
                       <div id="addressStatus" class="address-status" role="status" aria-live="polite"></div>
@@ -218,16 +216,16 @@
 
           <button type="submit" id="addBtn" class="text-wrapper-6" form="addressForm">save home</button>
           <button type="button" id="createLifePathBtn" class="text-wrapper-6">Create life path</button>
-          <button type="button" id="step1AddrBackBtn" class="step1AddrNavBtn"><img class="btnImg" src="buttons/back.png" alt="back" /></button>
-          <button type="button" id="step1AddrNextBtn" class="step1AddrNavBtn"><img class="btnImg" src="buttons/next.png" alt="next" /></button>
-          <button type="button" id="step1BelongBackBtn" class="step1BelongNavBtn"><img class="btnImg" src="buttons/back.png" alt="back" /></button>
-          <button type="button" id="step1BelongNextBtn" class="step1BelongNavBtn"><img class="btnImg" src="buttons/next.png" alt="next" /></button>
+          <button type="button" id="step1AddrBackBtn" class="step1AddrNavBtn"><img class="btnImg btnImgBack" src="buttons/back.png" alt="back" /></button>
+          <button type="button" id="step1AddrNextBtn" class="step1AddrNavBtn"><img class="btnImg btnImgNext" src="buttons/next.png" alt="next" /></button>
+          <button type="button" id="step1BelongBackBtn" class="step1BelongNavBtn"><img class="btnImg btnImgBack" src="buttons/back.png" alt="back" /></button>
+          <button type="button" id="step1BelongNextBtn" class="step1BelongNavBtn"><img class="btnImg btnImgNext" src="buttons/next.png" alt="next" /></button>
           <button type="button" id="step1SummaryEditBtn" class="step1SummaryNavBtn">EDIT</button>
           <div id="step1EmotionMap" class="step1EmotionMap" aria-label="Emotional map preview">
             <div id="step1EmotionPlaceholderText" class="step1EmotionPlaceholderText">The map will appear once your homes are added</div>
             <svg id="step1EmotionSvg" class="step1EmotionSvg" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
           </div>
-          <button type="button" id="step1EmotionFullscreenBtn" class="step1FullscreenBtn step1EmotionFullscreenBtn"><img class="btnImg" src="buttons/expand.png" alt="expand" /></button>
+          <button type="button" id="step1EmotionFullscreenBtn" class="step1FullscreenBtn step1EmotionFullscreenBtn"><img class="btnImg btnImgExpand" src="buttons/expand.png" alt="expand" /></button>
         </div>
       </section>
 
@@ -236,7 +234,7 @@
         <img class="life-path appLogoImage step1EmotionFullscreenLogo" src="logo.png" alt="LifePath" />
         <div id="step1EmotionFullscreenName" class="step1EmotionFullscreenName" aria-hidden="true"></div>
         <header class="topbar">
-          <button type="button" id="step1EmotionFullscreenBackBtn" class="textLink step1EmotionFullscreenBackBtn" aria-label="Back"><img class="btnImg" src="buttons/back.png" alt="" /></button>
+          <button type="button" id="step1EmotionFullscreenBackBtn" class="textLink step1EmotionFullscreenBackBtn" aria-label="Back"><img class="btnImg btnImgBack" src="buttons/back.png" alt="" /></button>
         </header>
 
         <div class="step1EmotionFullscreenWrap" aria-label="Emotion map (full screen)">
@@ -248,7 +246,7 @@
       <section id="pageStep2" class="page hidden" aria-label="Step 2">
         <header class="topbar">
           <div class="step2Actions">
-            <button type="button" id="step2BackBtn" class="closeToHomeBtn textLink" aria-label="Back"><img class="btnImg" src="buttons/back.png" alt="" /></button>
+            <button type="button" id="step2BackBtn" class="closeToHomeBtn textLink" aria-label="Back"><img class="btnImg btnImgBack" src="buttons/back.png" alt="" /></button>
           </div>
         </header>
 
@@ -291,7 +289,7 @@
             <h2 class="emotionMapTitle">emotion map</h2>
           </div>
 
-          <button type="button" id="emotionSoloBackBtn" class="textLink emotionSoloBackBtn" aria-label="Back"><img class="btnImg" src="buttons/back.png" alt="" /></button>
+          <button type="button" id="emotionSoloBackBtn" class="textLink emotionSoloBackBtn" aria-label="Back"><img class="btnImg btnImgBack" src="buttons/back.png" alt="" /></button>
         </header>
 
         <div class="emotionWrap" aria-label="Emotion map rings">
@@ -336,6 +334,6 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-      <script src="app.js?v=2026-07-16-logo-shrink-while-rising"></script>
+      <script src="app.js?v=2026-07-17-chart-tuning-2"></script>
   </body>
 </html>

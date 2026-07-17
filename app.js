@@ -4700,22 +4700,36 @@ function resetStep1HouseList() {
   }
 }
 
-// Top-right page actions (go back / edit / share / print / start over) —
+// Top-right page actions (back / edit / share / print) — edit/share/print
 // visibility toggles purely on step1-finished-state via CSS; see
-// .step1PreFinishOnlyBtn/.step1FinishedOnlyBtn in styles.css.
+// .step1FinishedOnlyBtn in styles.css. "back" has no such restriction —
+// it's always visible, replacing what used to be two separate buttons
+// ("go back", pre-finish only, and "start over", always visible but
+// destructive) with one that's always available and never discards data.
 const elStep1GoBackBtn = document.getElementById("step1GoBackBtn");
 const elStep1EditFinishedBtn = document.getElementById("step1EditFinishedBtn");
 const elStep1ShareBtn = document.getElementById("step1ShareBtn");
 const elStep1PrintBtn = document.getElementById("step1PrintBtn");
 const elStep1TopAllMapsBtn = document.getElementById("step1TopAllMapsBtn");
-const elStep1StartOverBtn = document.getElementById("step1StartOverBtn");
 
-// "go back": returns to the very first Step 1 screen (name + home count)
-// regardless of which phase is currently active. Purely a UI/phase change —
-// doesn't touch any already-entered address data, mirroring how the
-// per-phase BACK buttons elsewhere only ever change phase, never data.
+// "back": returns to the home page's screen 2 (name + home count) from
+// wherever Step 1 currently is (any phase, finished or not) without
+// touching any already-entered address data, mirroring how the per-phase
+// BACK buttons elsewhere only ever change phase/page, never data.
 function step1GoBackToIntro() {
   if (!elPageStep1) return;
+  // The emotion map's ambient rings sound/breathing is otherwise a standing
+  // session deliberately left running across ordinary Step1<->Emotion
+  // navigation (see showPage()'s comment) -- showPage("welcome") below
+  // already tears that down since "welcome" isn't part of that shared
+  // session, but the finished-map ring-entry loop is a separate sound that
+  // isn't part of that teardown, so it needs its own explicit stop here
+  // (same reasoning the old "start over" button used to apply).
+  try {
+    stopStep1EntrySound();
+  } catch {
+    // ignore
+  }
   // Step 1's own "no phase" intro screen no longer has the name/homes-count
   // form (moved to the home page) -- return there (screen 2) instead of
   // un-toggling phases to show what's now an empty gap. Still strip the
@@ -4726,40 +4740,6 @@ function step1GoBackToIntro() {
   elPageStep1.classList.remove("step1-address-phase", "step1-belonging-phase", "step1-summary-phase");
   step1SummaryPhaseActive = false;
   showPage("welcome", { welcomeScroll: "screen2" });
-}
-
-// "start over": resetStep1HouseList() only strips step1-finished-state, not
-// the other phase classes — harmless for its one existing caller (which
-// immediately re-renders the whole page anyway) but would leave this button
-// looking stuck mid-phase with no data behind it. Strip them all here too.
-function step1StartOver() {
-  step1EditModeAfterFinishActive = false;
-  // The emotion map's ambient rings sound (and its breathing animation) is
-  // otherwise a standing session, deliberately left running across ordinary
-  // navigation (see showPage()'s comment on Step 1/emotion/fullscreen
-  // sharing one session) — but starting over discards the map itself, so it
-  // shouldn't keep playing the map that's about to disappear.
-  try {
-    stopEmotionSound();
-  } catch {
-    // ignore
-  }
-  try {
-    stopStep1EntrySound();
-  } catch {
-    // ignore
-  }
-  try {
-    disarmEmotionBreathing();
-    stopEmotionBreathing();
-  } catch {
-    // ignore
-  }
-  resetStep1HouseList();
-  if (elPageStep1) {
-    elPageStep1.classList.remove("step1-address-phase", "step1-belonging-phase", "step1-summary-phase");
-  }
-  showPage("welcome");
 }
 
 // "edit" (shown only once finished): re-arms the exact ring/address
@@ -4786,12 +4766,6 @@ function step1EditAfterFinish() {
 if (elStep1GoBackBtn) {
   elStep1GoBackBtn.addEventListener("click", () => {
     step1GoBackToIntro();
-  });
-}
-
-if (elStep1StartOverBtn) {
-  elStep1StartOverBtn.addEventListener("click", () => {
-    step1StartOver();
   });
 }
 
@@ -6924,6 +6898,19 @@ function armStep1RoutePreviewHover() {
   });
 }
 
+// Movement map (route preview) dots only -- much thinner at the high end
+// than the shared belongingCircleStrokeWeight() curve used everywhere else
+// (geo map pins, inline slider, journey timeline), which stays unchanged.
+function routeDotStrokeWeight(rate) {
+  const r = Math.max(1, Math.min(10, parseFloat(rate) || 5));
+  const t = (r - 1) / 9; // 0..1
+  const minW = 1; // level 1
+  const maxW = 4.2; // level 10
+  const gamma = 1.4;
+  const shaped = Math.pow(Math.max(0, Math.min(1, t)), gamma);
+  return minW + (maxW - minW) * shaped;
+}
+
 function updateStep1RoutePreview() {
   if (!elStep1RoutePreview) return;
   armStep1RoutePreviewHover();
@@ -6965,9 +6952,11 @@ function updateStep1RoutePreview() {
     : pts;
 
   const MAX_BELONGING_RATE = 10;
-  const ROUTE_DOT_RADIUS = 4 + MAX_BELONGING_RATE / 2.5;
-  const MAX_STROKE_WIDTH = belongingCircleStrokeWeight(MAX_BELONGING_RATE) * 1.2;
-  const MAX_OUTER_RADIUS = ROUTE_DOT_RADIUS + MAX_STROKE_WIDTH / 2;
+  // Fixed inner edge of the dot's ring -- stroke grows outward from here only,
+  // so the ring's inner boundary never moves as belonging rate increases.
+  const ROUTE_DOT_INNER_RADIUS = 1.4 + MAX_BELONGING_RATE / 2.5;
+  const MAX_STROKE_WIDTH = routeDotStrokeWeight(MAX_BELONGING_RATE);
+  const MAX_OUTER_RADIUS = ROUTE_DOT_INNER_RADIUS + MAX_STROKE_WIDTH;
   const BORDER_INSET = 2;
   const minCenterX = BORDER_INSET + MAX_OUTER_RADIUS;
   const maxCenterX = svgW - BORDER_INSET - MAX_OUTER_RADIUS;
@@ -7058,7 +7047,7 @@ function updateStep1RoutePreview() {
     path.setAttribute("d", pathD);
     path.setAttribute("fill", "none");
     path.setAttribute("stroke", "#000000");
-    path.setAttribute("stroke-width", "1");
+    path.setAttribute("stroke-width", "0.6");
     path.setAttribute("stroke-linecap", "round");
     path.setAttribute("stroke-linejoin", "round");
     path.setAttribute("data-step1-route-line", "1");
@@ -7074,7 +7063,7 @@ function updateStep1RoutePreview() {
       animLine.setAttribute("x2", String(prev.x));
       animLine.setAttribute("y2", String(prev.y));
       animLine.setAttribute("stroke", "#000000");
-      animLine.setAttribute("stroke-width", "1");
+      animLine.setAttribute("stroke-width", "0.6");
       animLine.setAttribute("stroke-linecap", "round");
       animLine.setAttribute("data-step1-route-line", "1");
       svg.appendChild(animLine);
@@ -7091,8 +7080,8 @@ function updateStep1RoutePreview() {
           requestAnimationFrame(growLine);
         } else {
           // Line complete — now grow the dot.
-          const r = ROUTE_DOT_RADIUS;
-          const sw = belongingCircleStrokeWeight(last.rate) * 1.2;
+          const sw = routeDotStrokeWeight(last.rate);
+          const r = ROUTE_DOT_INNER_RADIUS + sw / 2;
           const dot = document.createElementNS(NS, "circle");
           dot.setAttribute("cx", String(last.x));
           dot.setAttribute("cy", String(last.y));
@@ -7123,8 +7112,8 @@ function updateStep1RoutePreview() {
   const dotEnd = isNewPoint ? coords.length - 1 : coords.length;
   for (let i = 0; i < dotEnd; i++) {
     const c = coords[i];
-    const r = ROUTE_DOT_RADIUS;
-    const sw = belongingCircleStrokeWeight(c.rate) * 1.2;
+    const sw = routeDotStrokeWeight(c.rate);
+    const r = ROUTE_DOT_INNER_RADIUS + sw / 2;
     const dot = document.createElementNS(NS, "circle");
     dot.setAttribute("cx", String(c.x));
     dot.setAttribute("cy", String(c.y));
@@ -7306,8 +7295,8 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   const chartW = Number(vb?.w) > 0 ? Number(vb.w) : 400;
   const chartH = Number(vb?.h) > 0 ? Number(vb.h) : 180;
   const padX = Math.max(26, Math.round(chartW * 0.1));
-  const padTop = Math.max(12, Math.round(chartH * 0.09));
-  const padBottom = Math.max(10, Math.round(chartH * 0.06));
+  const padTop = Math.max(12, Math.round(chartH * 0.06));
+  const padBottom = Math.max(10, Math.round(chartH * 0.04));
   const plotH = chartH - padTop - padBottom;
   const maxScale = 10;
 
@@ -7343,7 +7332,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
       line.setAttribute("x2", String(durPoints[i + 1].x));
       line.setAttribute("y2", String(durPoints[i + 1].y));
       line.setAttribute("stroke", "#000000");
-      line.setAttribute("stroke-width", "1");
+      line.setAttribute("stroke-width", "0.6");
       line.setAttribute("stroke-dasharray", "4 4");
       line.classList.add("tb-dur-line");
       const firstDot = svg.querySelector(".tb-dot");
@@ -7354,7 +7343,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
       const circle = document.createElementNS(NS, "circle");
       circle.setAttribute("cx", String(pt.x));
       circle.setAttribute("cy", String(pt.y));
-      circle.setAttribute("r", "4");
+      circle.setAttribute("r", "3");
       circle.setAttribute("fill", "#000000");
       circle.classList.add("tb-dur-dot");
       svg.appendChild(circle);
@@ -7373,7 +7362,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
         line.setAttribute("x2", String(prevPt.x));
         line.setAttribute("y2", String(prevPt.y));
         line.setAttribute("stroke", "#000000");
-        line.setAttribute("stroke-width", "1");
+        line.setAttribute("stroke-width", "0.6");
         line.setAttribute("stroke-dasharray", "4 4");
         line.classList.add("tb-dur-line");
         const firstDot = svg.querySelector(".tb-dot, .tb-dur-dot");
@@ -7403,7 +7392,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
       const dotAnimDur = 350;
       const dotDelay = prevPt ? 300 : 0;
       const dotStart = performance.now() + dotDelay;
-      const targetR = 4;
+      const targetR = 3;
       (function animDurDot(now) {
         const elapsed = now - dotStart;
         if (elapsed < 0) { requestAnimationFrame(animDurDot); return; }
@@ -7426,7 +7415,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
     label.setAttribute("text-anchor", "start");
     label.setAttribute("dominant-baseline", "middle");
     label.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
-    label.setAttribute("font-size", "14");
+    label.setAttribute("font-size", "13");
     label.setAttribute("fill", "#c3c1b7");
     label.textContent = String(v).padStart(2, "0");
     label.classList.add("tb-label");
@@ -7444,7 +7433,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   belongingLabel.setAttribute("text-anchor", "start");
   belongingLabel.setAttribute("dominant-baseline", "middle");
   belongingLabel.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
-  belongingLabel.setAttribute("font-size", "14");
+  belongingLabel.setAttribute("font-size", "13");
   belongingLabel.setAttribute("fill", "#c3c1b7");
   belongingLabel.textContent = "belonging";
   belongingLabel.classList.add("tb-label");
@@ -7471,7 +7460,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
     label.setAttribute("text-anchor", "end");
     label.setAttribute("dominant-baseline", "middle");
     label.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
-    label.setAttribute("font-size", "14");
+    label.setAttribute("font-size", "13");
     label.setAttribute("fill", "#c3c1b7");
     label.textContent = v === 10 ? "10+" : String(v).padStart(2, "0");
     label.classList.add("tb-label");
@@ -7486,7 +7475,7 @@ function _tbDrawDurationCurve(svg, NS, durPoints, belongingPoints, durations, be
   yearsLabel.setAttribute("text-anchor", "end");
   yearsLabel.setAttribute("dominant-baseline", "middle");
   yearsLabel.setAttribute("font-family", "NarkissBlock-Extralight-TRIAL, sans-serif");
-  yearsLabel.setAttribute("font-size", "14");
+  yearsLabel.setAttribute("font-size", "13");
   yearsLabel.setAttribute("fill", "#c3c1b7");
   yearsLabel.textContent = "years";
   yearsLabel.classList.add("tb-label");
@@ -7516,8 +7505,8 @@ function updateStep1TimeBelonging() {
   const chartW = Math.max(320, Math.round(elStep1TimeBelongingChart.getBoundingClientRect().width || 400));
   const padX = Math.max(26, Math.round(chartW * 0.1));
   const chartH = Math.max(120, Math.round(elStep1TimeBelongingChart.getBoundingClientRect().height || 180));
-  const padTop = Math.max(12, Math.round(chartH * 0.09));
-  const padBottom = Math.max(10, Math.round(chartH * 0.06));
+  const padTop = Math.max(12, Math.round(chartH * 0.06));
+  const padBottom = Math.max(10, Math.round(chartH * 0.04));
   const plotW = chartW - padX * 2;
   const plotH = chartH - padTop - padBottom;
 
@@ -7590,7 +7579,7 @@ function updateStep1TimeBelonging() {
       line.setAttribute("x2", String(newPoints[i + 1].x));
       line.setAttribute("y2", String(newPoints[i + 1].y));
       line.setAttribute("stroke", "#000000");
-      line.setAttribute("stroke-width", "1.2");
+      line.setAttribute("stroke-width", "0.6");
       line.classList.add("tb-line-seg");
       svg.appendChild(line);
     }
@@ -7600,7 +7589,7 @@ function updateStep1TimeBelonging() {
       const circle = document.createElementNS(NS, "circle");
       circle.setAttribute("cx", String(newPoints[i].x));
       circle.setAttribute("cy", String(newPoints[i].y));
-      circle.setAttribute("r", "4");
+      circle.setAttribute("r", "3");
       circle.setAttribute("fill", "#000000");
       circle.classList.add("tb-dot");
       svg.appendChild(circle);
@@ -7628,7 +7617,7 @@ function updateStep1TimeBelonging() {
     line.setAttribute("x2", String(prev.x));
     line.setAttribute("y2", String(prev.y));
     line.setAttribute("stroke", "#000000");
-    line.setAttribute("stroke-width", "1.2");
+    line.setAttribute("stroke-width", "0.6");
     line.classList.add("tb-line-seg");
     const firstDot = svg.querySelector(".tb-dot");
     if (firstDot) svg.insertBefore(line, firstDot);
@@ -7659,7 +7648,7 @@ function updateStep1TimeBelonging() {
   const dotAnimDur = 350;
   const dotDelay = newPoints.length >= 2 ? 300 : 0;
   const dotStart = performance.now() + dotDelay;
-  const targetR = 4;
+  const targetR = 3;
   function animDot(now) {
     const elapsed = now - dotStart;
     if (elapsed < 0) { requestAnimationFrame(animDot); return; }
@@ -10691,7 +10680,7 @@ const EMOTION_STROKE_BOOST = 5;
 // - belonging 1 => EMOTION_STROKE_MIN_PX
 // - belonging 10 => EMOTION_STROKE_MAX_PX (can be tuned independently)
 const EMOTION_STROKE_MIN_PX = 2;
-const EMOTION_STROKE_MAX_PX = 22;
+const EMOTION_STROKE_MAX_PX = 19;
 // Curve exponent for intermediate values (1 stays fixed, 10 stays fixed).
 // > 1 makes higher belonging values separate a bit more.
 const EMOTION_STROKE_CURVE_EXP = 1.3;
@@ -11832,11 +11821,15 @@ function renderEmotionMap(start) {
     const finalAmp = hasSoloShape && Number.isFinite(Number(soloShape.ampRatio))
       ? targetR * Number(soloShape.ampRatio)
       : ampTarget;
-    const finalStrokeForRing = hasSoloShape && Number.isFinite(Number(soloShape.strokeWidthPx)) && Number(soloShape.strokeWidthPx) > 0
+    // Cap at finalStroke (the belonging-rate-defined thickness): the solo
+    // ring's carried-over pixel measurement exists only to avoid a visual
+    // "pop" during the fly-in transition -- it should never let the ring end
+    // up rendering thicker than what its own belonging rate calls for.
+    const finalStrokeForRing = Math.min(finalStroke, hasSoloShape && Number.isFinite(Number(soloShape.strokeWidthPx)) && Number(soloShape.strokeWidthPx) > 0
       ? Math.max(0.5, Number(soloShape.strokeWidthPx))
       : (hasSoloShape && Number.isFinite(Number(soloShape.strokeRatio)) && Number(soloShape.strokeRatio) > 0
         ? Math.max(0.5, targetR * Number(soloShape.strokeRatio))
-        : finalStroke);
+        : finalStroke));
     setRingStrokeWidth(path, finalStrokeForRing);
 
     ringAngles.push(finalPhi);
@@ -12052,6 +12045,9 @@ function renderStep1EmotionMap(options) {
   const items = getStep1EmotionAddresses();
   if (!items.length) {
     clearStep1EmotionMap();
+    // No homes saved yet -- show the expected-count placeholder rings
+    // (from homesCount) instead of leaving the map empty.
+    renderStep1PlaceholderEmotionRings();
     return;
   }
 
@@ -15934,8 +15930,9 @@ if (elStep1AddrNextBtn) {
       // "keep placeholders intact" comment above), so those entry loops are
       // the *only* ambient sound the finished map actually has — stopping
       // them here left it (and the fullscreen page, which mirrors these
-      // same rings) completely silent. They're stopped in step1StartOver()
-      // instead, when the whole map — and its sound — is meant to go away.
+      // same rings) completely silent. They're stopped in
+      // step1GoBackToIntro() instead, when the whole map — and its sound —
+      // is meant to go away.
       updateStep1TopProgress();
       clearStep1HomesListFocus();
       // Hide controls for finished non-edit mode via centralized button-state logic.
@@ -16995,12 +16992,16 @@ function updateAddHomeBtnState() {
   const year = String(elStartYear?.value || "").trim();
   const allOk = Boolean(country && cityVal && streetVal && isValidStartYear(year) && currentAddressVerified && step1PendingPreviewAddress);
   elAddHomeBtn.classList.toggle("active", allOk);
-  if (isStep1EditModeActive()) {
-    elAddHomeBtn.textContent = "Save Changes";
-  } else if (isLastHome()) {
-    elAddHomeBtn.textContent = "finish";
-  } else {
-    elAddHomeBtn.textContent = "add home";
+  // Image-swap instead of textContent (which would wipe out the <img>):
+  // "Save Changes" (edit mode) has no dedicated asset, so it falls back to
+  // the default add-home image, same as the plain "add home" state.
+  const img = elAddHomeBtn.querySelector(".btnImg");
+  if (img) {
+    const showFinish = !isStep1EditModeActive() && isLastHome();
+    img.classList.toggle("btnImgFinish", showFinish);
+    img.classList.toggle("btnImgAddHome", !showFinish);
+    img.src = showFinish ? "buttons/finish.png" : "buttons/add-home.png";
+    img.alt = showFinish ? "finish" : "add home";
   }
 }
 
