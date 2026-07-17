@@ -280,7 +280,6 @@ body {
 #pageAbout.homePage {
   position: relative;
   background-color: #f4f2ea;
-  overflow: hidden;
   /* Overrides the old Welcome design's #pageWelcome { max-width: 1120px }
      (in a min-width:980px media query further down) — that constrained
      column made sense for the old scroll-hero content, but this full-bleed
@@ -288,6 +287,72 @@ body {
   max-width: none;
   margin-left: 0;
   margin-right: 0;
+}
+
+#pageAbout.homePage {
+  overflow: hidden;
+}
+
+/* #pageWelcome is 2 screens tall (see .homePageInner) with this element as
+   the actual scroll container — screen 1 (logo/tagline/start) fills the
+   first viewport, screen 2 (name/homes-count questions) is revealed by
+   scrolling. Scrollbar hidden so screen 1 stays pixel-identical to before
+   this existed; "start" (scrolls in place) and organic scrolling are the
+   discovery paths for screen 2. */
+#pageWelcome.homePage {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+#pageWelcome.homePage::-webkit-scrollbar {
+  display: none;
+}
+
+/* "Scroll down" hint: just a label, snug to the right of the user's real
+   (OS) cursor -- not a custom icon, the actual pointer plays that role.
+   Pinned to the viewport (outside the scrolling .homePageInner), fades out
+   the moment scrolling starts (toggled in app.js) and reappears if
+   scrolled back to the very top.
+   Position (top/left:0 + a translate set live in app.js on mousemove) is
+   deliberately not transitioned -- only opacity is, so it tracks the
+   cursor instantly with no lag while still fading smoothly on scroll. */
+.homeScrollHint {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 25;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.homeScrollHint.homeScrollHintHidden {
+  opacity: 0;
+}
+
+.homeScrollHintText {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  text-transform: lowercase;
+  color: #c3c1b7;
+}
+
+/* The scrollable content: screen 1 (logo) and screen 2 (name/homes-count
+   questions) both live here, positioned absolutely within it, so it's the
+   shared containing block for both -- see .homePageLogo's top:50vh and
+   .homePageScreen2's top:130vh below. */
+.homePageInner {
+  position: relative;
+  width: 100%;
+  /* Screen 1 is the first 100vh (unchanged); screen 2 is the last 100vh of
+     this height, i.e. it starts at (height - 100vh) when scrolled all the
+     way down (see scrollWelcomeToScreen2) -- shorter than a flat 200vh so
+     there's less empty trailing space to scroll through past the fields. */
+  height: 165vh;
 }
 
 .homeBgRouteSvg {
@@ -318,6 +383,9 @@ body {
    site's standard — matches the logo's left margin) is the same either way. */
 #pageWelcome .homePageTopActions {
   gap: 24px;
+  /* Pinned to the viewport, unaffected by #pageWelcome's own internal
+     scroll (see .homePageInner) -- stays visible on both screens. */
+  position: fixed;
 }
 
 #pageWelcome .homePageTopActions button {
@@ -355,24 +423,37 @@ body {
   gap: 24px;
 }
 
-/* Home page only: no Y-translate on the box itself — .homePageLogo below
-   shifts itself up by exactly half its own (rendered) height via transform,
-   which doesn't affect this flex column's layout flow. That puts the
-   *logo's* vertical center — not the whole stack's — exactly on the page's
-   center, with the tagline/start row following normally right below it.
-   The About page (no logo, just one line of text) keeps the plain whole-box
-   centering above. */
-#pageWelcome .homePageContent {
-  top: 50%;
-  transform: translateX(-50%);
-}
-
+/* The logo is #pageWelcome's only screen-1 content now (tagline/start row
+   removed) -- it centers itself directly rather than through a wrapper,
+   since a transformed *ancestor* (the old .homePageContent wrapper's own
+   translateX(-50%)) would otherwise establish a containing block that traps
+   position:fixed descendants, breaking the scroll-morph below (it needs to
+   truly escape to the viewport, not just to the wrapper's box). */
 .homePageLogo {
+  position: absolute;
+  /* 50vh, not 50%: stays pinned to screen 1's own center against
+     .homePageInner's 200vh height -- 50% of that would land at the
+     screen 1/2 boundary instead. */
+  top: 50vh;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: 135px;
   height: auto;
   display: block;
   object-fit: contain;
-  transform: translateY(-50%);
+  z-index: 1;
+}
+
+/* Applied by app.js's home-logo scroll-morph once scrolling has carried the
+   logo's top edge to the top of the viewport: switches it from scrolling
+   with the page to pinned-in-place, so the accompanying top/left/width
+   inline styles (interpolating toward every other page's small top-left
+   corner logo) read against the true viewport instead of the scrolled
+   content or any transformed ancestor. */
+.homePageLogo.homeLogoFixed {
+  position: fixed;
+  transform: none;
+  z-index: 30;
 }
 
 .homePageTagline {
@@ -388,50 +469,143 @@ body {
   color: #000000;
 }
 
-/* Home page only — raises the tagline (now 40px up the page total across two
-   rounds) and shrinks it 1px. Scoped so the About page's single-line "coming
-   soon" text (which shares this class) isn't affected, since it's centered
-   as a whole box where this margin would otherwise nudge the centering. */
+/* #pageWelcome's logo now centers itself directly (see .homePageLogo)
+   rather than through the flex-column .homePageContent wrapper #pageAbout
+   still uses -- so its tagline needs its own fresh, standalone positioning
+   (centered below the logo) instead of the base rule's flow-column-specific
+   margin/left. Fades out with .homeScrollHint on scroll (toggled in app.js). */
 #pageWelcome .homePageTagline {
-  margin-top: -10px;
-  font-size: 15px;
-  left: -97px;
-  /* Visual-only offset (doesn't shift the start row that follows in flow,
-     unlike margin above, which moves both together). */
-  top: 10px;
+  position: absolute;
+  top: calc(50vh + 53px);
+  /* .homePageLogo's own left edge: it's centered via left:50% + a 135px
+     width + transform:translateX(-50%), so its left edge sits at
+     50% - 67.5px of their shared containing block (.homePageInner) --
+     must be % here, not vw: vw is viewport-relative regardless of
+     containing block, but #pageWelcome's own 42px side padding shrinks
+     .homePageInner narrower than the viewport, so vw would land 42px off. */
+  left: calc(50% - 67.5px);
+  margin: 0;
+  width: max-content;
+  max-width: 90vw;
+  text-align: left;
+  opacity: 1;
+  transition: opacity 0.5s ease;
 }
 
-.homePageStartRow {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+.homePageTaglineLine2 {
   position: relative;
-  top: -15px;
+  top: -4px;
+  display: inline-block;
 }
 
-.homePageStartBtn {
+#pageWelcome .homePageTagline.homeScrollHintHidden {
+  opacity: 0;
+}
+
+
+/* Screen 2 of the home page: the name / homes-count questions, revealed by
+   scrolling. Reuses Step 1's original .group/.text-wrapper-2/.figma-line-
+   input/.nameCaret visual for these two fields (same fields, just moved),
+   but in normal centered-flex layout instead of Step 1's absolute
+   1920x1080-canvas coordinate system -- #pageWelcome scoping keeps these
+   from colliding with #pageStep1's own (differently-positioned) versions
+   of the same class names, the same way #pageStep1 already disambiguates
+   .group from .group-2 for its other fields. */
+.homePageScreen2 {
+  position: absolute;
+  /* Center of the visible window when scrolled all the way down: with
+     .homePageInner at 165vh, that window is [65vh, 165vh], centered at
+     115vh. Keep this at (.homePageInner's height - 50vh) if that height
+     ever changes again. */
+  top: 115vh;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+
+#pageWelcome .group {
+  position: relative;
+  /* Shortened repeatedly now: 360 -> 324 -> 291.6 -> 262.44px (10% off each
+     time), cut from the right (the input line is left-anchored, so a
+     narrower box only pulls its right end in). .homePageScreen2's own
+     centering (left:50%) re-centers the whole, now-narrower block as a
+     unit -- both fields share this width, so their labels/lines/the button
+     below all stay aligned with each other. */
+  width: 262.44px;
+  height: 52px;
+}
+
+#pageWelcome .text-wrapper-2 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  text-transform: lowercase;
+  color: #000000;
+}
+
+#pageWelcome .figma-line-input {
+  position: absolute;
+  top: 26px;
+  left: 0;
+  width: 100%;
+  height: 22px;
+  border: 0;
+  border-bottom: 0.1px solid rgba(0, 0, 0, 0.65);
+  padding: 1px 0;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 16px;
+  background: transparent;
+  outline: none;
+}
+
+#pageWelcome .ellipse {
+  display: none;
+}
+
+#pageWelcome .step1NextBtn {
   border: 0;
   background: transparent;
   padding: 0;
-  margin: 0;
+  margin-top: 8px;
   cursor: pointer;
-  font-weight: 400;
-  color: #000000;
-  text-decoration: none;
-  text-transform: lowercase;
-  font-size: 13px !important;
+  color: #c9c8c1;
+  pointer-events: none;
+  /* Right-aligned to the input lines' own right edge (.homePageScreen2's
+     width is set by its widest child, the 324px .group fields) instead of
+     centered under them like .homePageScreen2's other, wider children. */
+  align-self: flex-end;
 }
 
-#pageWelcome .homePageStartBtn:hover {
+#pageWelcome .step1NextBtn.active {
+  color: #000000;
+  pointer-events: auto;
+}
+
+#pageWelcome .step1NextBtn:hover {
   color: #8e3300;
 }
 
-.homePageStartHint {
-  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
-  font-weight: 400;
-  font-size: 15px;
-  text-transform: none;
-  color: #000000;
+/* Reveal via a pure, unhurried fade as screen 2 scrolls into view -- no
+   movement/drift and no stagger between elements, so it reads as a single
+   soft fade rather than pieces being built/typed out one after another.
+   Toggled by the IntersectionObserver in app.js (triggers a bit later into
+   the scroll than a plain 50% crossing would, see the observer's threshold). */
+.homePageScreen2 .group,
+.homePageScreen2 .step1NextBtn {
+  opacity: 0;
+  transition: opacity 1.4s ease;
+}
+
+#homePageScreen2.homePageScreen2Visible .group,
+#homePageScreen2.homePageScreen2Visible .step1NextBtn {
+  opacity: 1;
 }
 
 /* Step 2: full-screen map */
@@ -513,6 +687,45 @@ body {
   height: auto;
   display: block;
   object-fit: contain;
+}
+
+/* Image-replaced button labels (buttons/*.png), used in place of plain text
+   inside their <button>. The <img alt="..."> supplies the button's
+   accessible name, so no extra ARIA is needed beyond what each button
+   already had. Add "<name>-hover.png" files to buttons/ and a matching
+   `#btnId:hover .btnImg { content: url(...); }` rule per button to wire up
+   hover states once those images exist.
+
+   Source PNGs are now exported on a consistent-height canvas (~198px),
+   so a single shared height here renders every word at the same actual
+   letter size -- no per-image overrides needed.
+
+   Sizing is split the same way .appLogoImage is (see
+   #pageStep1 img.life-path.appLogoImage below): pages outside #pageStep1
+   aren't wrapped in any transform, so their buttons scale down manually via
+   calc(...* var(--step1-scale)) on narrow viewports, same as the logo. */
+.btnImg {
+  display: block;
+  height: calc(18.48px * var(--step1-scale, 1));
+  width: auto;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* Home page's archive/all maps/about buttons are 7% smaller than every
+   other .btnImg (18.48px * 0.93). */
+.homePageTopActions .btnImg {
+  height: calc(17.1864px * var(--step1-scale, 1));
+}
+
+/* Step 1's own buttons live inside #pageStep1 .frame, which is itself
+   wrapped in transform: scale(var(--step1-scale)) (see #pageStep1 .frame
+   below) -- so they need the flat, unscaled design-pixel height here; the
+   ambient transform already shrinks them together with the rest of the
+   frame's contents. Using the scaled formula here would double-apply the
+   scale and make them too small relative to every other page's buttons. */
+#pageStep1 .frame .btnImg {
+  height: 18.48px;
 }
 
 #pageEmotion .emotionMapTitle {
@@ -1358,8 +1571,7 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   box-sizing: border-box;
 }
 
-#pageArchive.archiveModeMovement .archiveItem,
-#pageArchive.archiveModeEmotion .archiveItem {
+#pageArchive .archiveItem {
   outline-color: #a5a49d;
 }
 
@@ -1376,15 +1588,6 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   left: 10px !important;
   right: 10px !important;
   bottom: 10px !important;
-}
-
-#pageArchive .archivePreview > .archiveEmotionThumb {
-  top: 10px !important;
-  left: 10px !important;
-  right: 10px !important;
-  bottom: 10px !important;
-  transform: scale(var(--archive-emotion-scale, 1.8));
-  transform-origin: center;
 }
 
 #pageArchive .archiveSerial {
@@ -1404,21 +1607,15 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   text-transform: none !important;
 }
 
-#pageArchive.archiveModeMovement .archiveSerial,
-#pageArchive.archiveModeMovement .archiveSerial .step2SignatureMain,
-#pageArchive.archiveModeMovement .archiveSerial .step2SignatureCount,
-#pageArchive.archiveModeEmotion .archiveSerial,
-#pageArchive.archiveModeEmotion .archiveSerial .step2SignatureMain,
-#pageArchive.archiveModeEmotion .archiveSerial .step2SignatureCount {
+#pageArchive .archiveSerial,
+#pageArchive .archiveSerial .step2SignatureMain,
+#pageArchive .archiveSerial .step2SignatureCount {
   color: #c9c8c1;
 }
 
-#pageArchive.archiveModeMovement .archiveItem:hover .archiveSerial,
-#pageArchive.archiveModeMovement .archiveItem:hover .archiveSerial .step2SignatureMain,
-#pageArchive.archiveModeMovement .archiveItem:hover .archiveSerial .step2SignatureCount,
-#pageArchive.archiveModeEmotion .archiveItem:hover .archiveSerial,
-#pageArchive.archiveModeEmotion .archiveItem:hover .archiveSerial .step2SignatureMain,
-#pageArchive.archiveModeEmotion .archiveItem:hover .archiveSerial .step2SignatureCount {
+#pageArchive .archiveItem:hover .archiveSerial,
+#pageArchive .archiveItem:hover .archiveSerial .step2SignatureMain,
+#pageArchive .archiveItem:hover .archiveSerial .step2SignatureCount {
   color: #000000;
 }
 
@@ -1502,44 +1699,8 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   touch-action: none;
 }
 
-/* Archive filter buttons (movement / emotion / all) */
-#pageArchive .archiveFilterBtns {
-  position: fixed;
-  top: 85px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 12px;
-  z-index: 3000;
-  pointer-events: auto;
-}
-
-#pageArchive .archiveFilterBtn {
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 1;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  color: inherit;
-  text-decoration: underline;
-  text-transform: lowercase !important;
-}
-
-#pageArchive .archiveFilterBtn:hover {
-  color: #000000;
-  font-weight: 700;
-}
-
 #pageArchive .archiveItem:hover .archiveThumb polyline,
 #pageArchive .archiveItem:hover .archiveThumb circle {
-  stroke: #d8d7d2;
-}
-
-#pageArchive .archiveItem:hover .archiveEmotionThumb path {
   stroke: #d8d7d2;
 }
 

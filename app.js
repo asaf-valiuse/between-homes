@@ -4674,6 +4674,11 @@ function resetStep1HouseList() {
   // Reset the form fields, including "Full name".
   if (elForm && typeof elForm.reset === "function") elForm.reset();
   if (elStudentName) elStudentName.value = "";
+  // studentName/homesCount now live on the home page, outside <form
+  // id="addressForm"> -- elForm.reset() above no longer reaches either of
+  // them, so both need an explicit clear (homesCount used to be cleared
+  // implicitly by the form reset when it was still inside the form).
+  if (elHomesCount) elHomesCount.value = "";
   if (elPageStep1) elPageStep1.classList.remove("step1-finished-state");
 
   currentAddressVerified = false;
@@ -4711,20 +4716,16 @@ const elStep1StartOverBtn = document.getElementById("step1StartOverBtn");
 // per-phase BACK buttons elsewhere only ever change phase, never data.
 function step1GoBackToIntro() {
   if (!elPageStep1) return;
-  const form = elPageStep1.querySelector(".div");
-  if (form) {
-    form.style.transition = "opacity 0.25s ease-out";
-    form.style.opacity = "0";
-  }
-  setTimeout(() => {
-    elPageStep1.classList.remove("step1-address-phase", "step1-belonging-phase", "step1-summary-phase");
-    step1SummaryPhaseActive = false;
-    updateStep1TopProgress();
-    if (form) {
-      form.style.opacity = "1";
-      form.style.transition = "opacity 0.35s ease-in";
-    }
-  }, 250);
+  // Step 1's own "no phase" intro screen no longer has the name/homes-count
+  // form (moved to the home page) -- return there (screen 2) instead of
+  // un-toggling phases to show what's now an empty gap. Still strip the
+  // phase classes so a later re-entry via step1NextBtn (which only *adds*
+  // step1-address-phase, never removes the others) doesn't land with a
+  // stale step1-belonging-phase/step1-summary-phase left over from this
+  // session.
+  elPageStep1.classList.remove("step1-address-phase", "step1-belonging-phase", "step1-summary-phase");
+  step1SummaryPhaseActive = false;
+  showPage("welcome", { welcomeScroll: "screen2" });
 }
 
 // "start over": resetStep1HouseList() only strips step1-finished-state, not
@@ -4891,52 +4892,10 @@ const elSavedMapsEmpty = document.getElementById("savedMapsEmpty");
 
 const elArchiveGrid = document.getElementById("archiveGrid");
 const elArchiveEmpty = document.getElementById("archiveEmpty");
-const elArchiveMovementBtn = document.getElementById("archiveMovementBtn");
-const elArchiveEmotionBtn = document.getElementById("archiveEmotionBtn");
-const elArchiveAllBtn = document.getElementById("archiveAllBtn");
 const elArchiveSearchInput = document.getElementById("archiveSearchInput");
-const elArchiveTitle = document.querySelector("#pageArchive .step2MapTitle");
 
-// Archive filter state: 'movement' | 'emotion' | 'all'
-let archiveFilterMode = "movement";
 let archiveSearchQuery = "";
 
-function setArchiveFilter(mode) {
-  const prev = archiveFilterMode;
-  mode = String(mode || "").toLowerCase();
-  if (!["movement", "emotion", "all"].includes(mode)) mode = "movement";
-  archiveFilterMode = mode;
-
-  // Update title
-  if (elArchiveTitle) {
-    if (mode === "emotion") elArchiveTitle.textContent = "ARCHIVE: EMOTIONAL MAP";
-    else if (mode === "all") elArchiveTitle.textContent = "ARCHIVE: ALL MAPS";
-    else elArchiveTitle.textContent = "ARCHIVE: MOVEMENT MAPS";
-  }
-
-  // Update button active states
-  if (elArchiveMovementBtn) elArchiveMovementBtn.classList.toggle("active", mode === "movement");
-  if (elArchiveEmotionBtn) elArchiveEmotionBtn.classList.toggle("active", mode === "emotion");
-  if (elArchiveAllBtn) elArchiveAllBtn.classList.toggle("active", mode === "all");
-
-  if (elPageArchive) {
-    elPageArchive.classList.toggle("archiveModeMovement", mode === "movement");
-    elPageArchive.classList.toggle("archiveModeEmotion", mode === "emotion");
-    elPageArchive.classList.toggle("archiveModeAll", mode === "all");
-  }
-
-  // Re-render grid to show appropriate thumbnails
-  try {
-    renderArchiveGrid();
-  } catch (e) {
-    // ignore
-  }
-}
-
-// Attach simple handlers if buttons exist
-if (elArchiveMovementBtn) elArchiveMovementBtn.addEventListener("click", (e) => { e.preventDefault(); setArchiveFilter("movement"); });
-if (elArchiveEmotionBtn) elArchiveEmotionBtn.addEventListener("click", (e) => { e.preventDefault(); setArchiveFilter("emotion"); });
-if (elArchiveAllBtn) elArchiveAllBtn.addEventListener("click", (e) => { e.preventDefault(); showPage("allmaps"); });
 if (elArchiveSearchInput) {
   elArchiveSearchInput.addEventListener("input", () => {
     archiveSearchQuery = String(elArchiveSearchInput.value || "").trim().toLowerCase();
@@ -5369,6 +5328,21 @@ function startHomePageBackgroundRoute() {
   loop();
 }
 
+function scrollWelcomeToTop(behavior) {
+  if (!elPageWelcome) return;
+  elPageWelcome.scrollTo({ top: 0, left: 0, behavior: behavior || "auto" });
+}
+
+function scrollWelcomeToScreen2(behavior) {
+  if (!elPageWelcome) return;
+  // Scroll all the way to the bottom of the content (scrollHeight -
+  // clientHeight), not a hardcoded one-screen offset -- lands on screen 2
+  // correctly regardless of exactly how much taller than 100vh
+  // .homePageInner is (see its height in styles.css).
+  const max = Math.max(0, elPageWelcome.scrollHeight - elPageWelcome.clientHeight);
+  elPageWelcome.scrollTo({ top: max, left: 0, behavior: behavior || "auto" });
+}
+
 // Archive/All Maps can be entered from either the home page or Step 1; their
 // "back" buttons should return to whichever one was actually last active,
 // not always assume Step 1. Updated every time showPage() shows one of the
@@ -5430,6 +5404,12 @@ function showPage(which, opts) {
 
   if (pageKey === "welcome") {
     startHomePageBackgroundRoute();
+    // "auto" (instant), not "smooth": this runs in the same tick as
+    // unhiding #pageWelcome, where an animated scroll is unreliable across
+    // browsers.
+    if (options.welcomeScroll === "screen2") scrollWelcomeToScreen2("auto");
+    else scrollWelcomeToTop("auto");
+    resetHomeLogoScrollMorph();
   } else {
     stopHomePageBackgroundRoute();
   }
@@ -5537,7 +5517,7 @@ function showPage(which, opts) {
   if (which === "archive") {
     setTimeout(async () => {
       await refreshServerMapsCache();
-      setArchiveFilter(archiveFilterMode);
+      renderArchiveGrid();
     }, 0);
   }
 }
@@ -5858,356 +5838,6 @@ function createArchiveMiniMapSvg(snapshot) {
   return svg;
 }
 
-function createArchiveEmotionSvg(snapshot) {
-  const NS = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(NS, "svg");
-  svg.setAttribute("viewBox", "0 0 1000 1000");
-  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-  svg.classList.add("archiveEmotionThumb");
-
-  const addrs = Array.isArray(snapshot?.addresses) ? snapshot.addresses : [];
-  const points = [];
-  for (const a of addrs) {
-    const ok = a && a.valid !== false;
-    if (!ok) continue;
-    const strokeWidth = normalizeBelongingRate(a?.belonging_rate, stableBelongingRateFromId(a?.id));
-    points.push({ strokeWidth });
-  }
-
-  const n = points.length;
-  if (n <= 0) return svg;
-
-  const baseArchiveEmotionScale = archiveEmotionScaleForRingCount(n);
-  const archiveEmotionScaleBoost = n <= 7 ? 1.5 : (n >= 8 && n <= 11 ? 1.2 : 1);
-  const desiredArchiveEmotionScale = Math.round(baseArchiveEmotionScale * archiveEmotionScaleBoost * 1000) / 1000;
-
-  // Compute visual stroke widths and base radii, then compute a layout that
-  // accounts for distortions so rings don't overlap. This re-uses the same
-  // algorithms used by the Emotion page so the archive thumbnails match
-  // the deformed appearance exactly (static snapshot, no animation).
-  const finalStrokes = points.map((p) => emotionStrokeWidthFromRate(p.strokeWidth));
-  const maxStroke = Math.max(1, ...finalStrokes);
-  const cx = 1000 / 2;
-  const cy = 1000 / 2;
-  const padding = 14 + maxStroke;
-  const maxR = Math.max(1, 1000 / 2 - padding);
-
-  const baseRadii = computeEmotionRingRadii(maxR, finalStrokes);
-  const baseStrokeRates = points.map((p) => Math.max(1, Math.min(10, Number(p.strokeWidth) || 5)));
-
-  const phis = computeArchiveEmotionPhisFromSnapshot(snapshot, n);
-
-  const layout = computeEmotionRingLayoutNoTouch(baseRadii, finalStrokes, baseStrokeRates, EMOTION_RING_CLEARANCE_PX, {
-    isNastya: false,
-    phis,
-    ampScale: 1,
-    groupScale: 1,
-    strokesScaleWithGroup: false,
-    sampleSteps: 180,
-  });
-
-  const radii = Array.isArray(layout?.radii) ? layout.radii : baseRadii;
-  const amps = Array.isArray(layout?.amps) ? layout.amps : new Array(n).fill(0);
-
-  const ringPaths = [];
-  const ringStrokeWidths = [];
-  const ringMetrics = [];
-  let geometryBounds = null;
-  let maxRingStrokeWidth = 1;
-
-  for (let i = 0; i < n; i++) {
-    const r = Math.max(1, Number(radii[i]) || 1);
-    const amp = Number(amps[i]) || 0;
-    const phi = phis[i] || 0;
-    const strokeWidth = Math.max(1, Number(finalStrokes[i]) || 1);
-
-    const path = document.createElementNS(NS, "path");
-    const d = buildDistortedRingPath(cx, cy, r, phi, amp, ringDistortionOptsForAmp(amp, i * 7.1));
-    path.setAttribute("d", d);
-    path.setAttribute("fill", "none");
-    path.setAttribute("stroke", "#000000");
-    path.setAttribute("stroke-width", String(strokeWidth));
-    svg.appendChild(path);
-    ringPaths.push(path);
-    ringStrokeWidths.push(strokeWidth);
-    ringMetrics.push({ r, phi, amp });
-    maxRingStrokeWidth = Math.max(maxRingStrokeWidth, strokeWidth);
-    geometryBounds = mergeArchiveEmotionBounds(geometryBounds, computeDistortedRingBounds(cx, cy, r, phi, amp, 0, ringDistortionOptsForAmp(amp, i * 7.1)));
-  }
-
-  const fittedArchiveEmotionScale = fitArchiveEmotionScaleToBounds(desiredArchiveEmotionScale, geometryBounds, maxRingStrokeWidth);
-  svg.style.setProperty("--archive-emotion-scale", String(fittedArchiveEmotionScale));
-
-  let finalStrokeCompensation = 1;
-  if (archiveEmotionScaleBoost > 1) {
-    const previousFittedScale = fitArchiveEmotionScaleToBounds(baseArchiveEmotionScale, geometryBounds, maxRingStrokeWidth);
-    const previousFitCompensation = previousFittedScale < baseArchiveEmotionScale
-      ? Math.pow(baseArchiveEmotionScale / Math.max(0.001, previousFittedScale), 0.45)
-      : 1;
-    const previousVisualStrokeScale = previousFittedScale * previousFitCompensation;
-    finalStrokeCompensation = previousVisualStrokeScale / Math.max(0.001, fittedArchiveEmotionScale);
-  } else if (fittedArchiveEmotionScale < desiredArchiveEmotionScale) {
-    const compensationRatio = desiredArchiveEmotionScale / Math.max(0.001, fittedArchiveEmotionScale);
-    finalStrokeCompensation = Math.pow(compensationRatio, 0.45);
-  }
-
-  if (finalStrokeCompensation !== 1) {
-    for (let i = 0; i < ringPaths.length; i++) {
-      ringPaths[i].setAttribute("stroke-width", String((ringStrokeWidths[i] || 1) * finalStrokeCompensation));
-    }
-  }
-
-  for (let i = 0; i < ringPaths.length; i++) {
-    const m = ringMetrics[i];
-    if (!m) continue;
-    ringPaths[i].classList.add("archiveEmotionRing");
-    ringPaths[i].dataset.baseR = String(m.r);
-    ringPaths[i].dataset.phi = String(m.phi);
-    ringPaths[i].dataset.amp = String(m.amp);
-    ringPaths[i].dataset.rate = String(baseStrokeRates[i] || 5);
-    ringPaths[i].dataset.baseD = ringPaths[i].getAttribute("d") || "";
-  }
-
-  fitArchiveEmotionViewBoxToFinalBounds(svg, ringMetrics, ringStrokeWidths, finalStrokeCompensation, cx, cy);
-
-  return svg;
-}
-
-function attachArchiveEmotionHoverAnimation(svg) {
-  if (!svg || svg.__archiveEmotionHoverReady) return;
-  svg.__archiveEmotionHoverReady = true;
-
-  const getRings = () => Array.from(svg.querySelectorAll(".archiveEmotionRing"));
-  let raf = 0;
-  let startedAt = 0;
-
-  const belongingBreathFactor = (rate) => {
-    const r = Math.max(1, Math.min(10, Math.round(Number(rate) || 5)));
-    const table = [0, 1.0, 0.86, 0.72, 0.58, 0.30, 0.44, 0.58, 0.72, 0.86, 1.0];
-    return table[r] ?? 0.5;
-  };
-
-  const belongingBreathSpeedFactor = (rate) => {
-    const r = Math.max(1, Math.min(10, Math.round(Number(rate) || 5)));
-    const table = [0, 1.35, 1.22, 1.10, 0.98, 0.75, 0.86, 0.98, 1.10, 1.22, 1.35];
-    return Math.max(0.5, Math.min(2, table[r] ?? 1));
-  };
-
-  const resetRings = () => {
-    for (const ring of getRings()) {
-      const d = ring.dataset.baseD || "";
-      if (d) ring.setAttribute("d", d);
-    }
-  };
-
-  const stop = () => {
-    if (raf) cancelAnimationFrame(raf);
-    raf = 0;
-    resetRings();
-  };
-
-  const frame = (now) => {
-    const rings = getRings();
-    if (!rings.length || !svg.isConnected) {
-      raf = 0;
-      return;
-    }
-
-    const elapsed = Math.max(0, now - startedAt);
-    const period = Math.max(600, Number(EMOTION_BREATH_PERIOD_MS) || 4200);
-    const ampPx = Math.max(0, Number(EMOTION_BREATH_AMPLITUDE_PX) || 0);
-    const innerF = Math.max(0, Number(EMOTION_BREATH_INNER_FACTOR) || 0);
-    const outerF = Math.max(innerF, Number(EMOTION_BREATH_OUTER_FACTOR) || innerF);
-    const exp = Math.max(0.25, Number(EMOTION_BREATH_PROFILE_EXP) || 1);
-    const n = rings.length;
-
-    for (let i = 0; i < n; i++) {
-      const ring = rings[i];
-      const baseR = Math.max(1, Number(ring.dataset.baseR) || 1);
-      const phi = Number(ring.dataset.phi) || 0;
-      const amp = Number(ring.dataset.amp) || 0;
-      const rate = Math.max(1, Math.min(10, Number(ring.dataset.rate) || 5));
-      const u = n <= 1 ? 1 : i / (n - 1);
-      const profile = innerF + (outerF - innerF) * Math.pow(u, exp);
-      const delay = (n - 1 - i) * EMOTION_BREATH_STAGGER_MS;
-      const rampT = Math.max(0, Math.min(1, (elapsed - delay) / EMOTION_BREATH_RAMP_MS));
-      const ramp = rampT * rampT * rampT * (rampT * (rampT * 6 - 15) + 10);
-      const speedF = belongingBreathSpeedFactor(rate);
-      const phase = ((elapsed - delay) / period) * Math.PI * 2 * speedF;
-      const delta = ramp * ampPx * profile * belongingBreathFactor(rate) * Math.sin(phase);
-      const d = buildDistortedRingPath(500, 500, baseR + delta, phi, amp, ringDistortionOptsForAmp(amp, i * 7.1));
-      ring.setAttribute("d", d);
-    }
-
-    raf = requestAnimationFrame(frame);
-  };
-
-  const start = () => {
-    if (raf) return;
-    startedAt = performance.now();
-    raf = requestAnimationFrame(frame);
-  };
-
-  svg.addEventListener("pointerenter", start);
-  svg.addEventListener("pointerleave", stop);
-  svg.addEventListener("blur", stop);
-}
-
-function archiveEmotionScaleForRingCount(ringCount) {
-  const n = Math.max(1, Number(ringCount) || 1);
-  const scale = 1.35 + n * 0.05625;
-  return Math.max(1.45, Math.min(2.35, Math.round(scale * 1000) / 1000));
-}
-
-function computeDistortedRingBounds(cx, cy, baseRadius, angleRad, amplitude, strokeWidth, opts) {
-  const options = opts && typeof opts === "object" ? opts : {};
-  const steps = Math.max(96, Math.round(Number(options.steps) || 240));
-  const sigma = Math.max(0.12, Number(options.sigma) || EMOTION_BUMP_SIGMA);
-  const power = Math.max(0.8, Number(options.power) || EMOTION_BUMP_POWER);
-  const cX = Number(cx) || 0;
-  const cY = Number(cy) || 0;
-  const r0 = Math.max(1, Number(baseRadius) || 1);
-  const phi = Number(angleRad) || 0;
-  const amp = Number(amplitude) || 0;
-  const halfStroke = Math.max(0, Number(strokeWidth) || 0) / 2;
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-
-  for (let i = 0; i <= steps; i++) {
-    const theta = (i / steps) * Math.PI * 2;
-    const dTheta = wrapAnglePi(theta - phi);
-    const bump = amp === 0 ? 0 : pointedAngularBump(dTheta, sigma, power);
-    const r = Math.max(1, r0 + amp * bump);
-    const x = cX + r * Math.cos(theta);
-    const y = cY + r * Math.sin(theta);
-    minX = Math.min(minX, x - halfStroke);
-    maxX = Math.max(maxX, x + halfStroke);
-    minY = Math.min(minY, y - halfStroke);
-    maxY = Math.max(maxY, y + halfStroke);
-  }
-
-  if (![minX, maxX, minY, maxY].every(Number.isFinite)) return null;
-  return { minX, maxX, minY, maxY };
-}
-
-function mergeArchiveEmotionBounds(a, b) {
-  if (!b) return a || null;
-  if (!a) return b;
-  return {
-    minX: Math.min(a.minX, b.minX),
-    maxX: Math.max(a.maxX, b.maxX),
-    minY: Math.min(a.minY, b.minY),
-    maxY: Math.max(a.maxY, b.maxY),
-  };
-}
-
-function fitArchiveEmotionScaleToBounds(desiredScale, bounds, maxStrokeWidth) {
-  const desired = Math.max(1, Number(desiredScale) || 1);
-  if (!bounds || ![bounds.minX, bounds.maxX, bounds.minY, bounds.maxY].every(Number.isFinite)) return desired;
-  const center = 500;
-  const maxSide = Math.max(
-    Math.abs(center - bounds.minX),
-    Math.abs(bounds.maxX - center),
-    Math.abs(center - bounds.minY),
-    Math.abs(bounds.maxY - center),
-    1
-  );
-  const partialStrokeHalf = (Math.max(0, Number(maxStrokeWidth) || 0) * Math.pow(desired, 0.45)) / 2;
-  const maxScale = Math.max(1, 470 - partialStrokeHalf) / maxSide;
-  const fitted = Math.min(desired, Math.max(0.58, maxScale));
-  return Math.round(fitted * 1000) / 1000;
-}
-
-function fitArchiveEmotionViewBoxToFinalBounds(svg, ringMetrics, ringStrokeWidths, strokeCompensation, cx, cy) {
-  if (!svg || !Array.isArray(ringMetrics) || !ringMetrics.length) return;
-
-  const finalStrokeCompensation = Math.max(0.001, Number(strokeCompensation) || 1);
-  let finalBounds = null;
-
-  for (let i = 0; i < ringMetrics.length; i++) {
-    const m = ringMetrics[i];
-    if (!m) continue;
-    const finalStroke = (Number(ringStrokeWidths?.[i]) || 1) * finalStrokeCompensation;
-    finalBounds = mergeArchiveEmotionBounds(
-      finalBounds,
-      computeDistortedRingBounds(cx, cy, m.r, m.phi, m.amp, finalStroke, ringDistortionOptsForAmp(m.amp, i * 7.1))
-    );
-  }
-
-  if (!finalBounds || ![finalBounds.minX, finalBounds.maxX, finalBounds.minY, finalBounds.maxY].every(Number.isFinite)) return;
-
-  const pad = 16;
-  const minX = finalBounds.minX - pad;
-  const maxX = finalBounds.maxX + pad;
-  const minY = finalBounds.minY - pad;
-  const maxY = finalBounds.maxY + pad;
-  const isClipped = minX < 0 || minY < 0 || maxX > 1000 || maxY > 1000;
-  if (!isClipped) return;
-
-  const w = Math.max(1, maxX - minX);
-  const h = Math.max(1, maxY - minY);
-  const span = Math.max(w, h);
-  const midX = (minX + maxX) / 2;
-  const midY = (minY + maxY) / 2;
-  const x = midX - span / 2;
-  const y = midY - span / 2;
-  svg.setAttribute("viewBox", `${x.toFixed(3)} ${y.toFixed(3)} ${span.toFixed(3)} ${span.toFixed(3)}`);
-}
-
-function computeArchiveEmotionPhisFromSnapshot(snapshot, count) {
-  const n = Math.max(0, Number(count) || 0);
-  const fallback = Array.from({ length: n }, (_, i) => (i * Math.PI * 2) / Math.max(1, n));
-  if (n <= 0) return fallback;
-
-  try {
-    if (typeof L === "undefined" || !L || !L.CRS || !L.CRS.EPSG3857) return fallback;
-    const addrs = (Array.isArray(snapshot?.addresses) ? snapshot.addresses : []).filter((a) => a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon));
-    if (!addrs.length) return fallback;
-
-    const routeLatLngs = addrs.map((a) => L.latLng(Number(a.lat), Number(a.lon)));
-    let fitLatLngs = [];
-    try {
-      if (typeof ISRAEL_BOUNDS !== "undefined" && ISRAEL_BOUNDS) {
-        fitLatLngs = routeLatLngs.filter((ll) => ISRAEL_BOUNDS.contains(ll));
-      }
-    } catch {
-      fitLatLngs = [];
-    }
-
-    let fitBounds = null;
-    if (fitLatLngs.length > 0) {
-      fitBounds = L.latLngBounds(fitLatLngs).pad(0.06);
-    } else if (typeof ISRAEL_BOUNDS !== "undefined" && ISRAEL_BOUNDS) {
-      fitBounds = ISRAEL_BOUNDS.pad(ISRAEL_FIT_PADDING);
-    } else {
-      fitBounds = L.latLngBounds(routeLatLngs).pad(0.06);
-    }
-
-    if (!fitBounds || !fitBounds.isValid()) return fallback;
-
-    const crs = L.CRS.EPSG3857;
-    const center = crs.latLngToPoint(fitBounds.getCenter(), 0);
-    const northWest = crs.latLngToPoint(fitBounds.getNorthWest(), 0);
-    const southEast = crs.latLngToPoint(fitBounds.getSouthEast(), 0);
-    const spanX = Math.max(1e-9, Math.abs(southEast.x - northWest.x));
-    const spanY = Math.max(1e-9, Math.abs(southEast.y - northWest.y));
-    const scale = Math.min(1000 / spanX, 1000 / spanY);
-
-    return routeLatLngs.slice(0, n).map((ll, i) => {
-      const p = crs.latLngToPoint(ll, 0);
-      const x = 500 + (p.x - center.x) * scale;
-      const y = 500 + (p.y - center.y) * scale;
-      const dx = x - 500;
-      const dy = y - 500;
-      if (Math.hypot(dx, dy) < 0.001) return fallback[i] || 0;
-      return Math.atan2(dy, dx);
-    });
-  } catch {
-    return fallback;
-  }
-}
 
 function parseSvgViewBox(str) {
   const parts = String(str || "").trim().split(/\s+/).map(Number);
@@ -6475,17 +6105,7 @@ function renderArchiveGrid() {
     const preview = document.createElement("div");
     preview.className = "archivePreview";
 
-    let thumb = null;
-    if (archiveFilterMode === "emotion") {
-      thumb = createArchiveEmotionSvg(snap);
-      attachArchiveEmotionHoverAnimation(thumb);
-    } else if (archiveFilterMode === "all") {
-      // When showing all, keep movement thumbs as default.
-      thumb = createArchiveMiniMapSvg(snap);
-    } else {
-      // default: movement
-      thumb = createArchiveMiniMapSvg(snap);
-    }
+    const thumb = createArchiveMiniMapSvg(snap);
 
     const footer = document.createElement("div");
     footer.className = "archiveFooter";
@@ -10336,6 +9956,151 @@ function ensureAllMapsMap() {
   // Leave the label blank until the page-open finalizes the baseline.
   allMapsZoomBase = null;
   updateAllMapsZoomLabel();
+}
+
+// Home page logo scroll-morph: screen 1's logo starts as a big centered
+// hero image. Once scrolling brings its top edge to the top of the
+// viewport, it "sticks" there instead of continuing to scroll away, and
+// over a fixed further scroll distance it slides/shrinks into exactly the
+// small top-left corner position and size every other page's logo uses
+// (.appLogoImage's own "outside #pageStep1" formula: top/left scale with
+// --step1-scale the same way .btnImg etc. already do).
+let homeLogoHeroLeft = null;
+let homeLogoHeroTop = null; // natural top-edge distance from the top of the scrollable content (.homePageInner) -- independent of current scroll position
+let homeLogoHeroWidth = null;
+
+function captureHomeLogoHeroMetrics() {
+  const logo = document.querySelector("#pageWelcome .homePageLogo");
+  if (!logo || !elPageWelcome) return;
+  const wasFixed = logo.classList.contains("homeLogoFixed");
+  if (wasFixed) logo.classList.remove("homeLogoFixed");
+  const rect = logo.getBoundingClientRect();
+  homeLogoHeroLeft = rect.left;
+  homeLogoHeroTop = rect.top + elPageWelcome.scrollTop;
+  homeLogoHeroWidth = rect.width;
+  if (wasFixed) logo.classList.add("homeLogoFixed");
+}
+
+function updateHomeLogoScrollMorph() {
+  homeLogoScrollRaf = 0;
+  const logo = document.querySelector("#pageWelcome .homePageLogo");
+  if (!logo || !elPageWelcome) return;
+  if (homeLogoHeroTop == null) captureHomeLogoHeroMetrics();
+  if (homeLogoHeroTop == null) return;
+
+  const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--step1-scale")) || 1;
+  const targetTop = 34 * scale;
+  const targetLeft = 40 * scale;
+  const targetWidth = 86.4 * scale;
+
+  // Sticks once the logo's natural top edge reaches the same top margin it
+  // will end up at (targetTop) -- not the bare screen edge (0).
+  const stickAt = homeLogoHeroTop - targetTop;
+  const scrollTop = elPageWelcome.scrollTop;
+
+  if (scrollTop < stickAt) {
+    // Phase A -- still rising with normal scroll (not fixed yet), but
+    // already shrinking toward the target width as it goes, so by the time
+    // it reaches the stick point it's already at its final size. Left/top
+    // stay untouched here: the element's own CSS (left:50% + translateX
+    // -50%) keeps it centered automatically as its width shrinks -- no
+    // horizontal movement happens until phase B.
+    if (logo.classList.contains("homeLogoFixed")) {
+      logo.classList.remove("homeLogoFixed");
+      logo.style.top = "";
+      logo.style.left = "";
+    }
+    const shrinkProgress = Math.max(0, Math.min(1, scrollTop / stickAt));
+    logo.style.width = `${homeLogoHeroWidth + (targetWidth - homeLogoHeroWidth) * shrinkProgress}px`;
+    return;
+  }
+
+  // Phase B -- stuck at the top margin, already at target width; only left
+  // animates now, from wherever it was actually sitting (centered, at
+  // target width) when it stuck.
+  const phaseBStartLeft = homeLogoHeroLeft + (homeLogoHeroWidth - targetWidth) / 2;
+
+  // Distance is however much scroll room is actually left after sticking
+  // (not a fixed constant) -- guarantees progress reaches exactly 1 right
+  // at the true bottom of the scroll regardless of the page's current
+  // height, instead of possibly being cut off short of the target if a
+  // fixed distance didn't fit within however much scroll room happens to
+  // be available.
+  const maxScroll = Math.max(0, elPageWelcome.scrollHeight - elPageWelcome.clientHeight);
+  const moveDistance = Math.max(1, maxScroll - stickAt);
+  const moveProgress = Math.max(0, Math.min(1, (scrollTop - stickAt) / moveDistance));
+  logo.classList.add("homeLogoFixed");
+  logo.style.top = `${targetTop}px`;
+  logo.style.left = `${phaseBStartLeft + (targetLeft - phaseBStartLeft) * moveProgress}px`;
+  logo.style.width = `${targetWidth}px`;
+}
+
+// "scroll down" label: sits snug to the right of the user's actual (OS)
+// cursor -- the real pointer plays the "mouse icon" role, no custom one
+// drawn -- while at the top of the home page. Visible immediately at a
+// sensible default position (a mousemove isn't guaranteed to ever fire --
+// e.g. the page can load with the cursor already stationary over it), then
+// switches to live-following the cursor as soon as it actually moves.
+// Faded out the moment scrolling starts. The tagline fades with the same
+// scroll trigger, but isn't cursor-linked.
+let homeScrollHintX = 60;
+let homeScrollHintY = 60;
+const HOME_SCROLL_HINT_OFFSET_X = 14;
+const HOME_SCROLL_HINT_OFFSET_Y = 4;
+
+function updateHomeScrollHint() {
+  if (!elPageWelcome) return;
+  const scrolled = elPageWelcome.scrollTop > 0;
+  const hint = document.getElementById("homeScrollHint");
+  if (hint) {
+    hint.style.transform = `translate(${homeScrollHintX + HOME_SCROLL_HINT_OFFSET_X}px, ${homeScrollHintY + HOME_SCROLL_HINT_OFFSET_Y}px)`;
+    hint.classList.toggle("homeScrollHintHidden", scrolled);
+  }
+  const tagline = document.getElementById("homePageTagline");
+  if (tagline) tagline.classList.toggle("homeScrollHintHidden", scrolled);
+}
+
+function handleHomePageMouseMove(e) {
+  homeScrollHintX = e.clientX;
+  homeScrollHintY = e.clientY;
+  updateHomeScrollHint();
+}
+
+if (elPageWelcome) {
+  elPageWelcome.addEventListener("mousemove", handleHomePageMouseMove);
+}
+
+let homeLogoScrollRaf = 0;
+function scheduleHomeLogoScrollMorph() {
+  if (homeLogoScrollRaf) return;
+  homeLogoScrollRaf = requestAnimationFrame(() => {
+    updateHomeLogoScrollMorph();
+    updateHomeScrollHint();
+  });
+}
+
+function resetHomeLogoScrollMorph() {
+  homeLogoHeroTop = null;
+  homeLogoHeroLeft = null;
+  homeLogoHeroWidth = null;
+  // Don't show the cursor-following hint at a stale position left over
+  // from before this page was last hidden -- back to the default fallback
+  // until a fresh mousemove updates it.
+  homeScrollHintX = 60;
+  homeScrollHintY = 60;
+  const logo = document.querySelector("#pageWelcome .homePageLogo");
+  if (logo) {
+    logo.classList.remove("homeLogoFixed");
+    logo.style.top = "";
+    logo.style.left = "";
+    logo.style.width = "";
+  }
+  updateHomeLogoScrollMorph();
+  updateHomeScrollHint();
+}
+
+if (elPageWelcome) {
+  elPageWelcome.addEventListener("scroll", scheduleHomeLogoScrollMorph, { passive: true });
 }
 
 function alignAllMapsPanelToEditButton() {
@@ -14984,6 +14749,7 @@ function resizeSplashCanvas() {
 resizeSplashCanvas();
 window.addEventListener("resize", () => {
   updateStep1Scale();
+  resetHomeLogoScrollMorph();
   updateBelongingValueLabel();
   resizeSplashCanvas();
   if (splashEnabled) redrawSplash();
@@ -15075,6 +14841,12 @@ renderList();
 updateStep1Headers();
 updateAddButtonState();
 updateBelongingValueLabel();
+
+// --step1-scale otherwise stays unset (falling back to 1 in every calc()
+// that reads it, e.g. .appLogoImage and .btnImg) until a resize event fires
+// or Step 1 is entered -- computing it once here means every page's
+// viewport-scaled elements are correctly sized from the very first paint.
+updateStep1Scale();
 
 // Default to the home page (logo, tagline, start).
 showPage("welcome");
@@ -15949,6 +15721,11 @@ function step1TransitionPhase(removePhase, addPhase, callback) {
 if (elStep1NextBtn) {
   elStep1NextBtn.addEventListener("click", () => {
     if (!elStep1NextBtn.classList.contains("active")) return;
+    // This button now lives on the home page (screen 2), not on #pageStep1
+    // itself -- navigate there first, then transition straight into the
+    // address-entry phase (Step 1's own name/count intro screen no longer
+    // exists, since these two fields are answered here instead).
+    showPage("step1");
     step1TransitionPhase(null, "step1-address-phase", () => {
       // The map container was hidden during intro — recalculate size and fit Israel.
       setTimeout(() => {
@@ -16061,9 +15838,11 @@ if (elStartYear) elStartYear.addEventListener("input", updateStep1AddrNextBtnSta
 const elStep1AddrBackBtn = document.getElementById("step1AddrBackBtn");
 if (elStep1AddrBackBtn) {
   elStep1AddrBackBtn.addEventListener("click", () => {
-    step1TransitionPhase("step1-address-phase", null, () => {
-      if (elStudentName) elStudentName.focus({ preventScroll: true });
-    });
+    // Same reasoning as step1GoBackToIntro(): the intro state this used to
+    // reveal no longer has the name/homes-count fields, so return to the
+    // home page (screen 2) instead.
+    if (elPageStep1) elPageStep1.classList.remove("step1-address-phase");
+    showPage("welcome", { welcomeScroll: "screen2" });
   });
 }
 
@@ -16204,12 +15983,11 @@ if (elStep1AddrNextBtn) {
         } catch {}
       }
     } else {
-      const keepName = String(elStudentName?.value || "");
-      const keepHomesCount = String(elHomesCount?.value || "");
       await animateStep1AddressFieldsClear();
+      // studentName/homesCount now live outside <form id="addressForm">
+      // (on the home page), so this reset() no longer touches them --
+      // no more need to save/restore their values around it.
       elForm.reset();
-      if (elStudentName) elStudentName.value = keepName;
-      if (elHomesCount) elHomesCount.value = keepHomesCount;
       if (elCountry) elCountry.value = "ישראל";
       resetStep1BelongingSliderToDefault();
       finishStep1AddressFieldsClearAnimation();
@@ -16417,13 +16195,11 @@ if (elStep1BelongNextBtn) {
         }
       }, 300);
     } else {
-      // Reset form fields but keep the student name and homes count
-      const keepName = String(elStudentName?.value || "");
-      const keepHomesCount = String(elHomesCount?.value || "");
+      // studentName/homesCount now live outside <form id="addressForm">
+      // (on the home page), so this reset() no longer touches them --
+      // no more need to save/restore their values around it.
       await animateStep1AddressFieldsClear();
       elForm.reset();
-      if (elStudentName) elStudentName.value = keepName;
-      if (elHomesCount) elHomesCount.value = keepHomesCount;
       if (elCountry) elCountry.value = "ישראל";
       finishStep1AddressFieldsClearAnimation();
 
@@ -16438,19 +16214,33 @@ if (elStep1BelongNextBtn) {
   });
 }
 
-// Let the user type their name as soon as the data-entry page is on screen:
-// focus the name field whenever Step 1 scrolls into view (unless they're
-// already typing in another field).
-if (elPageStep1 && elStudentName && "IntersectionObserver" in window) {
-  const focusNameWhenStep1Visible = (entries) => {
+// Home page screen 2 (name/homes-count questions): reveal it via animation
+// as it scrolls into view, and let the user start typing right away by
+// focusing the name field the first time it becomes visible (unless
+// they're already typing in another field). Auto-focus is gated to once
+// per page-visit -- unlike Step 1's old equivalent of this observer (only
+// ever active while Step 1 was freshly shown), this one watches an element
+// that stays live while the user freely scrolls #pageWelcome back and
+// forth, so an unconditional refocus would steal focus on every crossing.
+const elHomePageScreen2 = document.getElementById("homePageScreen2");
+if (elHomePageScreen2 && elStudentName && "IntersectionObserver" in window) {
+  let screen2AutoFocused = false;
+  // Fires a bit later into the scroll than a plain halfway crossing, so the
+  // fade starts once screen 2 is clearly the thing being scrolled to rather
+  // than the moment it first passes the midpoint.
+  const REVEAL_THRESHOLD = 0.68;
+  const revealHomeScreen2 = (entries) => {
     for (const entry of entries) {
-      if (!entry.isIntersecting || entry.intersectionRatio < 0.5) continue;
+      const visible = entry.isIntersecting && entry.intersectionRatio >= REVEAL_THRESHOLD;
+      elHomePageScreen2.classList.toggle("homePageScreen2Visible", visible);
+      if (!visible || screen2AutoFocused) continue;
       const active = document.activeElement;
       const typingElsewhere =
         active &&
         active !== elStudentName &&
         (active.tagName === "INPUT" || active.tagName === "TEXTAREA");
-      if (!typingElsewhere && active !== elStudentName) {
+      if (!typingElsewhere) {
+        screen2AutoFocused = true;
         try {
           elStudentName.focus({ preventScroll: true });
         } catch {
@@ -16459,10 +16249,10 @@ if (elPageStep1 && elStudentName && "IntersectionObserver" in window) {
       }
     }
   };
-  const step1FocusObserver = new IntersectionObserver(focusNameWhenStep1Visible, {
-    threshold: [0, 0.5, 1],
+  const homeScreen2Observer = new IntersectionObserver(revealHomeScreen2, {
+    threshold: [0, REVEAL_THRESHOLD, 1],
   });
-  step1FocusObserver.observe(elPageStep1);
+  homeScreen2Observer.observe(elHomePageScreen2);
 }
 
 if (elArchiveBackBtn) {
@@ -16471,17 +16261,10 @@ if (elArchiveBackBtn) {
   });
 }
 
-const elHomeStartBtn = document.getElementById("homeStartBtn");
 const elHomeArchiveBtn = document.getElementById("homeArchiveBtn");
 const elHomeAllMapsBtn = document.getElementById("homeAllMapsBtn");
 const elHomeAboutBtn = document.getElementById("homeAboutBtn");
 const elAboutBackBtn = document.getElementById("aboutBackBtn");
-
-if (elHomeStartBtn) {
-  elHomeStartBtn.addEventListener("click", () => {
-    showPage("step1", { scroll: "step1", behavior: "auto" });
-  });
-}
 
 if (elHomeArchiveBtn) {
   elHomeArchiveBtn.addEventListener("click", () => {
@@ -17392,10 +17175,10 @@ elForm.addEventListener("submit", async (e) => {
   saveJson(STORAGE_KEY, addresses);
   showAddToListMessage(addresses.length);
 
-  const keepName = String(elStudentName?.value || "");
+  // studentName now lives outside <form id="addressForm"> (on the home
+  // page), so this reset() no longer touches it.
   await animateStep1AddressFieldsClear();
   elForm.reset();
-  if (elStudentName) elStudentName.value = keepName;
   resetStep1BelongingSliderToDefault();
   finishStep1AddressFieldsClearAnimation();
 
