@@ -6,7 +6,7 @@
     <title>LifePath</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="styles.css?v=2026-07-17-titles-raised-2" />
+    <link rel="stylesheet" href="styles.css?v=2026-07-18-logo-true-center" />
   </head>
   <body>
     <main class="app">
@@ -251,23 +251,19 @@
         </header>
 
   <img class="step2LogoText appLogoImage" src="logo.png" alt="LifePath" />
-  <h2 class="step2MapTitle">movement map</h2>
 
         <div class="mapWrap">
           <div id="map" class="map" aria-label="Vector path map"></div>
         </div>
 
         <div id="signatureLabel" class="step2Signature" aria-hidden="true"></div>
-        <div id="coordinateLabel" class="step2Coordinates" aria-hidden="true"></div>
-
-        <div class="step2BottomActions" aria-label="Step 2 actions">
-          <button type="button" id="hideMapBtn" class="textLink">show map</button>
-          <button type="button" id="backToStep1Btn" class="textLink">edit</button>
-          <button type="button" id="printPostcardBtn" class="textLink">print</button>
-        </div>
+        <div id="coordinateLabel" class="step2Coordinates hidden" aria-hidden="true"></div>
 
         <!-- Keep existing controls in DOM (hidden) to avoid breaking JS references -->
         <div class="hidden">
+          <button type="button" id="hideMapBtn">show map</button>
+          <button type="button" id="backToStep1Btn">edit</button>
+          <button type="button" id="printPostcardBtn">print</button>
           <button type="button" id="drawBtn">Draw signature</button>
           <button type="button" id="drawBelongingBtn">Draw belonging</button>
           <button type="button" id="drawAllBtn">Draw all signatures</button>
@@ -334,6 +330,6 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-      <script src="app.js?v=2026-07-17-chart-tuning-2"></script>
+      <script src="app.js?v=2026-07-18-geocode-speed2"></script>
   </body>
 </html>

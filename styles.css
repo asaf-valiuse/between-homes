@@ -433,8 +433,12 @@ body {
   position: absolute;
   /* 50vh, not 50%: stays pinned to screen 1's own center against
      .homePageInner's 200vh height -- 50% of that would land at the
-     screen 1/2 boundary instead. */
-  top: 50vh;
+     screen 1/2 boundary instead. The "- 36px" compensates for
+     #pageWelcome's own top padding (36px), which offsets .homePageInner's
+     (this element's containing block) top edge away from the true
+     viewport top -- without it, the logo's center actually lands 36px
+     below true screen center, not on it. */
+  top: calc(50vh - 36px);
   left: 50%;
   transform: translate(-50%, -50%);
   width: 135px;
@@ -476,7 +480,9 @@ body {
    margin/left. Fades out with .homeScrollHint on scroll (toggled in app.js). */
 #pageWelcome .homePageTagline {
   position: absolute;
-  top: calc(50vh + 53px);
+  /* Same 53px gap below the logo as before, now measured from the logo's
+     corrected (true-center) position -- see .homePageLogo's own comment. */
+  top: calc(50vh - 36px + 53px);
   /* .homePageLogo's own left edge: it's centered via left:50% + a 135px
      width + transform:translateX(-50%), so its left edge sits at
      50% - 67.5px of their shared containing block (.homePageInner) --
@@ -725,9 +731,11 @@ body {
    below) -- so they need the flat, unscaled design-pixel height here; the
    ambient transform already shrinks them together with the rest of the
    frame's contents. Using the scaled formula here would double-apply the
-   scale and make them too small relative to every other page's buttons. */
+   scale and make them too small relative to every other page's buttons.
+   17.1864 (not 18.48) to match the home page's own buttons exactly -- see
+   .homePageTopActions .btnImg's own 7%-smaller comment above. */
 #pageStep1 .frame .btnImg {
-  height: 18.48px;
+  height: 17.1864px;
 }
 
 /* Hover states: content-swap the <img> to buttons/<name>-hover.png. Hover
@@ -3366,6 +3374,15 @@ input[type="reset"]:hover:not(:disabled) {
   display: inline-block;
 }
 
+/* Back and share have no place in the finished toolbar -- back because
+   there's no "back" destination once the map is done, share because it's
+   redundant there. Higher-specificity ID selectors so this wins over
+   .step1FinishedOnlyBtn's own display:inline-block for #step1ShareBtn. */
+#pageStep1.step1-finished-state #step1GoBackBtn,
+#pageStep1.step1-finished-state #step1ShareBtn {
+  display: none;
+}
+
 #pageStep1 .step1TopProgress {
   display: none;
   position: absolute;
@@ -3398,6 +3415,7 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1TopProgressName,
 #pageStep1 .step1TopProgressHomes {
   display: inline-block;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
 }
 
 #pageStep1 .step1TopProgressEdit {
@@ -3541,7 +3559,7 @@ input[type="reset"]:hover:not(:disabled) {
   padding-left: 30px;
   text-align: left;
   text-transform: lowercase;
-  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
   font-weight: 400;
   /* Scale-independent 16px -- see .createYourMapTitle's comment. */
   font-size: calc(15px / var(--step1-scale, 1));
@@ -3793,7 +3811,7 @@ input[type="reset"]:hover:not(:disabled) {
   margin: 0;
   padding-left: 30px;
   text-align: left;
-  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
   font-weight: 400;
   /* Scale-independent 16px -- see .createYourMapTitle's comment. */
   font-size: calc(15px / var(--step1-scale, 1));
@@ -3812,10 +3830,10 @@ input[type="reset"]:hover:not(:disabled) {
 /* Route preview: third panel from left */
 #pageStep1 .step1RoutePreview {
   position: absolute;
-  left: 1050px;
-  top: 305px;
-  width: 460px;
-  height: calc(var(--step1-dashboard-top-section, 486px) - 20px);
+  left: 1040px;
+  top: 297px;
+  width: 480px;
+  height: calc(var(--step1-dashboard-top-section, 486px) - 12px);
   border-left: none;
   z-index: 3;
   pointer-events: auto;
@@ -3828,15 +3846,22 @@ input[type="reset"]:hover:not(:disabled) {
   height: 100%;
   display: block;
   overflow: visible;
+  /* Shrinks/shifts only the drawn route itself -- .step1RoutePreview's own
+     box (and its ::before/::after divider lines, which are positioned off
+     that box, not this svg) is completely untouched by this transform. */
+  transform: translateX(15px) scale(0.9);
 }
 
 #pageStep1 .step1RoutePreview::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: 20px;
+  /* .step1RoutePreview itself was widened/shifted (left: 1050px -> 1040px,
+     top: 305px -> 297px) to enlarge the frame -- these offsets compensate so
+     this divider line still renders at its original, unmoved position. */
+  left: 10px;
+  top: 28px;
   width: 0.1px;
-  height: calc(100% - 20px);
+  height: calc(100% - 28px);
   background: #000000;
   opacity: 0.65;
   z-index: 5;
@@ -3867,18 +3892,20 @@ input[type="reset"]:hover:not(:disabled) {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  transition: opacity 0.45s ease;
+  /* Held back a few seconds after finish, then a slow, gentle fade-in
+     rather than appearing right alongside the rest of the finished layout. */
+  transition: opacity 0.8s ease 1.5s, visibility 0s linear 1.5s;
 }
 
 /* Both fullscreen links sit just below their section's title. */
 #pageStep1 .step1EmotionFullscreenBtn {
   left: 590px;
-  top: 360px;
+  top: 354px;
 }
 
 #pageStep1 .step1RouteFullscreenBtn {
   left: 1080px;
-  top: 360px;
+  top: 354px;
 }
 
 #pageStep1 .step1FullscreenBtn:hover {
@@ -3998,7 +4025,7 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageStep1 .step1RingReadingTitle {
   margin: -2px 0 10px 0;
-  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
   /* Scale-independent 16px -- see .createYourMapTitle's comment. */
   font-size: calc(15px / var(--step1-scale, 1));
   color: #000000;
@@ -4081,7 +4108,7 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageStep1 .step1TimeBelongingTitle {
   margin: -2px 0 10px 0;
-  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
   /* Scale-independent 16px -- see .createYourMapTitle's comment. */
   font-size: calc(15px / var(--step1-scale, 1));
   color: #000000;
@@ -4156,10 +4183,11 @@ input[type="reset"]:hover:not(:disabled) {
   top: 178px;
 }
 
-/* Directly above the timeline — keep this left value in sync with it. */
+/* Directly above the timeline — keep this left value in sync with it, and
+   its top with .step1HomeCountLabel's own (same row as "xx homes"). */
 #pageStep1 .step1MoveFrequencyLabel {
-  left: 850px;
-  top: 206px;
+  left: 560px;
+  top: 178px;
 }
 
 #pageStep1 .step1MoveFrequencyLabel::first-letter {
@@ -4171,15 +4199,18 @@ input[type="reset"]:hover:not(:disabled) {
 }
 
 /* Timeline: right edge fixed at the rightmost vertical divider line of the
-   finished layout (.step1HomesListTitle::before, x=1540); left edge extends
-   200px past the leftmost divider (.step1RoutePreview::before, x=1050).
-   Vertically aligned with the "avg belonging" row. */
+   finished layout (.step1HomesListTitle::before, x=1540); left edge now
+   extends all the way to the geographic map's own right edge (#step1GeoMap,
+   x=560) instead of stopping partway there -- keep updateStep1JourneyTimeline()'s
+   vbW constant in sync with this width. Vertically aligned to .step1AvgBelonging's
+   own top (232px) -- deliberately independent of .step1MoveFrequencyLabel's
+   top (still 178px, unmoved) since the two no longer move together. */
 #pageStep1 .step1JourneyTimeline {
   display: none;
   position: absolute;
-  left: 850px;
+  left: 560px;
   top: 232px;
-  width: 690px;
+  width: 980px;
   height: 24px;
   z-index: 4;
   pointer-events: none;
@@ -4211,7 +4242,7 @@ input[type="reset"]:hover:not(:disabled) {
   margin: 0;
   padding-left: 30px;
   text-align: left;
-  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
   font-weight: 400;
   /* Scale-independent 16px -- see .createYourMapTitle's comment. */
   font-size: calc(15px / var(--step1-scale, 1));
@@ -4928,7 +4959,14 @@ input[type="reset"]:hover:not(:disabled) {
 /* "add home" button — to the right of the belonging slider */
 #pageStep1 .addHomeBtn {
   position: absolute;
-  left: calc(100% + 50px);
+  /* This group (5th grid column) is itself shifted left: -160px (see the
+     .div-5 > .group-2:nth-child(5) rule), so extending -160px past its own
+     right edge lands back exactly on the *unshifted* column's right edge --
+     which is the grid container's right edge, i.e. the same x as the "back"
+     button's right edge (both align to the 1920px canvas's right: 40px).
+     Using `right` (not `left`) keeps this aligned in both the "add home"
+     and "finish" states even though those two button images differ in width. */
+  right: -160px;
   top: 38px;
   border: 0;
   background: transparent;
@@ -5000,8 +5038,11 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1RoutePreview::after {
   content: "";
   position: absolute;
-  left: 7px;
-  right: -22px;
+  /* Same compensation as .step1RoutePreview::before -- keeps this line's
+     endpoints at their original absolute position after the frame's
+     left/width were changed to enlarge it. */
+  left: 17px;
+  right: -12px;
   top: 100%;
   height: 0.1px;
   background: #000000;

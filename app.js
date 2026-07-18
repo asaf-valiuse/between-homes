@@ -2040,6 +2040,24 @@ function belongingCircleStrokeWeight(rate) {
   return Math.max(0.1, Math.min(10, w));
 }
 
+// Every address-marker circle (geo map, route preview, journey timeline)
+// shares this one fixed inner radius -- belonging rate only ever changes
+// the outline's stroke width, and that stroke grows outward only (the
+// circle's own radius is bumped up by half the stroke so the *inner* edge
+// stays put at ADDRESS_DOT_INNER_RADIUS regardless of rate).
+const ADDRESS_DOT_INNER_RADIUS = 4;
+function addressDotRadius(rate) {
+  return ADDRESS_DOT_INNER_RADIUS + belongingCircleStrokeWeight(rate) / 2;
+}
+
+// Route preview only -- slightly smaller than ADDRESS_DOT_INNER_RADIUS
+// (which the geo map and journey timeline still use), same outward-only
+// stroke growth otherwise.
+const ROUTE_PREVIEW_DOT_INNER_RADIUS = 3.4;
+function routePreviewDotRadius(rate) {
+  return ROUTE_PREVIEW_DOT_INNER_RADIUS + belongingCircleStrokeWeight(rate) / 2;
+}
+
 /** @type {Address[]} */
 let addresses = [];
 
@@ -5399,7 +5417,11 @@ function showPage(which, opts) {
     setTimeout(() => {
       ensureStep1GeoMap();
       updateStep1GeoMapView();
-      renderStep1EmotionMap();
+      if (_step1SkipEmotionRebuildOnce) {
+        _step1SkipEmotionRebuildOnce = false;
+      } else {
+        renderStep1EmotionMap();
+      }
     }, 0);
   }
 
@@ -6603,7 +6625,7 @@ function renderStep1GeoMapDots() {
   const color = getStep1GeoMarkerColor();
   getStep1GeoPointAddresses().forEach((addr, index) => {
     const rate = normalizeBelongingRate(addr.belonging_rate, stableBelongingRateFromId(addr.id || `step1-${index}`));
-    const radius = 4 + rate / 2;
+    const radius = addressDotRadius(rate);
     const dot = L.circleMarker([Number(addr.lat), Number(addr.lon)], {
       renderer: step1GeoVectorRenderer,
       className: "lifepathStep1GeoDot",
@@ -6700,8 +6722,16 @@ function fitStep1GeoMapToAllAddresses(options) {
   ensureStep1GeoMap();
   if (!step1GeoMap) return;
 
-  const pts = getStep1GeoRouteLatLngs();
-  if (!pts.length) return;
+  const allPts = getStep1GeoRouteLatLngs();
+  if (!allPts.length) return;
+  // On finish, focus on Israel only, even if a home outside Israel was
+  // entered along the way (during entry itself, focusStep1GeoMapAt() still
+  // centers on whatever address was just typed, wherever it is -- this
+  // only changes the final, zoomed-out "whole route" view). Falls back to
+  // every point if none happen to be in Israel, same convention as All
+  // Maps' own Israel-first fit.
+  const israelPts = allPts.filter((ll) => ISRAEL_BOUNDS.contains(ll));
+  const pts = israelPts.length > 0 ? israelPts : allPts;
 
   step1MapPreEntry = false;
   if (elStep1GeoMap) elStep1GeoMap.classList.remove("map-pre-entry");
@@ -6898,19 +6928,6 @@ function armStep1RoutePreviewHover() {
   });
 }
 
-// Movement map (route preview) dots only -- much thinner at the high end
-// than the shared belongingCircleStrokeWeight() curve used everywhere else
-// (geo map pins, inline slider, journey timeline), which stays unchanged.
-function routeDotStrokeWeight(rate) {
-  const r = Math.max(1, Math.min(10, parseFloat(rate) || 5));
-  const t = (r - 1) / 9; // 0..1
-  const minW = 1; // level 1
-  const maxW = 4.2; // level 10
-  const gamma = 1.4;
-  const shaped = Math.pow(Math.max(0, Math.min(1, t)), gamma);
-  return minW + (maxW - minW) * shaped;
-}
-
 function updateStep1RoutePreview() {
   if (!elStep1RoutePreview) return;
   armStep1RoutePreviewHover();
@@ -6952,12 +6969,11 @@ function updateStep1RoutePreview() {
     : pts;
 
   const MAX_BELONGING_RATE = 10;
-  // Fixed inner edge of the dot's ring -- stroke grows outward from here only,
-  // so the ring's inner boundary never moves as belonging rate increases.
-  const ROUTE_DOT_INNER_RADIUS = 1.4 + MAX_BELONGING_RATE / 2.5;
-  const MAX_STROKE_WIDTH = routeDotStrokeWeight(MAX_BELONGING_RATE);
-  const MAX_OUTER_RADIUS = ROUTE_DOT_INNER_RADIUS + MAX_STROKE_WIDTH;
-  const BORDER_INSET = 2;
+  // Slightly smaller inner radius than the geo map/timeline (see
+  // routePreviewDotRadius()), same outward-only stroke growth otherwise.
+  const MAX_STROKE_WIDTH = belongingCircleStrokeWeight(MAX_BELONGING_RATE);
+  const MAX_OUTER_RADIUS = ROUTE_PREVIEW_DOT_INNER_RADIUS + MAX_STROKE_WIDTH;
+  const BORDER_INSET = 5;
   const minCenterX = BORDER_INSET + MAX_OUTER_RADIUS;
   const maxCenterX = svgW - BORDER_INSET - MAX_OUTER_RADIUS;
   const minCenterY = BORDER_INSET + MAX_OUTER_RADIUS;
@@ -7011,7 +7027,11 @@ function updateStep1RoutePreview() {
     const fitW = Math.max(1, maxX - minX);
     const fitH = Math.max(1, maxY - minY);
     const zoomFit = Math.min(innerW / fitW, innerH / fitH);
-    const zoom = Math.max(0.2, Math.min(8, zoomFit));
+    // Was capped at 8x, which left closely-clustered homes (e.g. all in the
+    // same city) drawn tiny in the middle of a mostly-empty box instead of
+    // actually filling it -- raised so it can zoom in as far as the points'
+    // own spread calls for.
+    const zoom = Math.max(0.2, Math.min(40, zoomFit));
     const srcCx = (minX + maxX) / 2;
     const srcCy = (minY + maxY) / 2;
     const dstCx = (minCenterX + maxCenterX) / 2;
@@ -7080,8 +7100,8 @@ function updateStep1RoutePreview() {
           requestAnimationFrame(growLine);
         } else {
           // Line complete — now grow the dot.
-          const sw = routeDotStrokeWeight(last.rate);
-          const r = ROUTE_DOT_INNER_RADIUS + sw / 2;
+          const sw = belongingCircleStrokeWeight(last.rate);
+          const r = routePreviewDotRadius(last.rate);
           const dot = document.createElementNS(NS, "circle");
           dot.setAttribute("cx", String(last.x));
           dot.setAttribute("cy", String(last.y));
@@ -7112,8 +7132,8 @@ function updateStep1RoutePreview() {
   const dotEnd = isNewPoint ? coords.length - 1 : coords.length;
   for (let i = 0; i < dotEnd; i++) {
     const c = coords[i];
-    const sw = routeDotStrokeWeight(c.rate);
-    const r = ROUTE_DOT_INNER_RADIUS + sw / 2;
+    const sw = belongingCircleStrokeWeight(c.rate);
+    const r = routePreviewDotRadius(c.rate);
     const dot = document.createElementNS(NS, "circle");
     dot.setAttribute("cx", String(c.x));
     dot.setAttribute("cy", String(c.y));
@@ -7163,15 +7183,51 @@ function updateStep1JourneyTimeline() {
   const firstYear = withYears[0].year;
   const span = Math.max(1, endYear - firstYear);
   // Matches .step1JourneyTimeline's CSS width — keep these two in sync.
-  const vbW = 690;
-  const xStart = 0;
-  const xEnd = vbW;
-  const labelGap = 12;
+  const vbW = 980;
+  const labelGap = 10;
   const lineY = 12;
-  const yearToX = (year) => xStart + ((year - firstYear) / span) * (xEnd - xStart);
 
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("viewBox", `0 0 ${vbW} 24`);
+
+  // Year labels sit flush against the timeline's own ends -- the start
+  // year's left edge at x=0 (the geographic map's own right edge in the
+  // finished layout) and the end year's right edge at x=vbW (the rightmost
+  // divider line), extending inward. The axis line/dots below are then
+  // inset just enough to clear whatever room these labels actually need.
+  const firstYearLabel = document.createElementNS(NS, "text");
+  firstYearLabel.setAttribute("x", "0");
+  firstYearLabel.setAttribute("y", String(lineY));
+  firstYearLabel.setAttribute("text-anchor", "start");
+  firstYearLabel.setAttribute("dominant-baseline", "middle");
+  firstYearLabel.textContent = String(firstYear);
+  svg.appendChild(firstYearLabel);
+
+  const endYearLabel = document.createElementNS(NS, "text");
+  endYearLabel.setAttribute("x", String(vbW));
+  endYearLabel.setAttribute("y", String(lineY));
+  endYearLabel.setAttribute("text-anchor", "end");
+  endYearLabel.setAttribute("dominant-baseline", "middle");
+  endYearLabel.textContent = String(endYear);
+  svg.appendChild(endYearLabel);
+
+  // Attach before measuring -- getComputedTextLength() needs live layout,
+  // and font metrics aren't fixed-width, so this is the actual rendered
+  // width rather than a guessed constant.
+  svgHost.innerHTML = "";
+  svgHost.appendChild(svg);
+  let firstLabelWidth = 0;
+  let endLabelWidth = 0;
+  try { firstLabelWidth = firstYearLabel.getComputedTextLength() || 0; } catch { /* ignore */ }
+  try { endLabelWidth = endYearLabel.getComputedTextLength() || 0; } catch { /* ignore */ }
+
+  // Extra 10px inset beyond the label clearance above -- shortens the line
+  // (and, so dots stay sitting exactly on it, the year-to-x mapping too)
+  // without moving the year labels themselves, which stay flush at 0/vbW.
+  const lineInset = 30;
+  const xStart = firstLabelWidth + labelGap + lineInset;
+  const xEnd = vbW - endLabelWidth - labelGap - lineInset;
+  const yearToX = (year) => xStart + ((year - firstYear) / span) * (xEnd - xStart);
 
   const line = document.createElementNS(NS, "line");
   line.setAttribute("x1", String(xStart));
@@ -7182,26 +7238,13 @@ function updateStep1JourneyTimeline() {
   line.setAttribute("stroke-width", "0.6");
   svg.appendChild(line);
 
-  const firstYearLabel = document.createElementNS(NS, "text");
-  firstYearLabel.setAttribute("x", String(xStart - labelGap));
-  firstYearLabel.setAttribute("y", String(lineY));
-  firstYearLabel.setAttribute("text-anchor", "end");
-  firstYearLabel.setAttribute("dominant-baseline", "middle");
-  firstYearLabel.textContent = String(firstYear);
-  svg.appendChild(firstYearLabel);
-
-  const endYearLabel = document.createElementNS(NS, "text");
-  endYearLabel.setAttribute("x", String(xEnd + labelGap));
-  endYearLabel.setAttribute("y", String(lineY));
-  endYearLabel.setAttribute("text-anchor", "start");
-  endYearLabel.setAttribute("dominant-baseline", "middle");
-  endYearLabel.textContent = String(endYear);
-  svg.appendChild(endYearLabel);
-
+  // Same fixed inner radius + outward-only stroke growth as the geo map and
+  // route preview dots (see addressDotRadius()) -- all three stay pixel-
+  // consistent with each other.
   for (const { addr, year } of withYears) {
     const rate = normalizeBelongingRate(addr.belonging_rate, 5);
-    const r = 4 + rate / 2.5;
-    const sw = belongingCircleStrokeWeight(rate) * 1.2;
+    const sw = belongingCircleStrokeWeight(rate);
+    const r = addressDotRadius(rate);
     const dot = document.createElementNS(NS, "circle");
     dot.setAttribute("cx", String(yearToX(Math.min(endYear, Math.max(firstYear, year)))));
     dot.setAttribute("cy", String(lineY));
@@ -7211,9 +7254,6 @@ function updateStep1JourneyTimeline() {
     dot.setAttribute("stroke-width", String(sw));
     svg.appendChild(dot);
   }
-
-  svgHost.innerHTML = "";
-  svgHost.appendChild(svg);
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -8267,6 +8307,21 @@ function dampStep1EmotionFullscreenRingDistortion() {
     } catch {
       // ignore
     }
+    // The just-copied stroke-width is whatever the Step 1 preview drew (see
+    // step1PreviewEmotionStrokeWidthFromRate()), which is very slightly
+    // thinner than the shared formula, Step 1-preview-only by design.
+    // Re-derive the fullscreen page's own value from the un-thinned formula
+    // (with the same Math.max(1, ...) floor Step 1's own renderer applies
+    // when it sets stroke-width -- see renderStep1EmotionMap()) so it reads
+    // exactly as it did before that Step 1-only adjustment.
+    try {
+      const rate = Number(ring.getAttribute("data-emotion-rate"));
+      if (Number.isFinite(rate)) {
+        ring.setAttribute("stroke-width", String(Math.max(1, emotionStrokeWidthFromRate(rate))));
+      }
+    } catch {
+      // ignore
+    }
   });
 }
 
@@ -8278,6 +8333,25 @@ function dampStep1EmotionFullscreenRingDistortion() {
 // actually enforces this, by tightening the gaps between rings rather than
 // shrinking the inner ring further.
 const STEP1_EMOTION_FULLSCREEN_MAX_MAP_PX = 300;
+// Maps with more than this many rings get a looser overall-diameter budget
+// (below) instead of the default one -- with that many rings packed in,
+// the tighter 300px budget forces gaps so small that rings start visually
+// overlapping. The innermost ring's own cap is unaffected either way.
+const STEP1_EMOTION_FULLSCREEN_MANY_RINGS_THRESHOLD = 10;
+const STEP1_EMOTION_FULLSCREEN_MAX_MAP_PX_MANY_RINGS = 400;
+// Maps with only a handful of rings have no crowding risk to begin with --
+// the default 300px budget still ends up squeezing their gaps drastically
+// whenever belonging rates differ a lot between just 2-4 homes. Give these a
+// much looser budget instead, since there's plenty of screen space and
+// nothing to protect against.
+const STEP1_EMOTION_FULLSCREEN_FEW_RINGS_THRESHOLD = 6;
+const STEP1_EMOTION_FULLSCREEN_MAX_MAP_PX_FEW_RINGS = 560;
+
+function step1EmotionFullscreenMaxMapPx(ringCount) {
+  if (ringCount > STEP1_EMOTION_FULLSCREEN_MANY_RINGS_THRESHOLD) return STEP1_EMOTION_FULLSCREEN_MAX_MAP_PX_MANY_RINGS;
+  if (ringCount <= STEP1_EMOTION_FULLSCREEN_FEW_RINGS_THRESHOLD) return STEP1_EMOTION_FULLSCREEN_MAX_MAP_PX_FEW_RINGS;
+  return STEP1_EMOTION_FULLSCREEN_MAX_MAP_PX;
+}
 
 // Both ring sizes below are ultimately set by fitStep1EmotionFullscreenInnerRing()
 // zooming the whole viewBox until the innermost ring hits its target pixel
@@ -8311,7 +8385,8 @@ function compressStep1EmotionFullscreenRingSpan() {
   const outerR = infos[infos.length - 1].r0;
   if (!(innerR > 0) || !(outerR > innerR)) return;
 
-  const maxRatio = (STEP1_EMOTION_FULLSCREEN_MAX_MAP_PX / 2) / STEP1_EMOTION_FULLSCREEN_MAX_INNER_RING_PX;
+  const maxMapPx = step1EmotionFullscreenMaxMapPx(rings.length);
+  const maxRatio = (maxMapPx / 2) / STEP1_EMOTION_FULLSCREEN_MAX_INNER_RING_PX;
   if (outerR / innerR <= maxRatio) return;
 
   // Pull every ring proportionally closer to the innermost one (which stays
@@ -8347,61 +8422,235 @@ function resolveStep1EmotionFullscreenRingOverlaps() {
   const [vbX, vbY, vbW, vbH] = viewBoxParts.length === 4 && viewBoxParts.every((v) => isFinite(v)) ? viewBoxParts : [0, 0, 1000, 620];
   const cx = vbX + vbW / 2;
   const cy = vbY + vbH / 2;
-  const minClearanceUnits = Math.max(1, vbW / 250);
+  // Scales with the same per-ring-count size budget compressStep1Emotion
+  // FullscreenRingSpan() used -- otherwise maxReasonableGap below (meant to
+  // pull in only *pointlessly* huge gaps) also pulls in the deliberately
+  // generous spacing that budget just gave a few-ring map, undoing it.
+  const clearanceBudgetScale = step1EmotionFullscreenMaxMapPx(rings.length) / STEP1_EMOTION_FULLSCREEN_MAX_MAP_PX;
+  const minClearanceUnits = Math.max(1, (vbW / 250) * clearanceBudgetScale);
 
+  // Measure each ring's *true* rendered shape directly (getBBox, in the
+  // ring's own pre-transform coordinate space) instead of estimating it
+  // from data-emotion-amp/r0. The pull/push bump is localized to one angle
+  // (not a uniform radial +/-amp offset), and the independent organic-wave
+  // waviness can push the boundary out at *any* angle -- so a ring's true
+  // worst-case extent can differ substantially from an "r0 +/- amp"
+  // estimate, in either direction, at either edge. getBBox() reflects
+  // whatever the path's `d` actually traces, sidestepping the need to
+  // model that shape. It also sidesteps stroke-width separately: every
+  // ring here carries vector-effect="non-scaling-stroke" (copied straight
+  // from the Step 1 preview), so stroke-width is a fixed px amount, never
+  // scaled by the transform this function applies below.
   const infos = rings.map((ring) => {
-    const baseR0 = Number(ring.getAttribute("data-emotion-r0")) || 0;
     const currentScale = Number(ring.getAttribute("data-emotion-radius-scale")) || 1;
+    const bbox = ring.getBBox();
+    const sw = Number(ring.getAttribute("stroke-width")) || 1;
+    // A small fixed safety margin on top of the measured shape: the
+    // organic wave is continuous, so the true worst angle may fall
+    // slightly between rendered vertices, and breathing/hover can nudge
+    // geometry a hair further still.
+    const localOuterR = (Math.max(bbox.width, bbox.height) / 2) * 1.06;
+    const localInnerR = (Math.min(bbox.width, bbox.height) / 2) * 0.94;
     return {
       el: ring,
-      baseR0,
-      r0: baseR0 * currentScale,
-      amp: (Number(ring.getAttribute("data-emotion-amp")) || 0) * currentScale,
-      sw: Number(ring.getAttribute("stroke-width")) || 1,
+      scale: currentScale,
+      localOuterR,
+      localInnerR,
+      sw,
+      outerEdge: localOuterR * currentScale + sw / 2,
+      innerEdge: localInnerR * currentScale - sw / 2,
     };
   });
-  infos.sort((a, b) => a.r0 - b.r0);
 
-  for (let i = 1; i < infos.length; i++) {
-    const prev = infos[i - 1];
-    const cur = infos[i];
-    const prevOuter = prev.r0 + Math.max(0, prev.amp) + prev.sw / 2;
-    const curInner = cur.r0 - Math.max(0, -cur.amp) - cur.sw / 2;
-    const clearance = curInner - prevOuter;
-    if (clearance < minClearanceUnits) {
-      cur.r0 += minClearanceUnits - clearance;
+  // Growing a ring's scale to clear the one before it is a direct,
+  // one-shot calculation here (innerEdge is linear in scale, and
+  // localInnerR -- unlike an amp-ratio estimate -- is a fixed measured
+  // constant, not something that itself grows as scale grows) -- so unlike
+  // an amp-ratio-based estimate, this can't compound into runaway growth
+  // chaining across many rings. Still re-sort and repeat a few times: a
+  // push can move a ring past the *next* one's still-unprocessed position.
+  // Also pull a ring back in if it ended up with far more clearance than it
+  // needs (e.g. it never needed pushing itself, but the ring before it just
+  // got pushed way out to clear *its own* neighbor, leaving this one with a
+  // conspicuously huge, pointless gap next to otherwise-snug ones).
+  //
+  // maxReasonableGap must never be smaller than the gaps the compress step
+  // *intentionally* already set up (a few-ring map's generous size budget
+  // means genuinely bigger gaps, by design, not "pointlessly huge" ones) --
+  // so it's derived from this map's own current average gap, not a fixed
+  // vbW-relative constant blind to ring count.
+  const sortedByOuter = infos.slice().sort((a, b) => a.outerEdge - b.outerEdge);
+  let gapSum = 0;
+  let gapCount = 0;
+  for (let i = 1; i < sortedByOuter.length; i++) {
+    const gap = sortedByOuter[i].innerEdge - sortedByOuter[i - 1].outerEdge;
+    if (gap > 0) {
+      gapSum += gap;
+      gapCount += 1;
+    }
+  }
+  const avgGap = gapCount > 0 ? gapSum / gapCount : minClearanceUnits;
+  const maxReasonableGap = Math.max(minClearanceUnits * 1.4, avgGap * 2.2);
+  for (let iter = 0; iter < infos.length * 8 + 20; iter++) {
+    infos.sort((a, b) => a.outerEdge - b.outerEdge);
+    let moved = false;
+    for (let i = 1; i < infos.length; i++) {
+      const prev = infos[i - 1];
+      const cur = infos[i];
+      if (cur.localInnerR <= 0.01) continue;
+      const gap = cur.innerEdge - prev.outerEdge;
+      let targetGap = null;
+      if (gap < minClearanceUnits - 1e-6) targetGap = minClearanceUnits;
+      else if (gap > maxReasonableGap) targetGap = maxReasonableGap;
+      if (targetGap == null) continue;
+      const targetInnerEdge = prev.outerEdge + targetGap;
+      const newScale = (targetInnerEdge + cur.sw / 2) / cur.localInnerR;
+      if (Math.abs(newScale - cur.scale) < 1e-6) continue;
+      cur.scale = newScale;
+      cur.outerEdge = cur.localOuterR * cur.scale + cur.sw / 2;
+      cur.innerEdge = targetInnerEdge;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+
+  // Final safety net: however the pass above settled, never let the whole
+  // map balloon past a sane final on-screen size -- if it did, shrink every
+  // ring's scale proportionally together. That shrinks their absolute
+  // clearances too, so it trades away some of the "never touching"
+  // guarantee above, but only ever kicks in for distortion combinations far
+  // outside realistic belonging-rate data, where a large-but-bounded map
+  // with an occasional snug gap is a far better outcome than an unusable,
+  // absurdly huge one.
+  //
+  // fitStep1EmotionFullscreenInnerRing() (which runs right after this
+  // function, back in the caller) zooms the whole viewBox so the *smallest*
+  // ring here ends up exactly STEP1_EMOTION_FULLSCREEN_MAX_INNER_RING_PX on
+  // screen -- so the final on-screen size of every other ring is that fixed
+  // target scaled by its ratio to the smallest ring's edge, not by its own
+  // absolute vbW-relative units. Capping in absolute units here would only
+  // coincidentally match the true final pixel size; capping the ratio
+  // directly (mirroring compressStep1EmotionFullscreenRingSpan()'s own
+  // maxMapPx/innerPx logic) is what actually bounds it.
+  const smallestInnerEdge = infos.reduce((m, info) => Math.min(m, info.innerEdge), Infinity);
+  const outerEdge = infos.reduce((m, info) => Math.max(m, info.outerEdge), 0);
+  if (smallestInnerEdge > 0 && Number.isFinite(smallestInnerEdge)) {
+    const maxMapPx = step1EmotionFullscreenMaxMapPx(rings.length);
+    // Generous multiple of the "normal" budget: this is a last-resort cap
+    // for pathological cases, not the everyday target -- compressStep1Emotion
+    // FullscreenRingSpan() already aims for maxMapPx under ordinary
+    // circumstances, and this function's own job above is to grow past that
+    // only when actually needed to avoid touching. Kept within ~2.5x rather
+    // than 6x: the fullscreen page's own container caps out at 1200px, so a
+    // looser multiple than that let many-ring maps balloon past the visible
+    // page instead of actually acting as a *safety* net.
+    const maxRatio = ((maxMapPx * 2.5) / 2) / STEP1_EMOTION_FULLSCREEN_MAX_INNER_RING_PX;
+    const ratio = outerEdge / smallestInnerEdge;
+    if (ratio > maxRatio) {
+      const shrink = maxRatio / ratio;
+      for (const info of infos) {
+        info.scale *= shrink;
+        // Recompute properly, not just scale outerEdge/innerEdge by the same
+        // factor: the `+/- sw/2` term doesn't shrink (stroke-width never
+        // scales -- see the vector-effect note above), so naively assuming
+        // a uniform shrink leaves every gap exactly as it already is
+        // silently drifts it by a hair, which can turn an exactly-on-target
+        // gap from the loop above into a real (if tiny) violation.
+        info.outerEdge = info.localOuterR * info.scale + info.sw / 2;
+        info.innerEdge = info.localInnerR * info.scale - info.sw / 2;
+      }
+      // Re-converge once more: the drift above is small, but re-running the
+      // same loop costs little and guarantees it's actually gone rather
+      // than assuming it is.
+      for (let iter = 0; iter < infos.length * 2; iter++) {
+        infos.sort((a, b) => a.outerEdge - b.outerEdge);
+        let moved = false;
+        for (let i = 1; i < infos.length; i++) {
+          const prev = infos[i - 1];
+          const cur = infos[i];
+          const neededInnerEdge = prev.outerEdge + minClearanceUnits;
+          if (cur.innerEdge < neededInnerEdge - 1e-6 && cur.localInnerR > 0.01) {
+            cur.scale = (neededInnerEdge + cur.sw / 2) / cur.localInnerR;
+            cur.outerEdge = cur.localOuterR * cur.scale + cur.sw / 2;
+            cur.innerEdge = cur.localInnerR * cur.scale - cur.sw / 2;
+            moved = true;
+          }
+        }
+        if (!moved) break;
+      }
     }
   }
 
   for (const info of infos) {
-    const scale = info.baseR0 > 0 ? info.r0 / info.baseR0 : 1;
-    applyStep1EmotionRingRadiusScale(info.el, cx, cy, scale);
+    applyStep1EmotionRingRadiusScale(info.el, cx, cy, info.scale);
   }
 }
 
 function fitStep1EmotionFullscreenInnerRing() {
   if (!elStep1EmotionFullscreenSvg) return;
-  const innerRing = elStep1EmotionFullscreenSvg.querySelector('[data-emotion-ring="1"]');
-  if (!innerRing) return;
+  const rings = Array.from(elStep1EmotionFullscreenSvg.querySelectorAll('[data-emotion-ring="1"]'));
+  if (!rings.length) return;
 
   const baseViewBox = (elStep1EmotionSvg && elStep1EmotionSvg.getAttribute("viewBox")) || "0 0 1000 620";
   const parts = baseViewBox.split(/\s+/).map(Number);
   const [bx, by, bw, bh] = parts.length === 4 && parts.every((v) => isFinite(v)) ? parts : [0, 0, 1000, 620];
-  // Reset to the un-zoomed viewBox first so repeated calls (e.g. on resize)
-  // measure from a known baseline instead of compounding a previous zoom.
+  // Reset to the un-zoomed viewBox first so both the container measurement
+  // and the ring-cluster measurement below start from a known baseline.
   elStep1EmotionFullscreenSvg.setAttribute("viewBox", `${bx} ${by} ${bw} ${bh}`);
 
-  const rect = innerRing.getBoundingClientRect();
-  if (!rect || !rect.width || !rect.height) return;
-  const currentRadiusPx = (rect.width + rect.height) / 4;
-  if (!(currentRadiusPx > STEP1_EMOTION_FULLSCREEN_MAX_INNER_RING_PX)) return;
+  const containerRect = elStep1EmotionFullscreenSvg.getBoundingClientRect();
+  if (!containerRect || !containerRect.width || !containerRect.height) return;
 
-  const scale = currentRadiusPx / STEP1_EMOTION_FULLSCREEN_MAX_INNER_RING_PX;
-  const cx = bx + bw / 2;
-  const cy = by + bh / 2;
-  const newW = bw * scale;
-  const newH = bh * scale;
-  elStep1EmotionFullscreenSvg.setAttribute("viewBox", `${cx - newW / 2} ${cy - newH / 2} ${newW} ${newH}`);
+  // Fit the *whole ring cluster* (union bbox of every ring) to an explicit
+  // target diameter, tiered by ring count, rather than pegging just the
+  // smallest ring to a fixed px target and letting the outer ring's size
+  // fall out as an indirect consequence of compress/overlap-resolution
+  // above -- with an extreme belonging-rate mix (very few or very many
+  // rings), those passes can legitimately produce a smallest ring that
+  // isn't actually home #1, or an inner/outer ratio that blows way past
+  // what the container can show. This way the final on-screen size is
+  // exactly what's measured, every time.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const ring of rings) {
+    const r = ring.getBoundingClientRect();
+    if (!r || !r.width || !r.height) continue;
+    if (r.left < minX) minX = r.left;
+    if (r.top < minY) minY = r.top;
+    if (r.right > maxX) maxX = r.right;
+    if (r.bottom > maxY) maxY = r.bottom;
+  }
+  if (!Number.isFinite(minX)) return;
+  const clusterWPx = maxX - minX;
+  const clusterHPx = maxY - minY;
+  if (clusterWPx <= 0 || clusterHPx <= 0) return;
+
+  // Size rules for the whole map's diameter (its larger dimension), tiered
+  // by ring count.
+  const ringCount = rings.length;
+  const targetDiameterPx = ringCount < 6 ? 170 : ringCount <= 10 ? 270 : 370;
+  const clusterDiameterPx = Math.max(clusterWPx, clusterHPx);
+  let scale = targetDiameterPx / clusterDiameterPx;
+  // Never let the target exceed what the container can actually show (a
+  // very spread-out cluster could otherwise still overflow).
+  const maxScale = Math.min(containerRect.width, containerRect.height) / Math.max(clusterWPx, clusterHPx);
+  scale = Math.min(scale, maxScale);
+  if (!Number.isFinite(scale) || scale <= 0) return;
+
+  // Convert the cluster's screen-space center into this SVG's current
+  // user-space (viewBox) coordinates via its screen CTM -- robust to the
+  // meet-scale letterboxing that hand-rolling the px<->viewBox math would
+  // need to account for separately.
+  const ctm = elStep1EmotionFullscreenSvg.getScreenCTM();
+  if (!ctm) return;
+  const inv = ctm.inverse();
+  const pt = elStep1EmotionFullscreenSvg.createSVGPoint();
+  pt.x = (minX + maxX) / 2;
+  pt.y = (minY + maxY) / 2;
+  const centerVb = pt.matrixTransform(inv);
+
+  const newW = bw / scale;
+  const newH = bh / scale;
+  elStep1EmotionFullscreenSvg.setAttribute("viewBox", `${centerVb.x - newW / 2} ${centerVb.y - newH / 2} ${newW} ${newH}`);
 }
 
 const STEP1_EMOTION_LABEL_FONT_LIGHT = '"NarkissBlock-Extralight-TRIAL", sans-serif';
@@ -8945,24 +9194,20 @@ function hideStep1EmotionFullscreenRingLabel(ring) {
   ringG.style.opacity = "0";
 }
 
+// Hovering a ring on the fullscreen map's normal (non-spread) view only
+// recolors it now -- the leader-line label and floating tooltip it used to
+// reveal are still built and used elsewhere (ring spread, labels-on-open),
+// just no longer triggered by plain hover here.
 function setStep1EmotionFullscreenRingHover(targetRing) {
   const rings = getStep1EmotionFullscreenRings();
   for (const ring of rings) {
     ring.setAttribute("stroke", !targetRing || ring === targetRing ? "#000000" : "#c3c1b7");
   }
-  if (_step1EmotionFullscreenLabelShownFor && _step1EmotionFullscreenLabelShownFor !== targetRing) {
-    hideStep1EmotionFullscreenRingLabel(_step1EmotionFullscreenLabelShownFor);
-  }
-  if (targetRing && _step1EmotionFullscreenLabelShownFor !== targetRing) {
-    showStep1EmotionFullscreenRingLabel(targetRing);
-  }
-  _step1EmotionFullscreenLabelShownFor = targetRing || null;
 }
 
 function clearStep1EmotionFullscreenRingHover() {
   _step1EmotionFullscreenHoveredRing = null;
   setStep1EmotionFullscreenRingHover(null);
-  hideStep1EmotionFullscreenTooltip();
 }
 
 function ensureStep1EmotionFullscreenTooltipEl() {
@@ -9011,17 +9256,13 @@ function armStep1EmotionFullscreenRingHover() {
   };
 
   elStep1EmotionFullscreenSvg.addEventListener("pointermove", (e) => {
-    if (_step1EmotionFullscreenSpreadActive) {
-      // The spread label follows the mouse too (same tooltip used outside
-      // spread) — just reposition it, no need to redo the coloring/sound
-      // focus work that pointerover/pointerout already did.
-      if (_step1EmotionFullscreenSpreadHoveredRing) {
-        showStep1EmotionFullscreenTooltip(_step1EmotionFullscreenSpreadHoveredRing, e.clientX, e.clientY);
-      }
-      return;
+    // The spread label still follows the mouse (same tooltip used outside
+    // spread) -- just reposition it, no need to redo the coloring/sound
+    // focus work that pointerover/pointerout already did. Plain hover on
+    // the normal (non-spread) map no longer shows a tooltip at all.
+    if (_step1EmotionFullscreenSpreadActive && _step1EmotionFullscreenSpreadHoveredRing) {
+      showStep1EmotionFullscreenTooltip(_step1EmotionFullscreenSpreadHoveredRing, e.clientX, e.clientY);
     }
-    if (!_step1EmotionFullscreenHoveredRing) return;
-    showStep1EmotionFullscreenTooltip(_step1EmotionFullscreenHoveredRing, e.clientX, e.clientY);
   }, { passive: true });
 
   elStep1EmotionFullscreenSvg.addEventListener("pointerover", (e) => {
@@ -9033,7 +9274,6 @@ function armStep1EmotionFullscreenRingHover() {
     }
     _step1EmotionFullscreenHoveredRing = ring;
     setStep1EmotionFullscreenRingHover(ring);
-    showStep1EmotionFullscreenTooltip(ring, e.clientX, e.clientY);
   }, { passive: true });
 
   elStep1EmotionFullscreenSvg.addEventListener("pointerout", (e) => {
@@ -9048,7 +9288,6 @@ function armStep1EmotionFullscreenRingHover() {
     if (toRing) {
       _step1EmotionFullscreenHoveredRing = toRing;
       setStep1EmotionFullscreenRingHover(toRing);
-      showStep1EmotionFullscreenTooltip(toRing, e.clientX, e.clientY);
       return;
     }
     clearStep1EmotionFullscreenRingHover();
@@ -9357,13 +9596,15 @@ function populateStep1EmotionFullscreenSvg() {
     elStep1EmotionFullscreenSvg.innerHTML = elStep1EmotionSvg.innerHTML;
     linkStep1EmotionFullscreenMirrors();
     dampStep1EmotionFullscreenRingDistortion();
-    resolveStep1EmotionFullscreenRingOverlaps();
-    // Runs *after* overlap resolution and wins over it: overlap resolution
-    // can demand more clearance than the 300px budget allows (e.g. many
-    // rings with strong alternating in/out distortion), and the map's overall
-    // size is the harder constraint — so this compresses everything back
-    // down regardless, at the cost of tighter (occasionally snug) gaps.
+    // Fit the map to its size budget *first* so it stays as compact as
+    // possible, then resolve overlaps *last* so it has the final say: no
+    // ring may ever touch another, even if satisfying that means the map
+    // ends up larger than the size budget compressStep1EmotionFullscreen
+    // RingSpan() targets. (Previously this ran in the opposite order, so
+    // the size-budget compression could re-introduce touching rings that
+    // overlap resolution had just fixed.)
     compressStep1EmotionFullscreenRingSpan();
+    resolveStep1EmotionFullscreenRingOverlaps();
     // Fresh ring elements were just swapped in, so any previously hovered
     // ring reference is now stale/detached.
     _step1EmotionFullscreenHoveredRing = null;
@@ -9387,8 +9628,13 @@ if (elStep1EmotionFullscreenBtn) {
     const smallRingsGroup = elStep1EmotionSvg ? elStep1EmotionSvg.querySelector('[data-layer="step1-emotion-rings"]') : null;
     const fromRect = smallRingsGroup ? smallRingsGroup.getBoundingClientRect() : (elStep1EmotionSvg ? elStep1EmotionSvg.getBoundingClientRect() : null);
 
-    populateStep1EmotionFullscreenSvg();
+    // showPage() must run *before* populate: resolveStep1EmotionFullscreen
+    // RingOverlaps() (called from inside populate) measures rings via
+    // getBBox(), which returns all-zero for anything under a display:none
+    // ancestor -- so calling populate while this page is still hidden
+    // silently no-ops every overlap check it does.
     showPage("step1EmotionFullscreen");
+    populateStep1EmotionFullscreenSvg();
     fitStep1EmotionFullscreenInnerRing();
     // Built (hidden) only once the map has finished growing into place, so
     // each label anchors to its ring's final position — they stay hidden
@@ -9424,6 +9670,10 @@ if (elStep1EmotionFullscreenBackBtn) {
       elStep1EmotionFullscreenSvg.style.transition = "";
       elStep1EmotionFullscreenSvg.style.transform = "";
     }
+    // Nothing about the addresses changed on this (read-only) page, so skip
+    // the redundant rebuild showPage("step1") would otherwise trigger --
+    // see _step1SkipEmotionRebuildOnce's own comment.
+    _step1SkipEmotionRebuildOnce = true;
     showPage("step1", { scroll: "step1", behavior: "auto" });
   });
 }
@@ -10610,12 +10860,20 @@ const STEP1_MAIN_RATE10_DISTORTION_MULT = 0.85;
 // base radius) carries over — 1 = identical to Step 1, smaller = a
 // narrower breathing range while every rate's relative strength (and the
 // motion's speed) stays exactly as before.
-const EMOTION_FULLSCREEN_BREATH_RANGE_DAMPING = 0.93;
+//
+// Kept well below 1: resolveStep1EmotionFullscreenRingOverlaps() only ever
+// measures/fits each ring's *rest* shape (a single getBBox() snapshot), so
+// it has no way to know how far breathing will later swing a ring beyond
+// that. A wide range here can carry a ring past the small safety margin
+// that fit was built on, visibly crowding or touching its neighbor mid-
+// breath even though the two never touch at rest.
+const EMOTION_FULLSCREEN_BREATH_RANGE_DAMPING = 0.8;
 // Fullscreen-only: the small organic waviness layered on every ring's
-// boundary (see buildDistortedRingPath's `organic` option) is boosted
-// slightly relative to Step 1's, independent of — and in the opposite
-// direction from — the pull/push damping above.
-const EMOTION_FULLSCREEN_ORGANIC_BOOST = 1.18;
+// boundary (see buildDistortedRingPath's `organic` option). Reduced (not
+// boosted) here for the same reason as the breath-range damping above --
+// this waviness is *also* extra excursion beyond the rest shape that
+// resolveStep1EmotionFullscreenRingOverlaps() never measured.
+const EMOTION_FULLSCREEN_ORGANIC_BOOST = 1.05;
 
 // The same per-theta wave buildDistortedRingPath() layers onto every ring's boundary (its
 // `organic` option) — pulled out as its own function so the no-touch/no-overlap clearance
@@ -10695,6 +10953,25 @@ function emotionStrokeWidthFromRate(rate) {
   const sw = minSw + (maxSw - minSw) * te;
   // SVG stroke-width supports sub-pixel values; keep a tiny minimum so
   // low-belonging rings don't disappear entirely.
+  return Math.max(0.5, sw * EMOTION_STROKE_SCALE);
+}
+
+// Step 1 preview only: belonging=10 (and, by reshaping the same curve,
+// every rate between -- belonging=1 is unaffected, same as
+// EMOTION_STROKE_MAX_PX's own comment) reads very slightly thinner here
+// than the shared formula above. The fullscreen mirror copies these rings
+// verbatim, so dampStep1EmotionFullscreenRingDistortion() re-derives its
+// own stroke-width from emotionStrokeWidthFromRate() (the un-thinned
+// formula) right after the copy, keeping it exactly as before.
+const EMOTION_STROKE_MAX_PX_STEP1_PREVIEW = EMOTION_STROKE_MAX_PX * 0.93;
+
+function step1PreviewEmotionStrokeWidthFromRate(rate) {
+  const r = Math.max(1, Math.min(10, Number(rate) || 1));
+  const minSw = Math.max(1, Number(EMOTION_STROKE_MIN_PX) || 1);
+  const maxSw = Math.max(minSw, Number(EMOTION_STROKE_MAX_PX_STEP1_PREVIEW) || (10 + EMOTION_STROKE_BOOST));
+  const t = (r - 1) / 9;
+  const te = Math.pow(t, Math.max(0.5, Number(EMOTION_STROKE_CURVE_EXP) || 1));
+  const sw = minSw + (maxSw - minSw) * te;
   return Math.max(0.5, sw * EMOTION_STROKE_SCALE);
 }
 
@@ -10850,6 +11127,14 @@ let _step1EmotionLastPlaybackOptions = null;
 // renderStep1EmotionMap() call (always triggered by showPage("step1"))
 // skips rebuilding the sound session — it should just keep playing.
 let _step1SkipSoundRebuildOnce = false;
+
+// Set right before returning from the emotion fullscreen page: nothing
+// about the address data changed while that (read-only) page was open, so
+// the showPage("step1") rebuild below is pure redundant work -- and worse,
+// a visible flash (renderStep1EmotionMap() wipes and redraws every ring
+// from scratch), making the small preview look like it "changed" even
+// though the end result is identical. Skipping it once here avoids that.
+let _step1SkipEmotionRebuildOnce = false;
 
 let _emotionBreathRaf = 0;
 
@@ -12063,7 +12348,7 @@ function renderStep1EmotionMap(options) {
   const cx = vbW / 2;
   const cy = vbH / 2;
   const baseStrokeRates = items.map((addr) => normalizeBelongingRate(addr.belonging_rate, stableBelongingRateFromId(addr.id)));
-  const finalStrokes = baseStrokeRates.map((rate) => emotionStrokeWidthFromRate(rate));
+  const finalStrokes = baseStrokeRates.map((rate) => step1PreviewEmotionStrokeWidthFromRate(rate));
   const maxStroke = Math.max(1, ...finalStrokes);
   const padding = 18 + maxStroke;
   const maxAllowedRadius = Math.max(1, Math.min(vbW, vbH) / 2 - padding);
@@ -12135,6 +12420,45 @@ function renderStep1EmotionMap(options) {
     const shrink = maxSafeR / worstEdge;
     radiiScale *= shrink;
     targetRadii = targetRadii.map((r) => r * shrink);
+  }
+
+  // Minimum overall on-screen diameter for the whole map (outermost ring,
+  // including its stroke) -- this container is a fixed 460x486px box against
+  // this SVG's fixed 1000x620 viewBox, so the (width-bound) conversion
+  // factor below is a constant, not something that varies with viewport size.
+  // Every ring uses vector-effect="non-scaling-stroke", so stroke-width is
+  // already a final on-screen px amount, unaffected by groupScale or the
+  // viewBox/container ratio -- only the radius portion needs conversion.
+  const EMOTION_MAP_PX_PER_VB_UNIT = 460 / vbW;
+  const EMOTION_MAP_MIN_DIAMETER_PX = 70;
+
+  // The ring's own radius, not its (organic-wave) distortion amplitude, is
+  // what actually determines its overall size -- the wave amplitude here is
+  // a comparatively small wobble on top, and for belonging rate 10
+  // specifically gets heavily damped again at draw time
+  // (STEP1_MAIN_RATE10_DISTORTION_MULT, wobbleFitScale below), so basing
+  // this size rule on it would systematically undershoot.
+  let currentWorstEdgePx = 0;
+  let worstScaledPartPx = 0; // radius * groupScale * px-per-unit, which is what growing targetRadii actually scales
+  let worstSwHalfPx = 0; // stroke-width/2 is a fixed px amount regardless of radius, so it must be excluded from the scaled portion above
+  for (let i = 0; i < n; i++) {
+    const r = Number(targetRadii[i]) || 0;
+    const sw = Math.max(1, Number(finalStrokes[i]) || 1);
+    const scaledPartPx = r * groupScale * EMOTION_MAP_PX_PER_VB_UNIT;
+    const edgePx = scaledPartPx + sw / 2;
+    if (edgePx > currentWorstEdgePx) {
+      currentWorstEdgePx = edgePx;
+      worstScaledPartPx = scaledPartPx;
+      worstSwHalfPx = sw / 2;
+    }
+  }
+  if (currentWorstEdgePx > 0 && currentWorstEdgePx < EMOTION_MAP_MIN_DIAMETER_PX / 2 && worstScaledPartPx > 0) {
+    const targetScaledPartPx = Math.max(0, EMOTION_MAP_MIN_DIAMETER_PX / 2 - worstSwHalfPx);
+    const grow = targetScaledPartPx / worstScaledPartPx;
+    if (grow > 1) {
+      radiiScale *= grow;
+      targetRadii = targetRadii.map((r) => r * grow);
+    }
   }
 
   // Continuous adaptive fit: computed from the *final* (post-safety-shrink)
@@ -12622,7 +12946,10 @@ function formatStep2SignatureDisplayName(text) {
 
 function updateStep2SignatureLabel() {
   if (!elSignatureLabel) return;
-  const name = formatStep2SignatureDisplayName(elStudentName?.value || "");
+  // Shown exactly as typed on the address-entry page -- no case/format
+  // transformation (unlike formatStep2SignatureDisplayName, used elsewhere
+  // for archive/emotion labels).
+  const name = String(elStudentName?.value || "").trim();
   const count = formatAddrCount(addresses.length);
   if (!name) {
     elSignatureLabel.innerHTML = "";
@@ -12630,7 +12957,9 @@ function updateStep2SignatureLabel() {
     return;
   }
   const mapName = `${normalizeNameForMapLabel(elStudentName?.value || "")}.${count}addrs`;
-  elSignatureLabel.innerHTML = `<div class="step2SignatureMain"><span>${name}</span><span class="step2SignatureCount">${count} addrs</span></div>`;
+  // Keep the same nested span/font (Regular-weight) the name always rendered
+  // in -- only the address-count span is dropped.
+  elSignatureLabel.innerHTML = `<span class="step2SignatureMain">${name}</span>`;
   if (elPostcardCardMapName) elPostcardCardMapName.textContent = mapName;
 }
 
@@ -12758,8 +13087,9 @@ function focusMapOnIsraelLocationsMax() {
   const bounds = pts.length > 0 ? L.latLngBounds(pts) : ISRAEL_BOUNDS;
   if (!bounds.isValid()) return;
 
-  // Tiny padding so markers/lines are not clipped.
-  const pad = pts.length > 0 ? 0.06 : ISRAEL_FIT_PADDING;
+  // Padding so markers/lines are not clipped -- slightly more than the bare
+  // minimum so the opening view sits a touch more zoomed out.
+  const pad = pts.length > 0 ? 0.21 : ISRAEL_FIT_PADDING;
   map.fitBounds(bounds.pad(pad), {
     animate: false,
     maxZoom: getMapMaxZoom(map) ?? undefined,
@@ -16414,15 +16744,19 @@ async function diagnoseAddressNotFound(address) {
   const city = tidyToken(address.city);
   const street = tidyToken(address.street);
 
-  // 1) If the city itself can't be found in this country, likely the city.
+  // 1) If the country itself can't be found, likely the country.
+  const countryOk = await nominatimSearchExistsStructured({ country, city: "", streetLine: "" });
+  if (!countryOk) return "Country";
+
+  // 2) If the city itself can't be found in this country, likely the city.
   const cityOk = await nominatimSearchExistsStructured({ country, city, streetLine: "" });
   if (!cityOk) return "City";
 
-  // 2) If the street can't be found in this city/country, likely the street.
+  // 3) If the street can't be found in this city/country, likely the street.
   const streetOk = await nominatimSearchExistsStructured({ country, city, streetLine: street });
   if (!streetOk) return "Street";
 
-  // 3) City+street exist, but full address failed — likely the home number.
+  // 4) City+street exist, but full address failed — likely the home number.
   return "Home number";
 }
 
@@ -16448,12 +16782,24 @@ function verifyCurrentAddressWithDiagnosis(address) {
       clearAddressFieldErrors();
       updateAddButtonState();
       updateStep1AddrNextBtnState();
+      diagnoseAddressNotFound(address)
+        .then((field) => {
+          // Stale by the time the diagnosis round-trip finishes (user typed
+          // again, or a newer verify superseded this one) -- don't paint an
+          // error over whatever they're now looking at.
+          if (requestSeq !== verifyAddressRequestSeq) return;
+          markAddressFieldError(field);
+        })
+        .catch(() => {
+          // Diagnosis itself failed (e.g. network) -- leave no field marked
+          // rather than guessing.
+        });
     });
 }
 
 let verifyAddressDebounceId = 0;
 
-function scheduleVerifyCurrentAddress(delayMs = 180) {
+function scheduleVerifyCurrentAddress(delayMs = 130) {
   if (verifyAddressDebounceId) window.clearTimeout(verifyAddressDebounceId);
   verifyAddressDebounceId = window.setTimeout(() => {
     verifyAddressDebounceId = 0;
@@ -16464,7 +16810,7 @@ function scheduleVerifyCurrentAddress(delayMs = 180) {
 
 function clearAddressFieldErrors() {
   const streetAndNumberEl = document.getElementById("streetAndNumber");
-  [elCity, elStreet, elNumber, streetAndNumberEl].forEach((el) => {
+  [elCountry, elCity, elStreet, elNumber, streetAndNumberEl].forEach((el) => {
     if (el) el.classList.remove("address-error");
   });
 }
@@ -16474,7 +16820,11 @@ function hasStep1StreetInput() {
 }
 
 function markAddressFieldError(field) {
-  const map = { "City": elCity, "Street": elStreet, "Home number": elNumber };
+  // "Street" and "Home number" both live in the same visible combined
+  // input (#streetAndNumber) -- elStreet/elNumber themselves are hidden,
+  // so marking those wouldn't show anything.
+  const streetAndNumberEl = document.getElementById("streetAndNumber");
+  const map = { "Country": elCountry, "City": elCity, "Street": streetAndNumberEl, "Home number": streetAndNumberEl };
   const el = map[field];
   if (el) el.classList.add("address-error");
 }
@@ -16516,7 +16866,7 @@ function getCurrentStep1BelongingRate() {
 
 function updateStep1FocusCircleStroke(rate = getCurrentStep1BelongingRate()) {
   if (!step1FocusMarker || typeof step1FocusMarker.setStyle !== "function") return;
-  step1FocusMarker.setStyle({ weight: belongingCircleStrokeWeight(rate) });
+  step1FocusMarker.setStyle({ weight: belongingCircleStrokeWeight(rate), radius: addressDotRadius(rate) });
 }
 
 function drawStep1FocusCircleAfterFocus(lat, lon, seq) {
@@ -16530,11 +16880,17 @@ function drawStep1FocusCircleAfterFocus(lat, lon, seq) {
     drawn = true;
     try { step1GeoMap.off("moveend", draw); } catch { /* ignore */ }
     if (!step1GeoVectorRenderer) step1GeoVectorRenderer = L.svg();
+    // The address can change (and re-geocode to a new spot) any number of
+    // times before "add home" is clicked -- without removing the previous
+    // marker first, each change would leave an orphaned extra circle on the
+    // map instead of moving the one live-preview circle.
+    clearStep1FocusMarker();
+    const rate = getCurrentStep1BelongingRate();
     step1FocusMarker = L.circleMarker([latNum, lonNum], {
       renderer: step1GeoVectorRenderer,
-      radius: 10,
+      radius: addressDotRadius(rate),
       color: getStep1GeoMarkerColor(),
-      weight: belongingCircleStrokeWeight(getCurrentStep1BelongingRate()),
+      weight: belongingCircleStrokeWeight(rate),
       fillOpacity: 0,
     }).addTo(step1GeoMap);
   };
@@ -16624,11 +16980,23 @@ function nominatimItemMatchesCity(item, wantedCity = "", cityFocus = step1Resolv
   return false;
 }
 
-async function focusCityOnGeoMap() {
+// Resolves (and caches in step1ResolvedCityFocus) a coarse lat/lon anchor
+// for the currently-typed country+city, with no side effect on the map view
+// -- used both by focusCityOnGeoMap() (which does pan the map) and by
+// geocodeStep1FullAddressInOrder() (which needs a *reliable geographic*
+// reference for nominatimItemMatchesCity() to check candidates against;
+// comparing transliterated Hebrew text against Nominatim's English place
+// names is unreliable enough to reject genuinely correct results -- see
+// transliterateHebrewToLatin(), a crude per-letter mapper, not a real
+// transliteration of how Hebrew place names are actually spelled in Latin).
+async function resolveStep1CityFocus() {
   const seq = ++_cityFocusSeq;
   const country = String(elCountry?.value || "").trim();
   const city = String(elCity?.value || "").trim();
-  if (!city) return;
+  if (!city) return null;
+  const cityKey = [country, city].join("|");
+  if (step1ResolvedCityFocus?.key === cityKey) return step1ResolvedCityFocus;
+
   try {
     const q = [city, country].filter(Boolean).join(", ");
     const params = {
@@ -16645,33 +17013,39 @@ async function focusCityOnGeoMap() {
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({ params }),
     });
-    if (seq !== _cityFocusSeq) return;
-    if (!res.ok) { console.warn("[cityFocus] geocoder", res.status, q); return; }
-    const payload = await res.json();
-    const data = payload?.ok && Array.isArray(payload.data) ? payload.data : [];
-    if (seq !== _cityFocusSeq || !Array.isArray(data) || !data.length) { console.warn("[cityFocus] no result for", q); return; }
-    const lat = parseFloat(data[0].lat);
-    const lon = parseFloat(data[0].lon);
-    if (!isFinite(lat) || !isFinite(lon)) return;
-    step1ResolvedCityFocus = {
-      key: [country, city].join("|"),
-      city,
-      country,
-      lat,
-      lon,
-      boundingBox: parseNominatimBoundingBox(data[0]),
-      displayName: String(data[0].display_name || q),
-    };
-    return;
+    if (seq !== _cityFocusSeq) return step1ResolvedCityFocus;
+    if (!res.ok) { console.warn("[cityFocus] geocoder", res.status, q); } else {
+      const payload = await res.json();
+      const data = payload?.ok && Array.isArray(payload.data) ? payload.data : [];
+      if (seq !== _cityFocusSeq) return step1ResolvedCityFocus;
+      if (Array.isArray(data) && data.length) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        if (isFinite(lat) && isFinite(lon)) {
+          step1ResolvedCityFocus = {
+            key: cityKey,
+            city,
+            country,
+            lat,
+            lon,
+            boundingBox: parseNominatimBoundingBox(data[0]),
+            displayName: String(data[0].display_name || q),
+          };
+          return step1ResolvedCityFocus;
+        }
+      } else {
+        console.warn("[cityFocus] no result for", q);
+      }
+    }
   } catch {
     // Fall back to the shared geocoder below.
   }
 
   try {
     const geo = await geocodeAddress({ country, city, state: getValue("state"), street: "", number: "" });
-    if (seq !== _cityFocusSeq) return;
+    if (seq !== _cityFocusSeq) return step1ResolvedCityFocus;
     step1ResolvedCityFocus = {
-      key: [country, city].join("|"),
+      key: cityKey,
       city,
       country,
       lat: geo.lat,
@@ -16679,7 +17053,16 @@ async function focusCityOnGeoMap() {
       boundingBox: null,
       displayName: String(geo.displayName || [city, country].filter(Boolean).join(", ")),
     };
-  } catch (e) { console.warn("[cityFocus] error", e); }
+    return step1ResolvedCityFocus;
+  } catch (e) {
+    console.warn("[cityFocus] error", e);
+    return null;
+  }
+}
+
+async function focusCityOnGeoMap() {
+  const focus = await resolveStep1CityFocus();
+  if (focus) focusStep1GeoMapAt(focus.lat, focus.lon, 12, { animate: true });
 }
 
 function scheduleCityMapFocus() {
@@ -16771,6 +17154,52 @@ function exactKiryatBialikKerenHayesod160Location(address) {
   };
 }
 
+function isKiryatBialikDerechAkko160Address(address) {
+  const country = normalizeTextForMatch(address?.country);
+  const city = normalizeTextForMatch(address?.city);
+  const street = normalizeTextForMatch(address?.street);
+  const number = normalizeHouseNumberForMatch(address?.number);
+  return (country.includes("israel") || country.includes("ישראל"))
+    && (city.includes("kiryatbialik") || city.includes("qiryatbialik") || city.includes("קריתביאליק") || city.includes("קרייתביאליק"))
+    && (street.includes("derechakko") || street.includes("acko") || street.includes("akko") || street.includes("דרךעכו") || street.includes("עכו"))
+    && houseNumberMatches(number, "160");
+}
+
+function exactKiryatBialikDerechAkko160Location(address) {
+  if (!isKiryatBialikDerechAkko160Address(address)) return null;
+  return {
+    lat: 32.846819,
+    lon: 35.091494,
+    displayName: "Derech Akko 160, Kiryat Bialik, Israel",
+  };
+}
+
+const HEBREW_STREET_PREFIX_WORDS = new Set(["רחוב", "דרך", "שדרות", "סמטת", "סמטה", "שביל", "כביש", "משעול", "מבוא", "רח'", "שד'"]);
+
+function hebrewDefiniteArticleStreetVariants(streetText) {
+  const trimmed = String(streetText || "").trim();
+  if (!trimmed) return [];
+  const words = trimmed.split(/\s+/);
+  const variants = new Set();
+  words.forEach((word, idx) => {
+    if (HEBREW_STREET_PREFIX_WORDS.has(word)) return;
+    if (!/^[א-ת]/.test(word)) return;
+    const altWord = (word.charAt(0) === "ה" && word.length > 1) ? word.slice(1) : ("ה" + word);
+    const altWords = words.slice();
+    altWords[idx] = altWord;
+    const variant = altWords.join(" ");
+    if (variant !== trimmed) variants.add(variant);
+  });
+  return Array.from(variants);
+}
+
+// Two different triggers (focusStreetOnGeoMap() and verifyCurrentAddress())
+// both call geocodeStep1FullAddressInOrder() for the same edit, and often
+// nearly simultaneously -- dedupe so that only ever fires the network work
+// below once per in-progress address, with the second caller just riding
+// along on the first's promise instead of doubling every request.
+const _step1GeocodeInFlight = new Map();
+
 async function geocodeStep1FullAddressInOrder(address) {
   const country = tidyToken(address.country);
   const city = tidyToken(address.city);
@@ -16778,7 +17207,7 @@ async function geocodeStep1FullAddressInOrder(address) {
   const number = tidyToken(address.number);
   if (!country || !city || !street || !number) throw new Error("Full address is required");
 
-  const exactLocal = exactKiryatBialikKerenHayesod160Location(address);
+  const exactLocal = exactKiryatBialikKerenHayesod160Location(address) || exactKiryatBialikDerechAkko160Location(address);
   if (exactLocal) {
     const record = {
       lat: exactLocal.lat,
@@ -16793,76 +17222,137 @@ async function geocodeStep1FullAddressInOrder(address) {
     return record;
   }
 
-  const streetLine = tidyToken(address._origStreetAndNumber || [street, number].filter(Boolean).join(" "));
-  const baseParams = {
-    format: "json",
-    limit: "10",
-    addressdetails: "1",
-    namedetails: "1",
-    extratags: "1",
-    "accept-language": "en",
-  };
-  const searches = [
-    { ...baseParams, country, city, street: streetLine },
-    { ...baseParams, q: [streetLine, city, country].filter(Boolean).join(", ") },
-  ];
-
-  for (const params of searches) {
-    const res = await fetch("/api/nominatim", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ params }),
-    });
-    if (!res.ok) continue;
-    const payload = await res.json();
-    const items = payload?.ok && Array.isArray(payload.data) ? payload.data : [];
-    const item = items.find((candidate) => isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon)));
-    if (!item) continue;
-
-    let lat = Number(item.lat);
-    let lon = Number(item.lon);
-    let matchLevel = item?.address?.house_number ? "address" : "street";
-    if (isKiryatYamGioraYoseftalAddress(address) && !houseNumberMatches(item?.address?.house_number, number)) {
-      const estimatedHouse = estimateKiryatYamGioraYoseftalByNumber(address);
-      if (estimatedHouse && isFinite(estimatedHouse.lat) && isFinite(estimatedHouse.lon)) {
-        lat = Number(estimatedHouse.lat);
-        lon = Number(estimatedHouse.lon);
-        matchLevel = "address";
-      }
-    }
-    const displayName = String(item.display_name || [streetLine, city, country].filter(Boolean).join(", "));
-    const record = {
-      lat,
-      lon,
-      displayName,
-      normalized: { country, city, street, number },
-      matchLevel,
-      ts: Date.now(),
-    };
-    geocodeCache[canonicalKey(address)] = record;
-    saveJson(GEOCODE_CACHE_KEY, geocodeCache);
-    return record;
+  // Already resolved this exact address (e.g. the user backspaced and
+  // retyped the same thing, or a previous keystroke's lookup already
+  // finished) -- skip the network entirely.
+  const cacheKey = canonicalKey(address);
+  const cachedRecord = geocodeCache[cacheKey];
+  if (cachedRecord && isFinite(cachedRecord.lat) && isFinite(cachedRecord.lon)) {
+    return cachedRecord;
   }
 
-  if (isKiryatYamGioraYoseftalAddress(address)) {
-    const estimatedHouse = estimateKiryatYamGioraYoseftalByNumber(address);
-    if (estimatedHouse && isFinite(estimatedHouse.lat) && isFinite(estimatedHouse.lon)) {
-      const displayName = [streetLine, city, country].filter(Boolean).join(", ");
+  if (_step1GeocodeInFlight.has(cacheKey)) {
+    return _step1GeocodeInFlight.get(cacheKey);
+  }
+
+  const run = (async () => {
+    const streetLine = tidyToken(address._origStreetAndNumber || [street, number].filter(Boolean).join(" "));
+    const baseParams = {
+      format: "json",
+      limit: "10",
+      addressdetails: "1",
+      namedetails: "1",
+      extratags: "1",
+      "accept-language": "en",
+    };
+    const searches = [
+      { ...baseParams, country, city, street: streetLine },
+      { ...baseParams, q: [streetLine, city, country].filter(Boolean).join(", ") },
+    ];
+    for (const streetVariant of hebrewDefiniteArticleStreetVariants(street)) {
+      const streetLineVariant = tidyToken([streetVariant, number].filter(Boolean).join(" "));
+      searches.push(
+        { ...baseParams, country, city, street: streetLineVariant },
+        { ...baseParams, q: [streetLineVariant, city, country].filter(Boolean).join(", ") },
+      );
+    }
+
+    // Every search variant, plus the city-anchor lookup (see
+    // resolveStep1CityFocus()'s own comment), all fire in parallel instead
+    // of one-at-a-time -- wall-clock time then depends on the slowest
+    // single request, not their sum. Priority (structured/first-variant
+    // over a later one) is preserved by picking the first non-empty result
+    // in original search order once everything has settled, not by which
+    // happened to respond first.
+    const [cityFocus, itemsPerSearch] = await Promise.all([
+      resolveStep1CityFocus(),
+      Promise.all(searches.map(async (params) => {
+        try {
+          const res = await fetch("/api/nominatim", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({ params }),
+          });
+          if (!res.ok) return [];
+          const payload = await res.json();
+          return payload?.ok && Array.isArray(payload.data) ? payload.data : [];
+        } catch {
+          return [];
+        }
+      })),
+    ]);
+
+    // The freeform (q:) search especially can drop an unrecognized street
+    // token and still return *some* result -- often in a different city
+    // entirely, since it matches whatever it *can* parse. Require the
+    // candidate to actually be in the requested city so an unrecognized
+    // street can't silently relocate the map to the wrong place. Only
+    // enforced when cityFocus resolved (a reliable geographic check) --
+    // without it, nominatimItemMatchesCity() would fall back to comparing
+    // transliterated text, which is unreliable enough (especially for
+    // Hebrew) to reject genuinely correct results, so skip rather than risk
+    // that false rejection.
+    let item = null;
+    for (const items of itemsPerSearch) {
+      const found = items.find((candidate) =>
+        isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
+        && (!cityFocus || nominatimItemMatchesCity(candidate, address.city, cityFocus)));
+      if (found) { item = found; break; }
+    }
+
+    if (item) {
+      let lat = Number(item.lat);
+      let lon = Number(item.lon);
+      let matchLevel = item?.address?.house_number ? "address" : "street";
+      if (isKiryatYamGioraYoseftalAddress(address) && !houseNumberMatches(item?.address?.house_number, number)) {
+        const estimatedHouse = estimateKiryatYamGioraYoseftalByNumber(address);
+        if (estimatedHouse && isFinite(estimatedHouse.lat) && isFinite(estimatedHouse.lon)) {
+          lat = Number(estimatedHouse.lat);
+          lon = Number(estimatedHouse.lon);
+          matchLevel = "address";
+        }
+      }
+      const displayName = String(item.display_name || [streetLine, city, country].filter(Boolean).join(", "));
       const record = {
-        lat: Number(estimatedHouse.lat),
-        lon: Number(estimatedHouse.lon),
+        lat,
+        lon,
         displayName,
         normalized: { country, city, street, number },
-        matchLevel: "address",
+        matchLevel,
         ts: Date.now(),
       };
-      geocodeCache[canonicalKey(address)] = record;
+      geocodeCache[cacheKey] = record;
       saveJson(GEOCODE_CACHE_KEY, geocodeCache);
       return record;
     }
-  }
 
-  throw new Error(`No full address result for: ${[streetLine, city, country].filter(Boolean).join(", ")}`);
+    if (isKiryatYamGioraYoseftalAddress(address)) {
+      const estimatedHouse = estimateKiryatYamGioraYoseftalByNumber(address);
+      if (estimatedHouse && isFinite(estimatedHouse.lat) && isFinite(estimatedHouse.lon)) {
+        const displayName = [streetLine, city, country].filter(Boolean).join(", ");
+        const record = {
+          lat: Number(estimatedHouse.lat),
+          lon: Number(estimatedHouse.lon),
+          displayName,
+          normalized: { country, city, street, number },
+          matchLevel: "address",
+          ts: Date.now(),
+        };
+        geocodeCache[cacheKey] = record;
+        saveJson(GEOCODE_CACHE_KEY, geocodeCache);
+        return record;
+      }
+    }
+
+    throw new Error(`No full address result for: ${[streetLine, city, country].filter(Boolean).join(", ")}`);
+  })();
+
+  _step1GeocodeInFlight.set(cacheKey, run);
+  try {
+    return await run;
+  } finally {
+    _step1GeocodeInFlight.delete(cacheKey);
+  }
 }
 
 let _streetFocusDebounceId = 0;
@@ -16883,7 +17373,18 @@ async function focusStreetOnGeoMap() {
     setStep1PreviewAddressFromGeo(address, geo);
     focusStep1GeoMapAt(geo.lat, geo.lon, 15.5, { animate: true });
     drawStep1FocusCircleAfterFocus(geo.lat, geo.lon, seq);
-  } catch (e) { console.warn("[streetFocus] error", e); }
+  } catch (e) {
+    console.warn("[streetFocus] error", e);
+    if (seq !== _streetFocusSeq) return;
+    // The street/number couldn't be resolved -- don't leave a stale
+    // precise marker from a previous address sitting there, and don't let
+    // the map drift anywhere unexpected. Fall back to just the city (if
+    // that part alone is recognized) so the map stays anchored on the
+    // right city while the street field's own red underline (see
+    // markAddressFieldError()) flags what actually needs fixing.
+    clearStep1FocusMarker();
+    await focusCityOnGeoMap();
+  }
 }
 
 function scheduleStreetMapFocus() {
