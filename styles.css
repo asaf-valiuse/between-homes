@@ -226,7 +226,7 @@ body {
   font-family: "80-kb-Sharp", "80kb Sharp", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-weight: 400;
   line-height: 1.35;
-  text-transform: uppercase;
+  text-transform: lowercase;
   background: #f4f2ea;
   color: #000000;
 }
@@ -235,7 +235,7 @@ input,
 textarea,
 select,
 button {
-  text-transform: uppercase;
+  text-transform: lowercase;
 }
 
 /* Leaflet default background is gray; keep the project background consistent,
@@ -469,7 +469,7 @@ body {
   font-weight: 400;
   font-size: 16px;
   line-height: 1.35;
-  text-transform: none;
+  text-transform: lowercase;
   color: #000000;
 }
 
@@ -787,6 +787,8 @@ button:hover .btnImgFinish {
 #pageEmotion .emotionMapTitle {
   left: 42px;
   top: 85px;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
 }
 
 #pageStep2 .step2MapTitle,
@@ -873,14 +875,14 @@ button:hover .btnImgFinish {
   font-size: 14px;
   white-space: nowrap;
 
-  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
-  font-weight: 700;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
   text-transform: none;
   pointer-events: none;
 }
 
 #pageEmotion .step2SignatureMain {
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
 }
 
@@ -896,7 +898,7 @@ button:hover .btnImgFinish {
   bottom: auto;
   z-index: auto;
   display: inline-block;
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
   font-size: 13.5px;
   padding-bottom: 4px;
@@ -912,7 +914,7 @@ button:hover .btnImgFinish {
   top: 36px;
   z-index: 6200;
   line-height: 1;
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
   font-size: 14.5px;
   text-transform: lowercase !important;
@@ -930,8 +932,8 @@ button:hover .btnImgFinish {
 #pageEmotion #emotionLifeProfileBtn:hover:not(:disabled),
 #pageEmotion #emotionSpaceBtn:hover:not(:disabled) {
   color: #000000;
-  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
-  font-weight: 700;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
 }
 
 #pageEmotion .emotionWrap {
@@ -1009,24 +1011,32 @@ button:hover .btnImgFinish {
 
 .emotionRingReading *,
 .emotionRingAddress .emotionRingAddressLabel,
-.emotionRingAddress .emotionRingAddressValue,
 .emotionRingEmotionalConnection .emotionRingEmotionalConnectionLabel,
-.emotionRingEmotionalConnection .emotionRingEmotionalConnectionValue,
 .emotionRingBelongingShift .emotionRingBelongingShiftLabel,
-.emotionRingBelongingShift .emotionRingBelongingShiftValue,
 .emotionRingDurationOfPresence .emotionRingDurationOfPresenceLabel,
-.emotionRingDurationOfPresence .emotionRingDurationOfPresenceValue,
 .emotionRingTimeframe .emotionRingTimeframeLabel,
-.emotionRingTimeframe .emotionRingTimeframeValue,
 .emotionRingLifeStage .emotionRingLifeStageLabel,
-.emotionRingLifeStage .emotionRingLifeStageValue,
 .emotionRingLifetimePresentage .emotionRingLifetimePresentageLabel,
-.emotionRingLifetimePresentage .emotionRingLifetimePresentageValue,
 .emotionRingTransitionalDistance .emotionRingTransitionalDistanceLabel,
-.emotionRingTransitionalDistance .emotionRingTransitionalDistanceValue,
-.emotionRingCumulativeDistance .emotionRingCumulativeDistanceLabel,
-.emotionRingCumulativeDistance .emotionRingCumulativeDistanceValue {
+.emotionRingCumulativeDistance .emotionRingCumulativeDistanceLabel {
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-weight: 300;
+}
+
+/* The "answers" (values) to each ring-reading section -- a heavier weight
+   than their labels above, same convention as every other label/value pair
+   in this app. Selectors are more specific than ".emotionRingReading *"
+   above, so this wins despite both using !important. */
+.emotionRingAddress .emotionRingAddressValue,
+.emotionRingEmotionalConnection .emotionRingEmotionalConnectionValue,
+.emotionRingBelongingShift .emotionRingBelongingShiftValue,
+.emotionRingDurationOfPresence .emotionRingDurationOfPresenceValue,
+.emotionRingTimeframe .emotionRingTimeframeValue,
+.emotionRingLifeStage .emotionRingLifeStageValue,
+.emotionRingLifetimePresentage .emotionRingLifetimePresentageValue,
+.emotionRingTransitionalDistance .emotionRingTransitionalDistanceValue,
+.emotionRingCumulativeDistance .emotionRingCumulativeDistanceValue {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
   font-weight: 300;
 }
 
@@ -1619,16 +1629,12 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 #pageArchive .archiveItem {
   aspect-ratio: 1 / 1;
   border: none;
-  outline: 0.5px solid #686868;
+  outline: none;
   position: relative;
   display: grid;
   grid-template-rows: 1fr;
   cursor: pointer;
   box-sizing: border-box;
-}
-
-#pageArchive .archiveItem {
-  outline-color: #a5a49d;
 }
 
 #pageArchive .archivePreview {
@@ -1755,9 +1761,14 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   touch-action: none;
 }
 
-#pageArchive .archiveItem:hover .archiveThumb polyline,
-#pageArchive .archiveItem:hover .archiveThumb circle {
-  stroke: #d8d7d2;
+/* Hovering any one map's thumbnail keeps it black and dims every other
+   item's thumbnail in the grid to #c3c1b7 -- a pure-CSS "spotlight": the
+   grid-level :hover triggers this for all items, then :not(:hover) exempts
+   whichever one is actually under the pointer (which stays at its default
+   black, set inline by createArchiveMiniMapSvg()). */
+#pageArchive .archiveGrid:hover .archiveItem:not(:hover) .archiveThumb polyline,
+#pageArchive .archiveGrid:hover .archiveItem:not(:hover) .archiveThumb circle {
+  stroke: #c3c1b7;
 }
 
 #pageArchive .archiveThumb.isZoomed {
@@ -1844,7 +1855,7 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   font-weight: 400;
   font-size: 14px;
   line-height: 1.25;
-  text-transform: none !important;
+  text-transform: lowercase !important;
 }
 
 .archiveConfirmMessage {
@@ -1852,7 +1863,7 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
   font-weight: 400;
   font-size: 14px;
-  text-transform: none !important;
+  text-transform: lowercase !important;
 }
 
 .archiveConfirmActions {
@@ -2979,7 +2990,7 @@ input[type="reset"]:hover:not(:disabled) {
 
   font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
   font-weight: 700;
-  text-transform: none;
+  text-transform: lowercase;
 
   pointer-events: none;
 }
@@ -3457,7 +3468,7 @@ input[type="reset"]:hover:not(:disabled) {
   font-weight: 400;
   font-size: 19px;
   line-height: 1.2;
-  text-transform: none;
+  text-transform: lowercase;
 }
 
 #pageStep1 .step1LogoIntroSubtitle {
@@ -3468,7 +3479,7 @@ input[type="reset"]:hover:not(:disabled) {
   font-weight: 400;
   font-size: 17px;
   line-height: 1.25;
-  text-transform: none;
+  text-transform: lowercase;
   max-width: none;
   white-space: nowrap;
 }
@@ -3515,10 +3526,6 @@ input[type="reset"]:hover:not(:disabled) {
   pointer-events: none;
 }
 
-#pageStep1 .createYourMapTitle::first-letter {
-  text-transform: uppercase;
-}
-
 /* "your map is complete" heading: same spot as CREATE YOUR MAP, shown only
    once Step 1 is finished (and hidden again if the user re-enters edit mode,
    since the address form reclaims that space then). */
@@ -3532,7 +3539,7 @@ input[type="reset"]:hover:not(:disabled) {
   text-align: left;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 20px;
+  font-size: 19px;
   line-height: 1;
   letter-spacing: 0;
   text-transform: lowercase;
@@ -3541,15 +3548,22 @@ input[type="reset"]:hover:not(:disabled) {
   pointer-events: none;
 }
 
-#pageStep1 .step1MapCompleteTitle::first-letter {
-  text-transform: uppercase;
-}
-
 #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1MapCompleteTitle {
   display: block;
 }
 
 /* EMOTION MAP title: centered in the left area below the horizontal white line. */
+/* After finish, the five section titles (emotion map/movement map/ring
+   reading/time & belonging/homes) switch from black to a muted gray --
+   edit mode reverts to black like the rest of the pre-finish styling. */
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1EmotionMapTitle,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1MovementMapTitleCenter,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1RingReadingTitle,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1TimeBelongingTitle,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1HomesListTitle {
+  color: #87857c;
+}
+
 #pageStep1 .step1EmotionMapTitle {
   position: absolute;
   left: 560px;
@@ -3568,10 +3582,6 @@ input[type="reset"]:hover:not(:disabled) {
   color: #000000;
   z-index: 4;
   pointer-events: none;
-}
-
-#pageStep1 .step1EmotionMapTitle::first-letter {
-  text-transform: uppercase;
 }
 
 /* --- Intro phase (entry screen): only name + homes count visible.
@@ -3823,10 +3833,6 @@ input[type="reset"]:hover:not(:disabled) {
   text-transform: lowercase;
 }
 
-#pageStep1 .step1MovementMapTitleCenter::first-letter {
-  text-transform: uppercase;
-}
-
 /* Route preview: third panel from left */
 #pageStep1 .step1RoutePreview {
   position: absolute;
@@ -3897,15 +3903,26 @@ input[type="reset"]:hover:not(:disabled) {
   transition: opacity 0.8s ease 1.5s, visibility 0s linear 1.5s;
 }
 
-/* Both fullscreen links sit just below their section's title. */
+/* One px smaller than the shared .frame .btnImg default (17.1864px), just
+   for these two expand buttons. */
+#pageStep1 .frame .btnImgExpand {
+  height: 16.1864px;
+}
+
+/* Both fullscreen links sit at the vertical middle of their own section's
+   frame (.step1EmotionMap / .step1RoutePreview respectively) -- top + half
+   that frame's own height, then back up by half the button's own height
+   (16.1864px, see .btnImgExpand above) since `top` positions its top edge,
+   not its center. left is 2px further right than their frame's own
+   nominal alignment. */
 #pageStep1 .step1EmotionFullscreenBtn {
-  left: 590px;
-  top: 354px;
+  left: 592px;
+  top: calc(285px + var(--step1-dashboard-top-section, 486px) / 2 - 8.0932px);
 }
 
 #pageStep1 .step1RouteFullscreenBtn {
-  left: 1080px;
-  top: 354px;
+  left: 1082px;
+  top: calc(297px + (var(--step1-dashboard-top-section, 486px) - 12px) / 2 - 8.0932px);
 }
 
 #pageStep1 .step1FullscreenBtn:hover {
@@ -3987,12 +4004,26 @@ input[type="reset"]:hover:not(:disabled) {
   font-weight: 700;
 }
 
-#pageStep1EmotionFullscreen .step1EmotionFullscreenWrap {
+#pageStep1EmotionFullscreen .step1EmotionFullscreenBody {
   flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+/* Confined to the left half of the body, so the ring cluster's centered
+   position lands at ~25vw -- the same ring-center anchor the solo
+   ring-reading pages use (see targetSoloCenterXForPage() in app.js). */
+#pageStep1EmotionFullscreen .step1EmotionFullscreenWrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 50vw;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 80px;
+  padding: 80px 40px;
+  transform: translateX(80px);
 }
 
 #pageStep1EmotionFullscreen .step1EmotionFullscreenSvg {
@@ -4001,6 +4032,112 @@ input[type="reset"]:hover:not(:disabled) {
   max-width: 1200px;
   max-height: 1200px;
   overflow: visible;
+}
+
+/* Ring spread (see enterStep1EmotionFullscreenRingSpread()): the info text
+   hides for an "empty page" feel. The ring container itself is deliberately
+   NOT resized here -- doing so would make the rings visibly jump/resize the
+   instant spread starts, before the spread's own smooth per-ring animation
+   even begins. Reaching the full page width instead happens purely through
+   the spread math (targetRowPx in app.js) plus overflow:visible on both the
+   SVG and this wrap, which already lets ring transforms render past the
+   wrap's own box with no CSS changes needed. Restored on exit. */
+#pageStep1EmotionFullscreen.step1-emotion-fullscreen-spread .step1EmotionFullscreenInfo {
+  display: none;
+}
+
+/* Reading panel -- anchored at the exact same fixed point the solo
+   ring-reading pages anchor their own text block to (see
+   targetSoloTextXForPage()/yReading in app.js: left = 50vw - 30px, top =
+   ~50vh - 155px), and using the same font stack (NarkissBlock-Extralight-TRIAL
+   labels / NarkissBlock-Regular-TRIAL values, see .emotionRingReading and
+   #pageEmotion .emotionSignature). */
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfo {
+  position: fixed;
+  left: calc(50vw + 50px);
+  top: calc(50vh - 135px);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: #111827;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoTitle {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoNameRow {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoName {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  text-transform: none;
+}
+
+/* Companion badge next to the name (same idea as .step2SignatureCount
+   sitting beside .step2SignatureMain elsewhere), sized to match every other
+   section below it. */
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoRings {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 13px;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoStats,
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoLists {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoStat,
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoList {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 300;
+  font-size: 15px;
+  line-height: 1.3;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Fixed-width labels so every value column (age/avg belonging/countries/
+   cities) lines up on the same left edge, same convention as
+   .emotionRingEmotionalConnectionLabel etc. */
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoLabel {
+  display: inline-block;
+  width: 130px;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoStatValue,
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoListValue {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 300;
+  font-size: 13px;
+  text-transform: none;
+  unicode-bidi: plaintext;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoHint {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 13px;
+  color: #000000;
+  margin-top: 24px;
+}
+
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoStat:empty,
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoList:empty,
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoName:empty,
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoRings:empty {
+  display: none;
 }
 
 /* Softens the black/gray swap on hover while rings are spread out (see
@@ -4030,10 +4167,6 @@ input[type="reset"]:hover:not(:disabled) {
   font-size: calc(15px / var(--step1-scale, 1));
   color: #000000;
   text-transform: lowercase;
-}
-
-#pageStep1 .step1RingReadingTitle::first-letter {
-  text-transform: uppercase;
 }
 
 #pageStep1 .step1RingReadingContent {
@@ -4112,7 +4245,7 @@ input[type="reset"]:hover:not(:disabled) {
   /* Scale-independent 16px -- see .createYourMapTitle's comment. */
   font-size: calc(15px / var(--step1-scale, 1));
   color: #000000;
-  text-transform: none;
+  text-transform: lowercase;
 }
 
 #pageStep1 .step1TimeBelongingChart {
@@ -4181,6 +4314,8 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1HomeCountLabel {
   left: 40px;
   top: 178px;
+  font-size: 16px;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
 }
 
 /* Directly above the timeline — keep this left value in sync with it, and
@@ -4188,10 +4323,6 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1MoveFrequencyLabel {
   left: 560px;
   top: 178px;
-}
-
-#pageStep1 .step1MoveFrequencyLabel::first-letter {
-  text-transform: uppercase;
 }
 
 #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1SectionMiniLabel {
@@ -4202,14 +4333,15 @@ input[type="reset"]:hover:not(:disabled) {
    finished layout (.step1HomesListTitle::before, x=1540); left edge now
    extends all the way to the geographic map's own right edge (#step1GeoMap,
    x=560) instead of stopping partway there -- keep updateStep1JourneyTimeline()'s
-   vbW constant in sync with this width. Vertically aligned to .step1AvgBelonging's
-   own top (232px) -- deliberately independent of .step1MoveFrequencyLabel's
-   top (still 178px, unmoved) since the two no longer move together. */
+   vbW constant in sync with this width. Vertically aligned to
+   .step1JourneyDistance's own top (206px) -- deliberately independent of
+   .step1MoveFrequencyLabel's top (still 178px, unmoved) since the two no
+   longer move together. */
 #pageStep1 .step1JourneyTimeline {
   display: none;
   position: absolute;
   left: 560px;
-  top: 232px;
+  top: 206px;
   width: 980px;
   height: 24px;
   z-index: 4;
@@ -4251,10 +4383,6 @@ input[type="reset"]:hover:not(:disabled) {
   z-index: 4;
   pointer-events: none;
   text-transform: lowercase;
-}
-
-#pageStep1 .step1HomesListTitle::first-letter {
-  text-transform: uppercase;
 }
 
 /* Homes list: fourth panel from left */
@@ -4388,9 +4516,6 @@ input[type="reset"]:hover:not(:disabled) {
   text-transform: lowercase;
 }
 
-#pageStep1.step1-belonging-phase .rate-your-sense-of::first-letter {
-  text-transform: uppercase;
-}
 
 /* Slider centered in the left area */
 #pageStep1.step1-belonging-phase .group-3 {
@@ -4762,7 +4887,7 @@ input[type="reset"]:hover:not(:disabled) {
   font-weight: 400;
   font-size: 19px;
   line-height: 1.2;
-  text-transform: none;
+  text-transform: lowercase;
   position: static;
   left: auto;
   width: auto;
@@ -4803,24 +4928,6 @@ input[type="reset"]:hover:not(:disabled) {
   position: relative;
   top: 0;
   left: 0;
-}
-
-#pageStep1 .group-2 > .text-wrapper-2::first-letter {
-  text-transform: uppercase;
-}
-
-/* Required-field dot: small black circle at the top-right of the label */
-#pageStep1 .group-2 > .text-wrapper-2.has-dot::after {
-  content: "";
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  background: #8e3300;
-  border-radius: 50%;
-  margin-left: 5px;
-  vertical-align: top;
-  position: relative;
-  top: 4px;
 }
 
 /* Address input lines — fit in the horizontal row, thin and uniform */
@@ -5076,7 +5183,7 @@ input[type="reset"]:hover:not(:disabled) {
   font-weight: 400;
   font-size: 18px;
   color: #c3c1b7;
-  text-transform: none;
+  text-transform: lowercase;
   opacity: 1;
 }
 
@@ -5259,10 +5366,6 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageStep1 .step1EmotionMap:empty {
   display: none;
-}
-
-#pageStep1 .step1EmotionPlaceholderText::first-letter {
-  text-transform: uppercase;
 }
 
 #pageStep1 .step1EmotionPlaceholderText {

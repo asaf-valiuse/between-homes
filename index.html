@@ -6,7 +6,7 @@
     <title>LifePath</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="styles.css?v=2026-07-18-logo-true-center" />
+    <link rel="stylesheet" href="styles.css?v=2026-07-19-freeze-layout" />
   </head>
   <body>
     <main class="app">
@@ -161,13 +161,13 @@
                   <div class="div-4">
                     <div class="div-5">
                       <div class="group-2">
-                        <div class="text-wrapper-2 has-dot">Country</div>
+                        <div class="text-wrapper-2">Country</div>
                         <input id="country" name="country" class="figma-line-input" required value="ישראל" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
                         <div class="ellipse-2" aria-hidden="true"></div>
                       </div>
 
                       <div class="group-2">
-                        <div class="text-wrapper-2 has-dot">City</div>
+                        <div class="text-wrapper-2">City</div>
                         <input id="city" name="city" class="figma-line-input" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
                         <div class="ellipse-2" aria-hidden="true"></div>
                       </div>
@@ -186,7 +186,7 @@
                       </div>
 
                       <div class="group-2 belongingInlineGroup">
-                        <div class="text-wrapper-2 has-dot">How connected did you feel to this home?</div>
+                        <div class="text-wrapper-2">How connected did you feel to this home?</div>
                         <input id="belonging_rate_inline" name="belonging_rate_inline" class="figma-range-inline" type="range" min="1" max="10" step="0.01" value="1" />
                         <div class="belongingInlineValue"></div>
                         <button type="button" id="addHomeBtn" class="addHomeBtn"><img class="btnImg btnImgAddHome" src="buttons/add-home.png" alt="add home" /></button>
@@ -237,8 +237,27 @@
           <button type="button" id="step1EmotionFullscreenBackBtn" class="textLink step1EmotionFullscreenBackBtn" aria-label="Back"><img class="btnImg btnImgBack" src="buttons/back.png" alt="" /></button>
         </header>
 
-        <div class="step1EmotionFullscreenWrap" aria-label="Emotion map (full screen)">
-          <svg id="step1EmotionFullscreenSvg" class="step1EmotionFullscreenSvg" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+        <div class="step1EmotionFullscreenBody">
+          <div class="step1EmotionFullscreenWrap" aria-label="Emotion map (full screen)">
+            <svg id="step1EmotionFullscreenSvg" class="step1EmotionFullscreenSvg" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+          </div>
+
+          <div id="step1EmotionFullscreenInfo" class="step1EmotionFullscreenInfo" aria-label="Emotion map reading">
+            <div class="step1EmotionFullscreenInfoTitle">emotion map reading</div>
+            <div class="step1EmotionFullscreenInfoNameRow">
+              <span id="step1EmotionFullscreenInfoName" class="step1EmotionFullscreenInfoName"></span>
+              <span id="step1EmotionFullscreenInfoRings" class="step1EmotionFullscreenInfoRings"></span>
+            </div>
+            <div class="step1EmotionFullscreenInfoStats">
+              <div id="step1EmotionFullscreenInfoAge" class="step1EmotionFullscreenInfoStat"></div>
+              <div id="step1EmotionFullscreenInfoAvg" class="step1EmotionFullscreenInfoStat"></div>
+            </div>
+            <div class="step1EmotionFullscreenInfoLists">
+              <div id="step1EmotionFullscreenInfoCountries" class="step1EmotionFullscreenInfoList"></div>
+              <div id="step1EmotionFullscreenInfoCities" class="step1EmotionFullscreenInfoList"></div>
+            </div>
+            <div class="step1EmotionFullscreenInfoHint">Click a ring to open Ring Reading</div>
+          </div>
         </div>
       </section>
 
@@ -330,6 +349,6 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-      <script src="app.js?v=2026-07-18-geocode-speed2"></script>
+      <script src="app.js?v=2026-07-19-freeze-layout"></script>
   </body>
 </html>

@@ -1959,6 +1959,46 @@ function formatCountriesForAddresses(items) {
   return countries.length ? countries.join(", ") : "--";
 }
 
+function formatCitiesForAddresses(items) {
+  const list = Array.isArray(items) ? items : [];
+  const cities = [];
+  for (const item of list) {
+    if (!item || item.valid === false) continue;
+    const city = formatArchiveMapNamePart(toEnglishLike(String(item.city || "").trim()));
+    if (!city) continue;
+    if (cities[cities.length - 1] !== city) cities.push(city);
+  }
+  return cities.length ? cities.join(", ") : "--";
+}
+
+// Unlike formatCountriesForAddresses/formatCitiesForAddresses (which
+// transliterate + title-case for the archive grid's display convention),
+// this keeps the country/city exactly as the person typed it during address
+// entry -- same language, same spelling, no transformation.
+function formatRawCountriesForAddresses(items) {
+  const list = Array.isArray(items) ? items : [];
+  const countries = [];
+  for (const item of list) {
+    if (!item || item.valid === false) continue;
+    const country = tidyToken(item.country || "");
+    if (!country) continue;
+    if (countries[countries.length - 1] !== country) countries.push(country);
+  }
+  return countries.length ? countries.join(", ") : "--";
+}
+
+function formatRawCitiesForAddresses(items) {
+  const list = Array.isArray(items) ? items : [];
+  const cities = [];
+  for (const item of list) {
+    if (!item || item.valid === false) continue;
+    const city = tidyToken(item.city || "");
+    if (!city) continue;
+    if (cities[cities.length - 1] !== city) cities.push(city);
+  }
+  return cities.length ? cities.join(", ") : "--";
+}
+
 function confirmArchiveMapRemoval(snapshot) {
   const existing = document.querySelector(".archiveConfirmOverlay");
   if (existing) existing.remove();
@@ -3067,6 +3107,7 @@ function saveCurrentMapSnapshot() {
           view: { lat: center.lat, lng: center.lng, zoom },
           geoLayerEnabled: Boolean(geoLayerEnabled),
           addresses: Array.isArray(addresses) ? JSON.parse(JSON.stringify(addresses)) : [],
+          emotionLayoutSnapshot: getStep1EmotionMapLayoutSnapshotForSave(),
         };
 
         setSavedMaps(next.slice(0, 100));
@@ -3102,6 +3143,7 @@ function saveCurrentMapSnapshot() {
     view: { lat: center.lat, lng: center.lng, zoom },
     geoLayerEnabled: Boolean(geoLayerEnabled),
     addresses: Array.isArray(addresses) ? JSON.parse(JSON.stringify(addresses)) : [],
+    emotionLayoutSnapshot: getStep1EmotionMapLayoutSnapshotForSave(),
   };
 
   const next = Array.isArray(list) ? list.slice() : [];
@@ -5363,6 +5405,12 @@ function showPage(which, opts) {
 
   const isHomeFlow = pageKey === "step1";
 
+  // Leaving Step 1 for any other page -- see _step1SkipEmotionRebuildOnce's
+  // own comment for why this is always safe to skip on the way back.
+  if (pageKey !== "step1" && elPageStep1 && !elPageStep1.classList.contains("hidden")) {
+    _step1SkipEmotionRebuildOnce = true;
+  }
+
   document.body.classList.toggle("homeFlow", isHomeFlow);
 
   // If we leave the Emotion page, stop/disarm any running or armed motion.
@@ -6298,7 +6346,13 @@ function openSavedMapSnapshot(snapshot) {
   saveJson(STORAGE_KEY, addresses);
   renderList();
   updateStep1Headers();
-  renderStep1EmotionMap();
+  // Reuse the exact emotion-ring geometry recorded when this map was saved
+  // (if any) instead of recomputing it live -- keeps a reopened map's
+  // emotion rings identical to how they looked at save time even if the
+  // tuning constants have since changed (see renderStep1EmotionMap()'s own
+  // frozenLayout handling). Falls back to a normal live render for maps
+  // saved before this existed.
+  renderStep1EmotionMap({ frozenLayout: snapshot.emotionLayoutSnapshot || null });
   updateCreateLifePathButtonState();
   currentAddressVerified = false;
   updateAddButtonState();
@@ -6419,7 +6473,7 @@ let step1FocusMarker = null;
 /** @type {(Address & { lat: number, lon: number }) | null} */
 let step1PendingPreviewAddress = null;
 let _step1EditingIdx = -1;
-const STEP1_SHOW_GEO_CIRCLES = false;
+const STEP1_SHOW_GEO_CIRCLES = true;
 const STEP1_SHOW_FOCUS_CIRCLE = true;
 
 function getStep1DisplayAddresses() {
@@ -7241,19 +7295,22 @@ function updateStep1JourneyTimeline() {
   // Same fixed inner radius + outward-only stroke growth as the geo map and
   // route preview dots (see addressDotRadius()) -- all three stay pixel-
   // consistent with each other.
-  for (const { addr, year } of withYears) {
+  withYears.forEach(({ addr, year }, index) => {
     const rate = normalizeBelongingRate(addr.belonging_rate, 5);
     const sw = belongingCircleStrokeWeight(rate);
     const r = addressDotRadius(rate);
     const dot = document.createElementNS(NS, "circle");
-    dot.setAttribute("cx", String(yearToX(Math.min(endYear, Math.max(firstYear, year)))));
+    // The leftmost (first/earliest-year) dot only, nudged 3px right of
+    // where yearToX() would otherwise place it.
+    const cx = yearToX(Math.min(endYear, Math.max(firstYear, year))) + (index === 0 ? 3 : 0);
+    dot.setAttribute("cx", String(cx));
     dot.setAttribute("cy", String(lineY));
     dot.setAttribute("r", String(r));
     dot.setAttribute("fill", "#f4f2ea");
     dot.setAttribute("stroke", "#000000");
     dot.setAttribute("stroke-width", String(sw));
     svg.appendChild(dot);
-  }
+  });
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -8252,6 +8309,12 @@ const elStep1EmotionFullscreenBtn = document.getElementById("step1EmotionFullscr
 const elStep1EmotionFullscreenSvg = document.getElementById("step1EmotionFullscreenSvg");
 const elStep1EmotionFullscreenBackBtn = document.getElementById("step1EmotionFullscreenBackBtn");
 const elStep1EmotionFullscreenName = document.getElementById("step1EmotionFullscreenName");
+const elStep1EmotionFullscreenInfoName = document.getElementById("step1EmotionFullscreenInfoName");
+const elStep1EmotionFullscreenInfoRings = document.getElementById("step1EmotionFullscreenInfoRings");
+const elStep1EmotionFullscreenInfoAge = document.getElementById("step1EmotionFullscreenInfoAge");
+const elStep1EmotionFullscreenInfoAvg = document.getElementById("step1EmotionFullscreenInfoAvg");
+const elStep1EmotionFullscreenInfoCountries = document.getElementById("step1EmotionFullscreenInfoCountries");
+const elStep1EmotionFullscreenInfoCities = document.getElementById("step1EmotionFullscreenInfoCities");
 
 // Cap on the innermost ring's on-screen radius (px) on the fullscreen page —
 // the shared 1000x620 viewBox is calibrated for the small ~460px-wide Step 1
@@ -8627,7 +8690,7 @@ function fitStep1EmotionFullscreenInnerRing() {
   // Size rules for the whole map's diameter (its larger dimension), tiered
   // by ring count.
   const ringCount = rings.length;
-  const targetDiameterPx = ringCount < 6 ? 170 : ringCount <= 10 ? 270 : 370;
+  const targetDiameterPx = ringCount < 6 ? 190 : ringCount <= 10 ? 300 : 410;
   const clusterDiameterPx = Math.max(clusterWPx, clusterHPx);
   let scale = targetDiameterPx / clusterDiameterPx;
   // Never let the target exceed what the container can actually show (a
@@ -9054,6 +9117,55 @@ function updateStep1EmotionFullscreenName() {
   elStep1EmotionFullscreenName.textContent = String(elStudentName?.value || "").trim();
 }
 
+function updateStep1EmotionFullscreenInfo() {
+  if (!elStep1EmotionFullscreenInfoName) return;
+  const validAddrs = getStep1DisplayValidAddresses();
+
+  elStep1EmotionFullscreenInfoName.textContent = formatStep2SignatureDisplayName(elStudentName?.value || "");
+
+  const ringsCount = validAddrs.length;
+  elStep1EmotionFullscreenInfoRings.textContent = ringsCount > 0
+    ? `${ringsCount} ring${ringsCount === 1 ? "" : "s"}`
+    : "";
+
+  const birthYear = validAddrs.length ? Math.floor(Number(validAddrs[0].startYear)) : NaN;
+  const age = Number.isFinite(birthYear) ? Math.max(0, new Date().getFullYear() - birthYear) : "";
+  setStep1EmotionFullscreenInfoRow(elStep1EmotionFullscreenInfoAge, "age :", age, "step1EmotionFullscreenInfoStatValue");
+
+  let avg = "";
+  if (validAddrs.length) {
+    const sum = validAddrs.reduce((s, a) => s + normalizeBelongingRate(a.belonging_rate, 5), 0);
+    avg = Math.round((sum / validAddrs.length) * 10) / 10;
+  }
+  setStep1EmotionFullscreenInfoRow(elStep1EmotionFullscreenInfoAvg, "avg. belonging :", avg, "step1EmotionFullscreenInfoStatValue");
+
+  // Raw (untransliterated, un-title-cased) country/city text -- exactly as
+  // typed on the address-entry page, unlike formatCountriesForAddresses/
+  // formatCitiesForAddresses which normalize for the archive grid.
+  const countries = formatRawCountriesForAddresses(validAddrs);
+  setStep1EmotionFullscreenInfoRow(elStep1EmotionFullscreenInfoCountries, "countries :", countries !== "--" ? countries : "", "step1EmotionFullscreenInfoListValue");
+
+  const cities = formatRawCitiesForAddresses(validAddrs);
+  setStep1EmotionFullscreenInfoRow(elStep1EmotionFullscreenInfoCities, "cities :", cities !== "--" ? cities : "", "step1EmotionFullscreenInfoListValue");
+}
+
+// Builds a "label : value" row via textContent (not innerHTML) since the
+// value can be raw user-typed text (country/city, see
+// formatRawCountriesForAddresses/formatRawCitiesForAddresses) -- never
+// interpolate that into markup.
+function setStep1EmotionFullscreenInfoRow(el, labelText, valueText, valueClass) {
+  if (!el) return;
+  el.textContent = "";
+  if (valueText === "" || valueText == null) return;
+  const label = document.createElement("span");
+  label.className = "step1EmotionFullscreenInfoLabel";
+  label.textContent = labelText;
+  const value = document.createElement("span");
+  value.className = valueClass;
+  value.textContent = String(valueText);
+  el.append(label, value);
+}
+
 // "Grow" `el` open from the exact screen position/size of `fromRect` (a FLIP
 // transition: snap `el`'s transform so it visually matches `fromRect`, then
 // transition that transform back to identity so it appears to expand and
@@ -9259,9 +9371,11 @@ function armStep1EmotionFullscreenRingHover() {
     // The spread label still follows the mouse (same tooltip used outside
     // spread) -- just reposition it, no need to redo the coloring/sound
     // focus work that pointerover/pointerout already did. Plain hover on
-    // the normal (non-spread) map no longer shows a tooltip at all.
+    // the normal (non-spread) map follows the same "home xx" tooltip too.
     if (_step1EmotionFullscreenSpreadActive && _step1EmotionFullscreenSpreadHoveredRing) {
       showStep1EmotionFullscreenTooltip(_step1EmotionFullscreenSpreadHoveredRing, e.clientX, e.clientY);
+    } else if (!_step1EmotionFullscreenSpreadActive && _step1EmotionFullscreenHoveredRing) {
+      showStep1EmotionFullscreenTooltip(_step1EmotionFullscreenHoveredRing, e.clientX, e.clientY);
     }
   }, { passive: true });
 
@@ -9274,6 +9388,7 @@ function armStep1EmotionFullscreenRingHover() {
     }
     _step1EmotionFullscreenHoveredRing = ring;
     setStep1EmotionFullscreenRingHover(ring);
+    showStep1EmotionFullscreenTooltip(ring, e.clientX, e.clientY);
   }, { passive: true });
 
   elStep1EmotionFullscreenSvg.addEventListener("pointerout", (e) => {
@@ -9288,9 +9403,11 @@ function armStep1EmotionFullscreenRingHover() {
     if (toRing) {
       _step1EmotionFullscreenHoveredRing = toRing;
       setStep1EmotionFullscreenRingHover(toRing);
+      showStep1EmotionFullscreenTooltip(toRing, e.clientX, e.clientY);
       return;
     }
     clearStep1EmotionFullscreenRingHover();
+    hideStep1EmotionFullscreenTooltip();
   }, { passive: true });
 
   elStep1EmotionFullscreenSvg.addEventListener("pointerleave", () => {
@@ -9299,15 +9416,24 @@ function armStep1EmotionFullscreenRingHover() {
       return;
     }
     clearStep1EmotionFullscreenRingHover();
+    hideStep1EmotionFullscreenTooltip();
   }, { passive: true });
 
   // Click a ring -> spread every ring in this map out into a row (like the
-  // Step 1 "ring reading" strip). Click anywhere while spread is active
-  // (a ring or empty space) -> collapse back to the normal concentric map.
-  // Coloring while spread is purely hover-driven, not tied to which ring was
-  // actually clicked to get there — see showStep1EmotionFullscreenSpreadHoverLabel().
+  // Step 1 "ring reading" strip). While spread is active, clicking one of the
+  // spread rings opens its solo ring-reading page (the exact same page Step
+  // 1's own ring-reading strip opens); clicking empty space instead collapses
+  // back to the normal concentric map. Coloring while spread is purely
+  // hover-driven, not tied to which ring was actually clicked to get there —
+  // see showStep1EmotionFullscreenSpreadHoverLabel().
   elStep1EmotionFullscreenSvg.addEventListener("click", (e) => {
     if (_step1EmotionFullscreenSpreadActive) {
+      const ring = ringFromEventTarget(e.target);
+      const homeNum = ring ? Number(ring.getAttribute("data-emotion-home-num")) || 0 : 0;
+      if (homeNum > 0) {
+        openEmotionMapSoloFromStep1RingReading(homeNum - 1);
+        return;
+      }
       exitStep1EmotionFullscreenRingSpread();
       return;
     }
@@ -9400,14 +9526,17 @@ function enterStep1EmotionFullscreenRingSpread(clickedRing) {
   _step1EmotionFullscreenSpreadActive = true;
   clearStep1EmotionFullscreenRingHover();
 
-  // Freeze the breathing animation for the duration of the spread: it only
-  // ever ran on top of a shared, continuously-recomputed "no ring touches
-  // its neighbor" budget sized for the *concentric* layout, not this one —
-  // left running, its oscillation (plus the static pull/push bump, both
-  // ignored below) could still grow a ring past its allotted gap. Resumed
-  // in exitStep1EmotionFullscreenRingSpread().
-  stopEmotionBreathing();
-  disarmEmotionBreathing();
+  // Reclaim the full page for the spread row -- same "empty page" layout
+  // this had before the reading info panel was added to the concentric view.
+  // Only the info text hides; the ring container itself is deliberately left
+  // untouched (see the width/scale math below) so nothing about it resizes
+  // or jumps when the spread starts -- restored in
+  // exitStep1EmotionFullscreenRingSpread().
+  if (elPageStep1EmotionFullscreen) elPageStep1EmotionFullscreen.classList.add("step1-emotion-fullscreen-spread");
+
+  // Breathing keeps running through the spread (each ring's own breathing
+  // animation stays visible while spread out in the row) -- left as-is here;
+  // GAP_VB below already carries enough slack for the oscillation.
 
   // The shared ring-hover hit-paths carry generous slack (see
   // STEP1_EMOTION_HOVER_HIT_SLACK_PX) sized for the concentric map, where
@@ -9426,12 +9555,24 @@ function enterStep1EmotionFullscreenRingSpread(clickedRing) {
 
   const { cx, vbW } = getStep1EmotionFullscreenViewBox();
   const n = rings.length;
-  const usableW = vbW * 0.8;
-  // Fixed edge-to-edge gap between adjacent spread rings — the row is laid
-  // out cumulatively (each ring's edge to the next ring's edge), not by
-  // evenly spacing centers, so this gap reads as equal regardless of how
-  // different two neighboring rings' sizes are.
-  const GAP_PX = 34;
+
+  // The ring container's own box/scale is left untouched (see above), so a
+  // px-wide "spread across the page" target has to be converted into this
+  // SVG's current viewBox units via its live screen scale (same technique
+  // fitStep1EmotionFullscreenInnerRing() uses) -- overflow:visible on both
+  // the SVG and its wrap already lets ring transforms render past the wrap's
+  // own box, so this is enough to reach the full page width without
+  // resizing anything.
+  const ctm = elStep1EmotionFullscreenSvg.getScreenCTM();
+  const pxPerVbUnit = ctm ? Math.max(1e-6, Math.hypot(ctm.a, ctm.b)) : 1;
+  const targetRowPx = Math.max(200, (window.innerWidth || 1200) - 160);
+  const usableW = targetRowPx / pxPerVbUnit;
+  // Fixed edge-to-edge gap between adjacent spread rings, held to a constant
+  // physical 34px on screen (converted to this viewBox's current units) —
+  // the row is laid out cumulatively (each ring's edge to the next ring's
+  // edge), not by evenly spacing centers, so this gap reads as equal
+  // regardless of how different two neighboring rings' sizes are.
+  const GAP_VB = 34 / pxPerVbUnit;
 
   // Freeze each ring's own current transform (e.g. an overlap-resolution
   // radius-scale correction) so the spread offset composes on top of it
@@ -9464,7 +9605,7 @@ function enterStep1EmotionFullscreenRingSpread(clickedRing) {
   const strokeHalves = rings.map((ring) => (Number(ring.getAttribute("stroke-width")) || 1) / 2);
   const sumShapeR = shapeRs.reduce((a, b) => a + b, 0);
   const sumStrokeHalf = strokeHalves.reduce((a, b) => a + b, 0);
-  const totalGaps = GAP_PX * Math.max(0, n - 1);
+  const totalGaps = GAP_VB * Math.max(0, n - 1);
   const availableForShapes = usableW - sumStrokeHalf * 2 - totalGaps;
   const spreadFitScale = sumShapeR > 0 ? Math.max(0.15, Math.min(1, availableForShapes / (sumShapeR * 2))) : 1;
 
@@ -9474,7 +9615,7 @@ function enterStep1EmotionFullscreenRingSpread(clickedRing) {
   rings.forEach((ring, i) => {
     const visualR = shapeRs[i] * spreadFitScale + strokeHalves[i];
     const centerX = cursor + visualR;
-    cursor += visualR * 2 + GAP_PX;
+    cursor += visualR * 2 + GAP_VB;
     targets.set(ring, { dx: centerX - cx, scale: spreadFitScale });
   });
 
@@ -9544,12 +9685,13 @@ function exitStep1EmotionFullscreenRingSpread() {
   const rings = getStep1EmotionFullscreenRings();
   _step1EmotionFullscreenSpreadActive = false;
 
+  if (elPageStep1EmotionFullscreen) elPageStep1EmotionFullscreen.classList.remove("step1-emotion-fullscreen-spread");
+
   hideStep1EmotionFullscreenSpreadHoverLabel();
   rings.forEach((ring) => ring.setAttribute("stroke", "#000000"));
 
   // Restore the hover hit-path slack shrunk on entry (see
-  // enterStep1EmotionFullscreenRingSpread()) and resume breathing, both
-  // frozen for the duration of the spread.
+  // enterStep1EmotionFullscreenRingSpread()).
   rings.forEach((ring) => {
     const hit = ring.__lpHitPath;
     if (hit && ring.__lpPreSpreadHitStrokeWidth !== undefined) {
@@ -9557,9 +9699,6 @@ function exitStep1EmotionFullscreenRingSpread() {
       ring.__lpPreSpreadHitStrokeWidth = undefined;
     }
   });
-  if (_step1EmotionLastPlaybackOptions) {
-    startEmotionBreathing(_step1EmotionLastPlaybackOptions);
-  }
 
   const targets = new Map();
   rings.forEach((ring) => targets.set(ring, { dx: 0, scale: 1 }));
@@ -9580,6 +9719,7 @@ function populateStep1EmotionFullscreenSvg() {
   stopStep1EmotionFullscreenSpreadAnim();
   _step1EmotionFullscreenSpreadActive = false;
   _step1EmotionFullscreenSpreadHoveredRing = null;
+  if (elPageStep1EmotionFullscreen) elPageStep1EmotionFullscreen.classList.remove("step1-emotion-fullscreen-spread");
 
   // (Re)start the ambient breathing + ring sounds in case the browser
   // blocked autoplay earlier, or a prior solo-mode visit stopped it — this
@@ -9613,6 +9753,7 @@ function populateStep1EmotionFullscreenSvg() {
     armStep1EmotionFullscreenRingHover();
   }
   updateStep1EmotionFullscreenName();
+  updateStep1EmotionFullscreenInfo();
 }
 
 if (elStep1EmotionFullscreenBtn) {
@@ -9670,10 +9811,9 @@ if (elStep1EmotionFullscreenBackBtn) {
       elStep1EmotionFullscreenSvg.style.transition = "";
       elStep1EmotionFullscreenSvg.style.transform = "";
     }
-    // Nothing about the addresses changed on this (read-only) page, so skip
-    // the redundant rebuild showPage("step1") would otherwise trigger --
-    // see _step1SkipEmotionRebuildOnce's own comment.
-    _step1SkipEmotionRebuildOnce = true;
+    // showPage() itself already set _step1SkipEmotionRebuildOnce when this
+    // page was entered from Step 1 (see its own comment), so the rebuild
+    // below is skipped automatically.
     showPage("step1", { scroll: "step1", behavior: "auto" });
   });
 }
@@ -10867,7 +11007,7 @@ const STEP1_MAIN_RATE10_DISTORTION_MULT = 0.85;
 // that. A wide range here can carry a ring past the small safety margin
 // that fit was built on, visibly crowding or touching its neighbor mid-
 // breath even though the two never touch at rest.
-const EMOTION_FULLSCREEN_BREATH_RANGE_DAMPING = 0.8;
+const EMOTION_FULLSCREEN_BREATH_RANGE_DAMPING = 1;
 // Fullscreen-only: the small organic waviness layered on every ring's
 // boundary (see buildDistortedRingPath's `organic` option). Reduced (not
 // boosted) here for the same reason as the breath-range damping above --
@@ -11123,17 +11263,42 @@ function computeEmotionRingLayoutNoTouch(baseRadii, strokeWidths, strokeRates, g
 // would also perturb the fullscreen page's ring sizes/spacing on every trip).
 let _step1EmotionLastPlaybackOptions = null;
 
+// The exact geometry inputs (radii/angles/strokes/rates/scale) the last
+// renderStep1EmotionMap() call used, whether freshly computed or itself
+// reused from a frozen snapshot (see opts.frozenLayout there) — read by
+// saveCurrentMapSnapshot() so a saved map's emotion rings can be pinned to
+// exactly how they looked at save time, immune to later tuning changes.
+let _step1EmotionLastLayoutSnapshot = null;
+
+// Only usable if it actually matches the address set currently being saved
+// (guards against a stale snapshot from a moment before the last edit's
+// re-render caught up) — falls back to null, meaning the next open just
+// recomputes live, same as before this feature existed.
+function getStep1EmotionMapLayoutSnapshotForSave() {
+  const snap = _step1EmotionLastLayoutSnapshot;
+  if (!snap || snap.n !== (Array.isArray(addresses) ? addresses.length : -1)) return null;
+  try {
+    return JSON.parse(JSON.stringify(snap));
+  } catch {
+    return null;
+  }
+}
+
 // Set right before returning from the solo page so the next
 // renderStep1EmotionMap() call (always triggered by showPage("step1"))
 // skips rebuilding the sound session — it should just keep playing.
 let _step1SkipSoundRebuildOnce = false;
 
-// Set right before returning from the emotion fullscreen page: nothing
-// about the address data changed while that (read-only) page was open, so
-// the showPage("step1") rebuild below is pure redundant work -- and worse,
-// a visible flash (renderStep1EmotionMap() wipes and redraws every ring
-// from scratch), making the small preview look like it "changed" even
-// though the end result is identical. Skipping it once here avoids that.
+// Set by showPage() itself whenever Step 1 is the page being left (see
+// below) -- every place that actually mutates `addresses` (add/edit/remove a
+// home, "start over", loading a different saved snapshot) already calls
+// renderStep1EmotionMap() directly on its own, so nothing about the address
+// data can have changed while Step 1 sat hidden behind some other page.
+// Whatever page comes next, the showPage("step1") rebuild below on the way
+// back is pure redundant work -- and worse, a visible flash
+// (renderStep1EmotionMap() wipes and redraws every ring from scratch),
+// making the small preview look like it "changed" even though the end
+// result is identical. Skipping it once here avoids that.
 let _step1SkipEmotionRebuildOnce = false;
 
 let _emotionBreathRaf = 0;
@@ -12347,18 +12512,18 @@ function renderStep1EmotionMap(options) {
   const n = items.length;
   const cx = vbW / 2;
   const cy = vbH / 2;
-  const baseStrokeRates = items.map((addr) => normalizeBelongingRate(addr.belonging_rate, stableBelongingRateFromId(addr.id)));
-  const finalStrokes = baseStrokeRates.map((rate) => step1PreviewEmotionStrokeWidthFromRate(rate));
+  let baseStrokeRates = items.map((addr) => normalizeBelongingRate(addr.belonging_rate, stableBelongingRateFromId(addr.id)));
+  let finalStrokes = baseStrokeRates.map((rate) => step1PreviewEmotionStrokeWidthFromRate(rate));
   const maxStroke = Math.max(1, ...finalStrokes);
   const padding = 18 + maxStroke;
   const maxAllowedRadius = Math.max(1, Math.min(vbW, vbH) / 2 - padding);
   const ampScale = n > 12 ? 0.5 : 1;
   const groupScaleBase = n > 15 ? 0.8 : (n < 12 ? 1.08 : 1);
   const crowdScale = n > 20 ? 0.8 : 1;
-  const groupScale = Math.max(0.4, Math.min(1.3, groupScaleBase * crowdScale));
+  let groupScale = Math.max(0.4, Math.min(1.3, groupScaleBase * crowdScale));
   const strokesScaleWithGroup = false;
   const gapUsed = EMOTION_RING_CLEARANCE_PX;
-  const phis = items.map((addr, i) => step1EmotionAngleForAddress(addr, i, items));
+  let phis = items.map((addr, i) => step1EmotionAngleForAddress(addr, i, items));
   const baseMaxR = Math.max(1, (Math.min(vbW, vbH) / 2 - padding) * EMOTION_RING_SCALE);
   const isNastya = isCurrentMapNastyaFaybish();
 
@@ -12479,7 +12644,39 @@ function renderStep1EmotionMap(options) {
   const worstCaseBreathPx = EMOTION_BREATH_AMPLITUDE_PX * EMOTION_BREATH_OUTER_FACTOR * nominalBreathScale;
   const worstCaseWobblePx = worstCaseStaticAmpPx + worstCaseBreathPx;
   const safeWobbleBudgetPx = Math.max(1, finalGap * 1.0);
-  const wobbleFitScale = worstCaseWobblePx > 0 ? Math.max(0.65, Math.min(1, safeWobbleBudgetPx / worstCaseWobblePx)) : 1;
+  let wobbleFitScale = worstCaseWobblePx > 0 ? Math.max(0.65, Math.min(1, safeWobbleBudgetPx / worstCaseWobblePx)) : 1;
+
+  // Frozen layout override (see captureStep1EmotionMapLayoutSnapshot() /
+  // saveCurrentMapSnapshot()): reopening a saved map can pass back the exact
+  // geometry inputs recorded when it was saved, so its rings look identical
+  // to how they looked then even if the tuning constants feeding the
+  // computation above (EMOTION_RING_SCALE and friends) change in a later
+  // session. Everything from here on -- ring building, breathing,
+  // fullscreen mirroring -- is unchanged either way; only these final
+  // geometry inputs differ.
+  const frozenLayout = opts.frozenLayout;
+  if (frozenLayout && Array.isArray(frozenLayout.targetRadii) && frozenLayout.targetRadii.length === n) {
+    targetRadii = frozenLayout.targetRadii.slice();
+    phis = frozenLayout.phis.slice();
+    finalStrokes = frozenLayout.finalStrokes.slice();
+    baseStrokeRates = frozenLayout.baseStrokeRates.slice();
+    groupScale = Number(frozenLayout.groupScale) || groupScale;
+    wobbleFitScale = Number(frozenLayout.wobbleFitScale) || wobbleFitScale;
+  }
+
+  // Snapshot the exact geometry inputs about to be used, so a later save can
+  // freeze this map's emotion-ring appearance (see frozenLayout above) --
+  // captured unconditionally, whether this run just reused frozen data or
+  // freshly computed it, since either way it reflects what's now on screen.
+  _step1EmotionLastLayoutSnapshot = {
+    n,
+    targetRadii: targetRadii.slice(),
+    phis: phis.slice(),
+    finalStrokes: finalStrokes.slice(),
+    baseStrokeRates: baseStrokeRates.slice(),
+    groupScale,
+    wobbleFitScale,
+  };
 
   const ringsGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
   ringsGroup.setAttribute("data-layer", "step1-emotion-rings");
