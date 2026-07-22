@@ -689,7 +689,7 @@ body {
 }
 
 .appLogoImage {
-  width: calc(86.4px * var(--step1-scale, 1));
+  width: calc(100px * var(--step1-scale, 1));
   height: auto;
   display: block;
   object-fit: contain;
@@ -812,18 +812,18 @@ button:hover .btnImgFinish {
   font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif !important;
 }
 
-#pageArchive .archiveSerial,
-#pageArchive .archiveSerial .step2SignatureMain,
-#pageArchive .archiveSerial .step2SignatureCount,
 #pageAllMaps .allMapsListName {
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif !important;
 }
 
+/* Confined to the left half of the page -- matches the emotion fullscreen
+   page's own map/reading-panel split (see .step1EmotionFullscreenWrap). */
 #pageStep2 .mapWrap {
   margin-top: 0;
   padding: 0;
   flex: 1;
   min-height: 0;
+  width: 50vw;
 }
 
 #pageStep2 .map {
@@ -831,6 +831,94 @@ button:hover .btnImgFinish {
   border: 0;
   border-radius: 0;
   margin: 0;
+}
+
+/* Reading panel -- copied from the emotion fullscreen page's own reading
+   panel (see #pageStep1EmotionFullscreen .step1EmotionFullscreenInfo and
+   siblings): same position, fonts and sizes. */
+#pageStep2 .step2ReadingInfo {
+  position: fixed;
+  left: calc(50vw + 50px);
+  top: calc(50vh - 125px);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: #111827;
+}
+
+#pageStep2 .step2ReadingInfoTitle {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+}
+
+#pageStep2 .step2ReadingInfoNameRow {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+}
+
+#pageStep2 .step2ReadingInfoName {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  text-transform: none;
+}
+
+#pageStep2 .step2ReadingInfoCount {
+  position: absolute;
+  left: 130px;
+  top: 0;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 13px;
+}
+
+#pageStep2 .step2ReadingInfoStats,
+#pageStep2 .step2ReadingInfoLists {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#pageStep2 .step2ReadingInfoStat,
+#pageStep2 .step2ReadingInfoList {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 300;
+  font-size: 15px;
+  line-height: 1.3;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#pageStep2 .step2ReadingInfoLabel {
+  display: inline-block;
+  width: 130px;
+}
+
+#pageStep2 .step2ReadingInfoStatValue,
+#pageStep2 .step2ReadingInfoListValue {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 300;
+  font-size: 13px;
+  text-transform: none;
+  unicode-bidi: plaintext;
+}
+
+#pageStep2 .step2ReadingInfoHint {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 13px;
+  color: #000000;
+  margin-top: 24px;
+}
+
+#pageStep2 .step2ReadingInfoStat:empty,
+#pageStep2 .step2ReadingInfoList:empty,
+#pageStep2 .step2ReadingInfoName:empty,
+#pageStep2 .step2ReadingInfoCount:empty {
+  display: none;
 }
 
 /* Emotion Map page: centered concentric circles */
@@ -860,24 +948,23 @@ button:hover .btnImgFinish {
   min-width: 0;
 }
 
-/* Emotion Map: map name label. Position matches Step 1's name display
-   (.step1TopProgress: fixed, horizontally centered, top:34px) — the name
-   shouldn't visibly jump when navigating between pages. */
+/* Emotion Map: map name label -- sits directly below the top-left logo (not
+   centered), same position/font/size convention as .step2Signature and
+   .step1EmotionFullscreenName (see each). */
 #pageEmotion .emotionSignature {
   position: fixed;
-  left: 50%;
+  left: calc(40px * var(--step1-scale, 1));
   right: auto;
-  top: 34px;
+  top: calc(86px * var(--step1-scale, 1));
   bottom: auto;
-  transform: translateX(-50%);
-  text-align: center;
+  text-align: left;
   z-index: 2000;
   font-size: 14px;
   white-space: nowrap;
 
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
-  text-transform: none;
+  text-transform: lowercase;
   pointer-events: none;
 }
 
@@ -1263,6 +1350,11 @@ button:hover .btnImgFinish {
   color: #000000 !important;
 }
 
+/* Step 2 specifically (not All Maps, which shares the base rule above). */
+#pageStep2 .leaflet-tooltip.lifepathAddressTooltip {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+}
+
 /* Dark map UI: tooltip text becomes white. */
 #pageStep2.dark-map-ui .leaflet-tooltip.lifepathAddressTooltip,
 #pageStep2.dark-map-ui .leaflet-tooltip {
@@ -1557,7 +1649,7 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   top: 0;
   left: 0;
   right: 0;
-  height: 112px;
+  height: 101px;
   z-index: 1990;
   padding: 0;
   background: #f4f2ea;
@@ -1580,14 +1672,15 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 
 #pageArchive .archiveSearchWrap {
   position: fixed;
-  right: 140px;
-  top: 58px;
+  left: 40px;
+  right: auto;
+  top: 118px;
   z-index: 3000;
   pointer-events: auto;
 }
 
 #pageArchive .archiveSearchInput {
-  width: 240px;
+  width: 150px;
   height: 28px;
   border: 0;
   border-bottom: 0.1px solid rgba(0, 0, 0, 0.65);
@@ -1606,7 +1699,11 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 }
 
 #pageArchive .archiveBody {
-  padding: 124px 42px 42px;
+  /* Left inset larger than the right, nudging the whole grid slightly right
+     -- each card's artwork is inset 10px within its own box (see
+     .archivePreview > svg below), so the *visible* map content still
+     reaches a bit past the back button on the right. */
+  padding: 124px 10px 90px 30px;
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -1623,7 +1720,7 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 #pageArchive .archiveGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
+  gap: 64px;
 }
 
 #pageArchive .archiveItem {
@@ -1635,6 +1732,10 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   grid-template-rows: 1fr;
   cursor: pointer;
   box-sizing: border-box;
+  /* Gentle, uniform (proportional) shrink of the whole card -- name, stats,
+     thumbnail and buttons all scale down together. transform (not a size
+     change) so it doesn't reopen the grid/margin alignment tuned above. */
+  transform: scale(0.94);
 }
 
 #pageArchive .archivePreview {
@@ -1657,9 +1758,9 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   top: 10px;
   left: 10px;
   z-index: 2;
-  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   pointer-events: none;
   max-width: calc(100% - 20px);
@@ -1667,30 +1768,7 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: none !important;
-}
-
-#pageArchive .archiveSerial,
-#pageArchive .archiveSerial .step2SignatureMain,
-#pageArchive .archiveSerial .step2SignatureCount {
-  color: #c9c8c1;
-}
-
-#pageArchive .archiveItem:hover .archiveSerial,
-#pageArchive .archiveItem:hover .archiveSerial .step2SignatureMain,
-#pageArchive .archiveItem:hover .archiveSerial .step2SignatureCount {
   color: #000000;
-}
-
-#pageArchive .archiveSerial .step2SignatureMain {
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
-  font-weight: 400;
-  text-transform: none !important;
-}
-
-#pageArchive .archiveSerial .step2SignatureCount {
-  font-size: 14px;
-  margin-left: 13px;
-  text-transform: none !important;
 }
 
 #pageArchive .archiveAverageBelonging {
@@ -1701,8 +1779,6 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   z-index: 2;
   opacity: 0;
   pointer-events: none;
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
-  font-weight: 400;
   font-size: 14px;
   line-height: 1;
   white-space: normal;
@@ -1722,8 +1798,6 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   z-index: 2;
   opacity: 0;
   pointer-events: none;
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
-  font-weight: 400;
   font-size: 14px;
   line-height: 1;
   white-space: normal;
@@ -1731,44 +1805,24 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   text-transform: lowercase !important;
 }
 
-#pageArchive .archiveItem:hover .archiveCumulativeDistance {
-  opacity: 1;
-}
-
-#pageArchive .archiveCountriesRoute {
-  position: absolute;
-  top: 122px;
-  left: 10px;
-  right: 10px;
-  z-index: 2;
-  opacity: 0;
-  pointer-events: none;
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+#pageArchive .archiveStatLabel {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 14px;
-  line-height: 1;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-transform: none !important;
 }
 
-#pageArchive .archiveItem:hover .archiveCountriesRoute {
+#pageArchive .archiveStatValue {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 13px;
+}
+
+#pageArchive .archiveItem:hover .archiveCumulativeDistance {
   opacity: 1;
 }
 
 #pageArchive .archiveThumb {
   cursor: grab;
   touch-action: none;
-}
-
-/* Hovering any one map's thumbnail keeps it black and dims every other
-   item's thumbnail in the grid to #c3c1b7 -- a pure-CSS "spotlight": the
-   grid-level :hover triggers this for all items, then :not(:hover) exempts
-   whichever one is actually under the pointer (which stays at its default
-   black, set inline by createArchiveMiniMapSvg()). */
-#pageArchive .archiveGrid:hover .archiveItem:not(:hover) .archiveThumb polyline,
-#pageArchive .archiveGrid:hover .archiveItem:not(:hover) .archiveThumb circle {
-  stroke: #c3c1b7;
 }
 
 #pageArchive .archiveThumb.isZoomed {
@@ -1799,12 +1853,13 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: 10px;
   z-index: 3;
   background: transparent;
 }
 
-#pageArchive .archiveRemoveBtn {
+#pageArchive .archiveRemoveBtn,
+#pageArchive .archiveShowBtn {
   appearance: none;
   border: 0;
   background: transparent;
@@ -1812,7 +1867,7 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
-  padding: 10px;
+  padding: 4px 10px;
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
   font-weight: 400;
   font-size: 14px;
@@ -1821,18 +1876,21 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   text-decoration: underline;
 }
 
-#pageArchive .archiveItem:hover .archiveRemoveBtn {
+#pageArchive .archiveItem:hover .archiveRemoveBtn,
+#pageArchive .archiveItem:hover .archiveShowBtn {
   opacity: 1;
   pointer-events: auto;
 }
 
-#pageArchive .archiveRemoveBtn:hover {
+#pageArchive .archiveRemoveBtn:hover,
+#pageArchive .archiveShowBtn:hover {
   color: #000000;
   font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
   font-weight: 700;
 }
 
 #pageArchive .archiveRemoveBtn:hover:not(:disabled),
+#pageArchive .archiveShowBtn:hover:not(:disabled),
 .archiveConfirmBtn:hover:not(:disabled) {
   color: #000000;
 }
@@ -2972,31 +3030,29 @@ input[type="reset"]:hover:not(:disabled) {
   height: 100% !important;
 }
 
-/* Step 2: signature label */
-/* Position matches Step 1's name display (.step1TopProgress: fixed,
-   horizontally centered, top:34px) — the name shouldn't visibly jump when
-   navigating between pages. */
+/* Step 2: signature label -- sits directly below the top-left logo (not
+   centered), same position/font/size convention as .emotionSignature and
+   .step1EmotionFullscreenName (see each). */
 #pageStep2 .step2Signature {
   position: fixed;
-  left: 50%;
+  left: calc(40px * var(--step1-scale, 1));
   right: auto;
-  top: 34px;
+  top: calc(86px * var(--step1-scale, 1));
   bottom: auto;
-  transform: translateX(-50%);
-  text-align: center;
+  text-align: left;
   z-index: 2000;
   font-size: 14px;
   white-space: nowrap;
 
-  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
-  font-weight: 700;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
   text-transform: lowercase;
 
   pointer-events: none;
 }
 
 #pageStep2 .step2SignatureMain {
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
 }
 
@@ -3336,7 +3392,7 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   top: 34px;
   left: 40px;
-  width: 86.4px;
+  width: 100px;
   z-index: 20;
 }
 
@@ -3377,6 +3433,20 @@ input[type="reset"]:hover:not(:disabled) {
   color: #602000;
 }
 
+/* "edit" breaks out of the top-actions row -- dropped down to sit level
+   with the timeline, right-aligned to "all maps" (the row's own right
+   edge, since .step1TopActions is right:40px and "all maps" is its last
+   flex item). Position is relative to .step1TopActions's own box (itself
+   absolutely positioned, so it's a containing block for this), whose top
+   is a fixed 34px -- subtract that from the timeline's own (dynamic, grows
+   with the dashboard) top so the two stay level through the grow/shrink
+   animation too. */
+#pageStep1 #step1EditFinishedBtn {
+  position: absolute;
+  right: 0;
+  top: calc(var(--step1-header-timeline-top, 206px) - 34px);
+}
+
 #pageStep1 .step1FinishedOnlyBtn {
   display: none;
 }
@@ -3394,22 +3464,71 @@ input[type="reset"]:hover:not(:disabled) {
   display: none;
 }
 
+/* While reviewing/re-editing homes after finish (see step1EditAfterFinish()),
+   the top-right toolbar is just "back" (cancels the review, discarding the
+   currently-open ring) -- print/all maps and the "edit" trigger (redundant,
+   already inside edit mode) all step aside for it. */
+#pageStep1.step1-finished-state.step1-edit-mode #step1GoBackBtn {
+  display: inline-block;
+}
+#pageStep1.step1-finished-state.step1-edit-mode #step1PrintBtn,
+#pageStep1.step1-finished-state.step1-edit-mode #step1TopAllMapsBtn,
+#pageStep1.step1-finished-state.step1-edit-mode #step1EditFinishedBtn {
+  display: none !important;
+}
+
+/* Sits directly below the top-left logo (not centered) -- same position/
+   font/size convention as .step2Signature, .emotionSignature and
+   .step1EmotionFullscreenName (see each). */
 #pageStep1 .step1TopProgress {
   display: none;
   position: absolute;
+  /* Centered, top-aligned with the logo (34px) by default -- this is the
+     resting position during address/belonging/summary phases, where
+     .step1MapCompleteTitle isn't shown so there's nothing to collide with.
+     The finished state overrides this with an animation (below) that starts
+     lower and rises back to this exact spot once the title has faded out. */
   top: 34px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 21;
-  width: 560px;
-  text-align: center;
+  text-align: left;
   color: #000000;
   pointer-events: none;
-  font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
   font-weight: 400;
+  font-size: 14px;
   line-height: 1.1;
   text-transform: lowercase;
   white-space: nowrap;
+}
+
+/* On FINISH, .step1MapCompleteTitle occupies this same centered/top:34
+   spot for ~5.8s before fading out (see its own keyframes) -- so the map
+   name starts lower (60px) to avoid overlapping it, then rises to top:34
+   once the title is gone. Timed to match: 90.625% of 6.4s = 5.8s. */
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1TopProgress {
+  animation: step1TopProgressRiseToLogo 6.4s ease-out forwards;
+}
+
+@keyframes step1TopProgressRiseToLogo {
+  0% {
+    top: 60px;
+  }
+  90.625% {
+    top: 60px;
+  }
+  100% {
+    top: 34px;
+  }
+}
+
+/* While re-editing a home from the finished dashboard, #step1EditModeTitle
+   occupies the same centered/top:34 spot "your map is complete" used --
+   so, same as that title, the name row stays lowered (60px) instead of
+   resting at the base top:34, avoiding a direct collision between the two. */
+#pageStep1.step1-finished-state.step1-edit-mode .step1TopProgress {
+  top: 60px;
 }
 
 #pageStep1.step1-address-phase .step1TopProgress,
@@ -3419,7 +3538,7 @@ input[type="reset"]:hover:not(:disabled) {
 }
 
 #pageStep1 .step1TopProgressSummary {
-  font-size: 18px;
+  font-size: 17px;
   unicode-bidi: plaintext;
 }
 
@@ -3445,6 +3564,13 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1.step1-finished-state .step1TopProgressHomes,
 #pageStep1.step1-finished-state .step1TopProgressEdit {
   display: none !important;
+}
+
+/* Overrides the blanket finished-state hide above -- while actively
+   re-editing a home from the finished dashboard, the xx/yy counter (which
+   home of the total is open) should stay visible. */
+#pageStep1.step1-finished-state.step1-edit-mode .step1TopProgressHomes {
+  display: inline-block !important;
 }
 
 #pageStep1 .step1LogoIntro {
@@ -3526,17 +3652,22 @@ input[type="reset"]:hover:not(:disabled) {
   pointer-events: none;
 }
 
-/* "your map is complete" heading: same spot as CREATE YOUR MAP, shown only
-   once Step 1 is finished (and hidden again if the user re-enters edit mode,
-   since the address form reclaims that space then). */
+/* "your map is complete" heading: shown only once Step 1 is finished (and
+   hidden again if the user re-enters edit mode, since the address form
+   reclaims that space then). Centered on the screen, top-aligned with the
+   logo (top: 34px, matching #pageStep1 img.life-path.appLogoImage) --
+   no longer part of the move-frequency-label/timeline header stack, see
+   updateStep1Scale()'s comment. Shows briefly then fades out on its own,
+   rather than staying up like the rest of the finished-state chrome. */
 #pageStep1 .step1MapCompleteTitle {
   display: none;
   position: absolute;
-  left: 40px;
-  width: 460px;
-  top: 128px;
+  left: 50%;
+  top: 34px;
+  width: max-content;
+  transform: translateX(-50%);
   margin: 0;
-  text-align: left;
+  text-align: center;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
   font-size: 19px;
@@ -3550,6 +3681,52 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1MapCompleteTitle {
   display: block;
+  animation: step1MapCompleteFadeOut 5.8s ease-out forwards;
+}
+
+/* "edit" title while re-editing a home from the finished dashboard --
+   same centered, top:34px (logo-aligned) spot, same font/size as
+   .step1MapCompleteTitle, sitting above the name (which stays in
+   .step1TopProgress below). Never shown at the same time as that title
+   (mutually exclusive via :not(.step1-edit-mode) above / .step1-edit-mode
+   here), so no overlap risk despite sharing the same position. */
+#pageStep1 .step1EditModeTitle {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 34px;
+  width: max-content;
+  transform: translateX(-50%);
+  margin: 0;
+  text-align: center;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  color: #000000;
+  z-index: 4;
+  pointer-events: none;
+}
+
+#pageStep1.step1-finished-state.step1-edit-mode .step1EditModeTitle {
+  display: block;
+}
+
+/* Visible immediately, holds for ~5s, then fades out over ~0.8s and stays
+   hidden (opacity only -- display:block above is what actually re-triggers
+   this on every fresh entry into the finished state). */
+@keyframes step1MapCompleteFadeOut {
+  0% {
+    opacity: 1;
+  }
+  86.2% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 /* EMOTION MAP title: centered in the left area below the horizontal white line. */
@@ -3560,7 +3737,8 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1MovementMapTitleCenter,
 #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1RingReadingTitle,
 #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1TimeBelongingTitle,
-#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1HomesListTitle {
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1HomesListTitle,
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1MoveFrequencyLabel {
   color: #87857c;
 }
 
@@ -3568,7 +3746,7 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   left: 560px;
   width: 460px;
-  top: 325px;
+  top: calc(var(--step1-dashboard-top, 285px) + 40px);
   margin: 0;
   padding-left: 30px;
   text-align: left;
@@ -3817,7 +3995,7 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   left: 1050px;
   width: 460px;
-  top: 325px;
+  top: calc(var(--step1-dashboard-top, 285px) + 40px);
   margin: 0;
   padding-left: 30px;
   text-align: left;
@@ -3837,7 +4015,7 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1RoutePreview {
   position: absolute;
   left: 1040px;
-  top: 297px;
+  top: calc(var(--step1-dashboard-top, 285px) + 12px);
   width: 480px;
   height: calc(var(--step1-dashboard-top-section, 486px) - 12px);
   border-left: none;
@@ -3903,6 +4081,15 @@ input[type="reset"]:hover:not(:disabled) {
   transition: opacity 0.8s ease 1.5s, visibility 0s linear 1.5s;
 }
 
+/* Removed while reviewing/re-editing a home after finish -- expanding a
+   map to fullscreen has no place in the middle of an edit. */
+#pageStep1.step1-finished-state.step1-edit-mode .step1FullscreenBtn {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+}
+
 /* One px smaller than the shared .frame .btnImg default (17.1864px), just
    for these two expand buttons. */
 #pageStep1 .frame .btnImgExpand {
@@ -3916,13 +4103,13 @@ input[type="reset"]:hover:not(:disabled) {
    not its center. left is 2px further right than their frame's own
    nominal alignment. */
 #pageStep1 .step1EmotionFullscreenBtn {
-  left: 592px;
-  top: calc(285px + var(--step1-dashboard-top-section, 486px) / 2 - 8.0932px);
+  left: 595px;
+  top: calc(var(--step1-dashboard-top, 285px) + var(--step1-dashboard-top-section, 486px) / 2 - 8.0932px);
 }
 
 #pageStep1 .step1RouteFullscreenBtn {
-  left: 1082px;
-  top: calc(297px + (var(--step1-dashboard-top-section, 486px) - 12px) / 2 - 8.0932px);
+  left: 1085px;
+  top: calc(var(--step1-dashboard-top, 285px) + 12px + (var(--step1-dashboard-top-section, 486px) - 12px) / 2 - 8.0932px);
 }
 
 #pageStep1 .step1FullscreenBtn:hover {
@@ -3964,19 +4151,18 @@ input[type="reset"]:hover:not(:disabled) {
   justify-content: flex-end;
 }
 
-/* Name badge, matching the finished-state name display at the top of Step 1
-   (same font-size formula as Step 1's, which shrinks with --step1-scale on
-   smaller viewports — a fixed px size here would look bigger than it did there). */
+/* Name badge -- sits directly below the top-left logo (not centered), same
+   position/font/size convention as .step2Signature and .emotionSignature
+   (see each). */
 #pageStep1EmotionFullscreen .step1EmotionFullscreenName {
   position: absolute;
-  top: calc(34px * var(--step1-scale, 1));
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(86px * var(--step1-scale, 1));
+  left: calc(40px * var(--step1-scale, 1));
   z-index: 2001;
   color: #000000;
-  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: calc(18px * var(--step1-scale, 1));
+  font-size: 14px;
   line-height: 1.1;
   text-transform: lowercase;
   white-space: nowrap;
@@ -4010,9 +4196,10 @@ input[type="reset"]:hover:not(:disabled) {
   min-height: 0;
 }
 
-/* Confined to the left half of the body, so the ring cluster's centered
-   position lands at ~25vw -- the same ring-center anchor the solo
-   ring-reading pages use (see targetSoloCenterXForPage() in app.js). */
+/* Confined to the left half of the body. Its final horizontal position
+   (together with the reading panel) is set dynamically as one centered
+   unit -- see centerStep1EmotionFullscreenReadingUnit() in app.js -- so no
+   fixed transform here. */
 #pageStep1EmotionFullscreen .step1EmotionFullscreenWrap {
   position: absolute;
   left: 0;
@@ -4023,7 +4210,6 @@ input[type="reset"]:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   padding: 80px 40px;
-  transform: translateX(80px);
 }
 
 #pageStep1EmotionFullscreen .step1EmotionFullscreenSvg {
@@ -4055,7 +4241,7 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfo {
   position: fixed;
   left: calc(50vw + 50px);
-  top: calc(50vh - 135px);
+  top: calc(50vh - 125px);
   z-index: 2000;
   display: flex;
   flex-direction: column;
@@ -4066,13 +4252,18 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoTitle {
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 16px;
+  font-size: 15px;
 }
 
+/* Shifted up 7px without disturbing anything below it: margin-top pulls it
+   up, margin-bottom adds the same amount back so the next sibling's own
+   position doesn't move. */
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoNameRow {
+  position: relative;
   display: flex;
   align-items: baseline;
-  gap: 24px;
+  margin-top: -7px;
+  margin-bottom: 7px;
 }
 
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoName {
@@ -4084,18 +4275,33 @@ input[type="reset"]:hover:not(:disabled) {
 
 /* Companion badge next to the name (same idea as .step2SignatureCount
    sitting beside .step2SignatureMain elsewhere), sized to match every other
-   section below it. */
+   section below it. Positioned at a fixed offset (independent of the name's
+   own length) so it lines up with every other section's answer column --
+   same 130px offset as .step1EmotionFullscreenInfoLabel's width. */
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoRings {
+  position: absolute;
+  left: 130px;
+  top: 0;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
   font-size: 13px;
 }
 
-#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoStats,
+#pageStep1EmotionFullscreen .step1EmotionFullscreenInfoStats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* margin-top makes the stats->lists gap 10px too (14px outer gap - 4px);
+   margin-bottom of the same 4px keeps the hint below at its original
+   position despite this group's own height growing (see .step1Emotion
+   FullscreenInfoList's own gap, and the hint's compensating margin-top). */
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoLists {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+  margin-top: -4px;
 }
 
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoStat,
@@ -4114,10 +4320,18 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoLabel {
   display: inline-block;
   width: 130px;
+  vertical-align: top;
 }
 
+/* inline-block (not plain inline) so that once a country/city list is long
+   enough to wrap, the wrapped line breaks *within this box* -- flush to its
+   own left edge (i.e. under the first line, past the label column) instead
+   of under the label itself. */
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoStatValue,
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoListValue {
+  display: inline-block;
+  max-width: 280px;
+  vertical-align: top;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 300;
   font-size: 13px;
@@ -4125,12 +4339,14 @@ input[type="reset"]:hover:not(:disabled) {
   unicode-bidi: plaintext;
 }
 
+/* Compensates .step1EmotionFullscreenInfoLists's own -4px margin-top above
+   (24 - 4 = 20) so the hint's absolute position doesn't move. */
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoHint {
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
   font-size: 13px;
   color: #000000;
-  margin-top: 24px;
+  margin-top: 20px;
 }
 
 #pageStep1EmotionFullscreen .step1EmotionFullscreenInfoStat:empty,
@@ -4150,7 +4366,7 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1RingReading {
   position: absolute;
   left: 560px;
-  top: calc(285px + var(--step1-dashboard-top-section, 486px) + 30px);
+  top: calc(var(--step1-dashboard-top, 285px) + var(--step1-dashboard-top-section, 486px) + 30px);
   width: 460px;
   height: calc(var(--step1-dashboard-bottom-section, 324px) - 30px);
   z-index: 4;
@@ -4216,7 +4432,7 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1TimeBelonging {
   position: absolute;
   left: 1050px;
-  top: calc(285px + var(--step1-dashboard-top-section, 486px) + 30px);
+  top: calc(var(--step1-dashboard-top, 285px) + var(--step1-dashboard-top-section, 486px) + 30px);
   width: 460px;
   height: calc(var(--step1-dashboard-bottom-section, 324px) - 30px);
   z-index: 4;
@@ -4294,10 +4510,9 @@ input[type="reset"]:hover:not(:disabled) {
   display: none;
 }
 
-#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1JourneyDistance,
-#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1AvgBelonging {
-  display: block;
-}
+/* Removed from the finished-state dashboard (kept hidden at their default
+   display:none above) -- see step1JourneyTimeline/step1MoveFrequencyLabel
+   below, which stay. */
 
 /* Small headers above the journey/avg stats and the timeline. */
 #pageStep1 .step1SectionMiniLabel {
@@ -4313,36 +4528,57 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageStep1 .step1HomeCountLabel {
   left: 40px;
-  top: 178px;
+  top: var(--step1-header-label-top, 178px);
   font-size: 16px;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
 }
 
-/* Directly above the timeline — keep this left value in sync with it, and
-   its top with .step1HomeCountLabel's own (same row as "xx homes"). */
+/* Right-edge-aligned to the geographic map panel's own right edge (.step1-right:
+   left:42 + width:518 = 560) via the translateX trick (box shrink-wraps to
+   its text, so left:560 + a full negative shift pins the RIGHT edge there
+   instead of the left). Vertically level with the timeline itself (not
+   above it anymore), sharing its own --step1-header-timeline-top variable
+   so the two stay in sync through the grow/shrink animation. */
 #pageStep1 .step1MoveFrequencyLabel {
   left: 560px;
-  top: 178px;
+  transform: translateX(-100%);
+  top: var(--step1-header-timeline-top, 206px);
+  /* Exactly matches the 5 section titles (.step1EmotionMapTitle etc.) --
+     font, weight, scale-independent size, and (via the finished-state gray
+     rule above) color too. */
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: calc(15px / var(--step1-scale, 1));
+  line-height: 1;
+  letter-spacing: 0;
 }
 
 #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1SectionMiniLabel {
   display: block;
 }
 
+/* Removed from the finished-state dashboard -- same specificity as the
+   shared .step1SectionMiniLabel exposure above, so it wins by coming later
+   in source order; .step1MoveFrequencyLabel (same base class) stays
+   visible. */
+#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1HomeCountLabel {
+  display: none;
+}
+
 /* Timeline: right edge fixed at the rightmost vertical divider line of the
-   finished layout (.step1HomesListTitle::before, x=1540); left edge now
-   extends all the way to the geographic map's own right edge (#step1GeoMap,
-   x=560) instead of stopping partway there -- keep updateStep1JourneyTimeline()'s
-   vbW constant in sync with this width. Vertically aligned to
-   .step1JourneyDistance's own top (206px) -- deliberately independent of
-   .step1MoveFrequencyLabel's top (still 178px, unmoved) since the two no
-   longer move together. */
+   finished layout (.step1HomesListTitle::before, x=1540); left edge at
+   x=590, flush with "emotion map" title's own text start (.step1EmotionMapTitle
+   is left:560+padding-left:30) so the start-year label lines up with it --
+   keep updateStep1JourneyTimeline()'s vbW constant in sync with this width.
+   Vertically aligned to .step1JourneyDistance's own top (206px) --
+   deliberately independent of .step1MoveFrequencyLabel's top (still 178px,
+   unmoved) since the two no longer move together. */
 #pageStep1 .step1JourneyTimeline {
   display: none;
   position: absolute;
-  left: 560px;
-  top: 206px;
-  width: 980px;
+  left: 590px;
+  top: var(--step1-header-timeline-top, 206px);
+  width: 950px;
   height: 24px;
   z-index: 4;
   pointer-events: none;
@@ -4370,7 +4606,7 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   left: 1540px;
   width: 460px;
-  top: 325px;
+  top: calc(var(--step1-dashboard-top, 285px) + 40px);
   margin: 0;
   padding-left: 30px;
   text-align: left;
@@ -4389,7 +4625,7 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1HomesList {
   position: absolute;
   left: 1540px;
-  top: 355px;
+  top: calc(var(--step1-dashboard-top, 285px) + 70px);
   width: 460px;
   height: calc(var(--step1-dashboard-height, 810px) - 70px);
   border-left: none;
@@ -4401,7 +4637,7 @@ input[type="reset"]:hover:not(:disabled) {
   content: "";
   position: fixed;
   left: 1540px;
-  top: 322px;
+  top: calc(var(--step1-dashboard-top, 285px) + 37px);
   width: 0.1px;
   height: calc(var(--step1-dashboard-height, 810px) - 37px);
   background: #000000;
@@ -5341,12 +5577,30 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1EmotionMap {
   position: absolute;
   left: 560px;
-  top: 285px;
+  top: var(--step1-dashboard-top, 285px);
   width: 460px;
   height: var(--step1-dashboard-top-section, 486px);
   border-left: none;
   z-index: 3;
   pointer-events: none;
+}
+
+/* Scoped to a short-lived class (see growStep1DashboardAnimated()) so only
+   the FINISH-triggered 30% growth animates -- ordinary window resizes stay
+   snap-to instead of lagging behind a transition. */
+#pageStep1.step1-dashboard-animating .step1EmotionMap,
+#pageStep1.step1-dashboard-animating .step1RoutePreview,
+#pageStep1.step1-dashboard-animating .step1RingReading,
+#pageStep1.step1-dashboard-animating .step1TimeBelonging,
+#pageStep1.step1-dashboard-animating .step1HomesList,
+#pageStep1.step1-dashboard-animating .step1-right,
+#pageStep1.step1-dashboard-animating .step1EmotionMapTitle,
+#pageStep1.step1-dashboard-animating .step1MovementMapTitleCenter,
+#pageStep1.step1-dashboard-animating .step1HomesListTitle,
+#pageStep1.step1-dashboard-animating .step1MoveFrequencyLabel,
+#pageStep1.step1-dashboard-animating .step1JourneyTimeline,
+#pageStep1.step1-dashboard-animating #step1EditFinishedBtn {
+  transition: top 0.75s ease, height 0.75s ease;
 }
 
 #pageStep1 .step1EmotionSvg {
@@ -5389,13 +5643,15 @@ input[type="reset"]:hover:not(:disabled) {
   cursor: not-allowed;
 }
 
-/* In address phase: geo map is bottom-left panel */
+/* In address phase: geo map is bottom-left panel. Height shares the same
+   dashboard variable as the other finished-state sections, so it grows 30%
+   on FINISH exactly like them (see growStep1DashboardAnimated()). */
 #pageStep1 .step1-right {
   position: absolute;
   left: 42px;
-  top: 285px;
+  top: var(--step1-dashboard-top, 285px);
   width: 518px;
-  height: 810px;
+  height: var(--step1-dashboard-height, 810px);
   overflow: hidden;
 }
 

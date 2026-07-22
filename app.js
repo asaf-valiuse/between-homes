@@ -377,6 +377,68 @@ let _emotionSoloOriginViewBox = null;
 // This keeps the focused ring's right-edge alignment consistent across maps/layouts.
 let _emotionSoloRightEdgeTargetFrac = null;
 
+// Set right before entering solo from the fullscreen emotion map's ring
+// spread, so the solo page's "back" button can return there (re-entering
+// spread) instead of always landing on Step 1 -- see
+// elEmotionSoloBackBtn's click handler.
+let _emotionSoloReturnToStep1FullscreenSpread = false;
+
+// Same idea as _emotionSoloReturnToStep1FullscreenSpread, but for entering
+// solo by clicking a point on the route/movement map (Step 2) -- see
+// renderStep2AddressDots()'s click handler.
+let _emotionSoloReturnToStep2 = false;
+
+// Builds an _emotionSoloOriginRect-shaped origin (+ shape params) directly
+// from a currently-rendered fullscreen-emotion-map ring element, so the fly
+// animation into the solo page starts from wherever that ring actually is on
+// screen right now (e.g. its spread-out position) instead of always
+// re-measuring Step 1's own (separate, often hidden) ring-reading panel --
+// see openEmotionMapSoloFromStep1RingReading()'s originOverride parameter.
+function buildEmotionSoloOriginFromRingEl(ring, idx) {
+  if (!ring) return null;
+  try {
+    const rect = ring.getBoundingClientRect();
+    if (!rect || !(rect.width > 0) || !(rect.height > 0)) return null;
+    const strokeWidthPx = Number(ring.getAttribute("stroke-width")) || 2;
+    const r0 = Number(ring.getAttribute("data-emotion-r0")) || 1;
+    const amp = Number(ring.getAttribute("data-emotion-amp")) || 0;
+    const ringSize = Math.max(rect.width, rect.height);
+
+    let pathD = null;
+    let viewBox = null;
+    try {
+      const d = ring.getAttribute("d");
+      const bbox = typeof ring.getBBox === "function" ? ring.getBBox() : null;
+      if (d && bbox && bbox.width > 0 && bbox.height > 0) {
+        const pad = strokeWidthPx / 2;
+        pathD = d;
+        viewBox = `${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`;
+      }
+    } catch {
+      // ignore -- falls back to the plain-circle overlay
+    }
+
+    return {
+      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      color: ring.getAttribute("stroke") || "#111827",
+      strokeWidthPx,
+      pathD,
+      viewBox,
+      targetRingSizePx: ringSize > 0 ? ringSize * 1.5 : null,
+      shapeParams: {
+        index: Math.max(0, Math.floor(Number(idx) || 0)),
+        phi: Number(ring.getAttribute("data-emotion-phi")) || 0,
+        ampRatio: r0 > 0 ? amp / r0 : 0,
+        strokeRatio: null,
+        strokeWidth: strokeWidthPx,
+        strokeWidthPx,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 function isEmotionRingFocusActive() {
   return Number.isFinite(_emotionRingFocusIndex) && _emotionRingFocusIndex !== null;
 }
@@ -1947,40 +2009,17 @@ function formatCumulativeDistanceForAddresses(items) {
   }
 }
 
-function formatCountriesForAddresses(items) {
-  const list = Array.isArray(items) ? items : [];
-  const countries = [];
-  for (const item of list) {
-    if (!item || item.valid === false) continue;
-    const country = formatArchiveMapNamePart(toEnglishLike(String(item.country || "").trim()));
-    if (!country) continue;
-    if (countries[countries.length - 1] !== country) countries.push(country);
-  }
-  return countries.length ? countries.join(", ") : "--";
-}
-
-function formatCitiesForAddresses(items) {
-  const list = Array.isArray(items) ? items : [];
-  const cities = [];
-  for (const item of list) {
-    if (!item || item.valid === false) continue;
-    const city = formatArchiveMapNamePart(toEnglishLike(String(item.city || "").trim()));
-    if (!city) continue;
-    if (cities[cities.length - 1] !== city) cities.push(city);
-  }
-  return cities.length ? cities.join(", ") : "--";
-}
-
-// Unlike formatCountriesForAddresses/formatCitiesForAddresses (which
-// transliterate + title-case for the archive grid's display convention),
-// this keeps the country/city exactly as the person typed it during address
-// entry -- same language, same spelling, no transformation.
+// Keeps the country/city exactly as the person typed it during address
+// entry -- same language, same spelling, no transliteration/title-casing.
+// Prefers _origCountry/_origCity (the pre-geocoding raw input) over
+// country/city, since verification overwrites the latter with the
+// normalized/English form -- same fallback formatAddressAsTyped() uses.
 function formatRawCountriesForAddresses(items) {
   const list = Array.isArray(items) ? items : [];
   const countries = [];
   for (const item of list) {
     if (!item || item.valid === false) continue;
-    const country = tidyToken(item.country || "");
+    const country = tidyToken(item._origCountry || item.country || "");
     if (!country) continue;
     if (countries[countries.length - 1] !== country) countries.push(country);
   }
@@ -1992,7 +2031,7 @@ function formatRawCitiesForAddresses(items) {
   const cities = [];
   for (const item of list) {
     if (!item || item.valid === false) continue;
-    const city = tidyToken(item.city || "");
+    const city = tidyToken(item._origCity || item.city || "");
     if (!city) continue;
     if (cities[cities.length - 1] !== city) cities.push(city);
   }
@@ -2080,12 +2119,13 @@ function belongingCircleStrokeWeight(rate) {
   return Math.max(0.1, Math.min(10, w));
 }
 
-// Every address-marker circle (geo map, route preview, journey timeline)
-// shares this one fixed inner radius -- belonging rate only ever changes
-// the outline's stroke width, and that stroke grows outward only (the
-// circle's own radius is bumped up by half the stroke so the *inner* edge
-// stays put at ADDRESS_DOT_INNER_RADIUS regardless of rate).
-const ADDRESS_DOT_INNER_RADIUS = 4;
+// Every address-marker circle (geo map, journey timeline) shares this one
+// fixed inner radius -- belonging rate only ever changes the outline's
+// stroke width, and that stroke grows outward only (the circle's own
+// radius is bumped up by half the stroke so the *inner* edge stays put at
+// ADDRESS_DOT_INNER_RADIUS regardless of rate). Address-entry page only --
+// Step 2's own dots (renderStep2AddressDots()) use their own local radius.
+const ADDRESS_DOT_INNER_RADIUS = 4.5;
 function addressDotRadius(rate) {
   return ADDRESS_DOT_INNER_RADIUS + belongingCircleStrokeWeight(rate) / 2;
 }
@@ -2093,7 +2133,7 @@ function addressDotRadius(rate) {
 // Route preview only -- slightly smaller than ADDRESS_DOT_INNER_RADIUS
 // (which the geo map and journey timeline still use), same outward-only
 // stroke growth otherwise.
-const ROUTE_PREVIEW_DOT_INNER_RADIUS = 3.4;
+const ROUTE_PREVIEW_DOT_INNER_RADIUS = 3.9;
 function routePreviewDotRadius(rate) {
   return ROUTE_PREVIEW_DOT_INNER_RADIUS + belongingCircleStrokeWeight(rate) / 2;
 }
@@ -2132,6 +2172,16 @@ function formatAddressAsTyped(addr) {
   const city = tidyToken(addr._origCity || addr.city);
   const country = tidyToken(addr._origCountry || addr.country);
   return [streetPart, city, country].filter(Boolean).join(", ");
+}
+
+// For interpolating user-typed text into an HTML string (e.g. a Leaflet
+// tooltip built via bindTooltip(htmlString)) instead of DOM textContent.
+function escapeHtmlText(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function formatAddressForHoverLabel(text) {
@@ -2175,6 +2225,12 @@ const elToggleSplashBtn = document.getElementById("toggleSplashBtn");
 const elHideMapBtn = document.getElementById("hideMapBtn");
 const elSignatureLabel = document.getElementById("signatureLabel");
 const elCoordinateLabel = document.getElementById("coordinateLabel");
+const elStep2ReadingInfoName = document.getElementById("step2ReadingInfoName");
+const elStep2ReadingInfoCount = document.getElementById("step2ReadingInfoCount");
+const elStep2ReadingInfoAge = document.getElementById("step2ReadingInfoAge");
+const elStep2ReadingInfoAvg = document.getElementById("step2ReadingInfoAvg");
+const elStep2ReadingInfoCountries = document.getElementById("step2ReadingInfoCountries");
+const elStep2ReadingInfoCities = document.getElementById("step2ReadingInfoCities");
 const elZoomLabel = document.getElementById("zoomLabel");
 const elSaveMapBtn = document.getElementById("saveMapBtn");
 const elBasemapStyleSelect = document.getElementById("basemapStyleSelect");
@@ -4740,6 +4796,7 @@ function resetStep1HouseList() {
   // implicitly by the form reset when it was still inside the form).
   if (elHomesCount) elHomesCount.value = "";
   if (elPageStep1) elPageStep1.classList.remove("step1-finished-state");
+  step1DashboardGrown = false;
 
   currentAddressVerified = false;
   belongingLabelShown = false;
@@ -4814,6 +4871,7 @@ function step1GoBackToIntro() {
 function step1EditAfterFinish() {
   if (!elPageStep1) return;
   step1EditModeAfterFinishActive = true;
+  if (typeof shrinkStep1DashboardAnimated === "function") shrinkStep1DashboardAnimated();
   updateStep1TopProgress();
   updateStep1RingReading();
   updateStep1HomesList();
@@ -4823,8 +4881,29 @@ function step1EditAfterFinish() {
   }
 }
 
+// Leaves the after-finish edit-review flow (see step1EditAfterFinish()) and
+// returns to the normal (grown) finished dashboard -- used both when "back"
+// is clicked mid-review (discarding the currently-open, unsaved ring) and
+// after saving the last ring in the review sequence.
+function step1ExitEditAfterFinish() {
+  if (!elPageStep1) return;
+  exitStep1EditMode();
+  step1EditModeAfterFinishActive = false;
+  const divAddr = elPageStep1.querySelector(".div-3 > .div-2");
+  if (divAddr) divAddr.style.display = "none";
+  if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
+  if (typeof growStep1DashboardAnimated === "function") growStep1DashboardAnimated();
+  updateStep1TopProgress();
+  clearStep1HomesListFocus();
+  updateStep1Headers();
+}
+
 if (elStep1GoBackBtn) {
   elStep1GoBackBtn.addEventListener("click", () => {
+    if (step1EditModeAfterFinishActive) {
+      step1ExitEditAfterFinish();
+      return;
+    }
     step1GoBackToIntro();
   });
 }
@@ -5006,6 +5085,14 @@ function updateCreateLifePathButtonState() {
   elCreateLifePathBtn.disabled = addresses.length === 0;
 }
 
+// Set to true right when the user clicks FINISH (the last home's belonging
+// submit) so the finished-state dashboard grows by 30%; false otherwise
+// (including while the address/belonging phases are still in progress).
+// Persists across resizes -- see updateStep1Scale() -- and is reset back to
+// false whenever the finished map is left (step1GoBackToIntro() / the
+// state-reset helper near stopStep1EntrySound()).
+let step1DashboardGrown = false;
+
 function updateStep1Scale() {
   const DESIGN_W = 1920;
   const DESIGN_H = 1080;
@@ -5014,8 +5101,67 @@ function updateStep1Scale() {
   const vh = Math.max(1, Number(viewport?.height || window.innerHeight || DESIGN_H));
   const scale = vw / DESIGN_W;
   const visibleDesignHeight = vh / scale;
-  const dashboardTop = 285;
-  const dashboardHeight = Math.max(520, Math.min(810, visibleDesignHeight - dashboardTop));
+  const dashboardTopBase = 285;
+  const dashboardHeightBase = Math.max(520, Math.min(810, visibleDesignHeight - dashboardTopBase));
+  const dashboardBottom = dashboardTopBase + dashboardHeightBase;
+  // On FINISH, the sections grow taller *upward*, targeting +40% -- their
+  // bottom edge stays exactly where it always sits, only the shared top
+  // boundary moves up to make room. There isn't remotely enough natural
+  // headroom above the dashboard for a target that size (a few hundred px
+  // on an 810px-tall dashboard vs. ~110px of real slack once every gap is
+  // compressed to its floor), so in practice this is capped by headerSlack
+  // below -- the move-frequency label and the timeline above the dashboard
+  // compress their own spacing upward too, own text heights untouched, only
+  // the gaps between rows shrink, each down to its own floor so nothing
+  // touches. ("your map is complete" used to be part of this same stack,
+  // but now lives as its own centered, top-aligned-to-logo overlay -- see
+  // .step1MapCompleteTitle in styles.css -- so it no longer takes up room
+  // here.) The logo/name-progress row above all of this never moves. See
+  // growStep1DashboardAnimated().
+  const HEADER_ZONE_TOP = 85; // just below the "name / xx/xx" progress row (bottom ~78.7px, now centered under the title instead of left-aligned near the logo)
+  const HEADER_LABEL_H = 15; // label now matches the section titles' scale-independent 15px font
+  const HEADER_TIMELINE_H = 24;
+  // Per-row floors (not one shared minimum): the timeline row is allowed to
+  // pack tighter than the label-to-dashboard gap, since that's the boundary
+  // that reads most clearly as "start of the dashboard grid".
+  const MIN_GAP_LABEL = 4;
+  const MIN_GAP_TIMELINE = 2;
+  const MIN_GAP_DASHBOARD = 4;
+  // Original (ungrown) gaps, derived from today's fixed positions: label
+  // top 178, timeline top 206, dashboard top 285.
+  const gapToLabel = 178 - HEADER_ZONE_TOP; // 70
+  const gapToTimeline = 206 - (178 + HEADER_LABEL_H); // 5
+  const gapToDashboard = dashboardTopBase - (206 + HEADER_TIMELINE_H); // 55
+  const headerSlack = (gapToLabel - MIN_GAP_LABEL)
+    + (gapToTimeline - MIN_GAP_TIMELINE)
+    + (gapToDashboard - MIN_GAP_DASHBOARD);
+
+  let dashboardTop = dashboardTopBase;
+  let dashboardHeight = dashboardHeightBase;
+  let headerLabelTop = 178;
+  let headerTimelineTop = 206;
+  if (step1DashboardGrown) {
+    const desiredGrowth = dashboardHeightBase * 0.4;
+    const compression = Math.min(desiredGrowth, Math.max(0, headerSlack));
+    const t = headerSlack > 0 ? compression / headerSlack : 0;
+    const newGapToLabel = gapToLabel - (gapToLabel - MIN_GAP_LABEL) * t;
+    const newGapToTimeline = gapToTimeline - (gapToTimeline - MIN_GAP_TIMELINE) * t;
+    headerLabelTop = HEADER_ZONE_TOP + newGapToLabel;
+    headerTimelineTop = headerLabelTop + HEADER_LABEL_H + newGapToTimeline;
+    dashboardHeight = dashboardHeightBase + compression;
+    dashboardTop = dashboardBottom - dashboardHeight;
+    // Manual fine-tune on top of the computed layout: label up 30px
+    // (widening the label-to-timeline gap), timeline down 10px from its
+    // computed position. Clamped so the label can't be pushed above the
+    // name/progress row.
+    const HEADER_SAFE_TOP = 72;
+    headerLabelTop = Math.max(HEADER_SAFE_TOP, headerLabelTop - 30);
+    headerTimelineTop = Math.max(headerLabelTop + HEADER_LABEL_H + MIN_GAP_TIMELINE + 10, headerTimelineTop);
+    // "move frequency", the timeline itself, and the "edit" button (all
+    // three read from --step1-header-timeline-top) raised net 4px further
+    // (7px up, then lowered back down 3px).
+    headerTimelineTop -= 4;
+  }
   const dashboardTopSection = dashboardHeight * 0.6;
   const dashboardBottomSection = dashboardHeight * 0.4;
   const dashboardDivider = dashboardTopSection + 23;
@@ -5024,14 +5170,50 @@ function updateStep1Scale() {
   document.documentElement.style.setProperty("--step1-scale", String(scale));
   document.documentElement.style.setProperty("--step1-offset-x", `${offsetX}px`);
   document.documentElement.style.setProperty("--step1-offset-y", `${offsetY}px`);
+  document.documentElement.style.setProperty("--step1-dashboard-top", `${dashboardTop}px`);
   document.documentElement.style.setProperty("--step1-dashboard-height", `${dashboardHeight}px`);
   document.documentElement.style.setProperty("--step1-dashboard-top-section", `${dashboardTopSection}px`);
   document.documentElement.style.setProperty("--step1-dashboard-bottom-section", `${dashboardBottomSection}px`);
   document.documentElement.style.setProperty("--step1-dashboard-divider", `${dashboardDivider}px`);
+  document.documentElement.style.setProperty("--step1-header-label-top", `${headerLabelTop}px`);
+  document.documentElement.style.setProperty("--step1-header-timeline-top", `${headerTimelineTop}px`);
   const invScale = scale > 0 && scale < 1 ? 1 / scale : 1;
   document.documentElement.style.setProperty("--step1-inv-scale", String(invScale));
   scheduleWelcomeBottomButtonsAlignment();
   alignStep1TopProgressCounter();
+}
+
+// Plays the 30%-growth animation: briefly enables a CSS transition on the
+// dashboard panels, flips the grown flag, and recomputes -- the transition
+// is scoped to a short-lived class so ordinary window resizes stay snap-to
+// (no lag while dragging), only this one growth moment animates.
+function growStep1DashboardAnimated() {
+  if (!elPageStep1 || step1DashboardGrown) return;
+  elPageStep1.classList.add("step1-dashboard-animating");
+  step1DashboardGrown = true;
+  updateStep1Scale();
+  window.setTimeout(() => {
+    if (elPageStep1) elPageStep1.classList.remove("step1-dashboard-animating");
+    // The geo map panel (.step1-right) grows along with the other sections,
+    // but Leaflet doesn't observe CSS transitions on its container -- resize
+    // it once the 0.75s height transition has actually finished so the tiles
+    // fill the new size instead of staying pinned to the old one.
+    if (step1GeoMap) step1GeoMap.invalidateSize(true);
+  }, 850);
+}
+
+// Mirror of growStep1DashboardAnimated() -- plays the shrink-back-down
+// animation to the sections' original (pre-finish) size. Used when
+// entering edit mode from the finished state (see step1EditAfterFinish()).
+function shrinkStep1DashboardAnimated() {
+  if (!elPageStep1 || !step1DashboardGrown) return;
+  elPageStep1.classList.add("step1-dashboard-animating");
+  step1DashboardGrown = false;
+  updateStep1Scale();
+  window.setTimeout(() => {
+    if (elPageStep1) elPageStep1.classList.remove("step1-dashboard-animating");
+    if (step1GeoMap) step1GeoMap.invalidateSize(true);
+  }, 850);
 }
 
 const elWelcomeTopbar = elPageWelcome ? elPageWelcome.querySelector(".topbar") : null;
@@ -5510,6 +5692,7 @@ function showPage(which, opts) {
 
       syncGeoUi();
       updateStep2SignatureLabel();
+      updateStep2ReadingInfo();
 
       // When Step 2 opens, mark the saved addresses and draw their dots/line.
       clearStep2LifePath();
@@ -5521,6 +5704,25 @@ function showPage(which, opts) {
       requestStep2OpenFitToAddresses();
       forceStep2OpenFitToAddressesSoon(200);
       updateStep2ZoomLabel();
+
+      // Map + reading panel treated as one unit and centered together (their
+      // own gap never changes) -- deferred until the opening fit-to-
+      // addresses view actually settles, since the dots' on-screen position
+      // (which this measures) isn't final until then. moveend covers the
+      // normal case; the timeout is a safety net for whenever it doesn't
+      // fire (e.g. the view was already exactly at rest).
+      try {
+        map.once("moveend", () => centerStep2ReadingUnit());
+      } catch {
+        // ignore
+      }
+      setTimeout(() => centerStep2ReadingUnit(), 300);
+      if (!_step2ReadingUnitResizeArmed) {
+        _step2ReadingUnitResizeArmed = true;
+        window.addEventListener("resize", () => {
+          if (elPageStep2 && !elPageStep2.classList.contains("hidden")) centerStep2ReadingUnit();
+        }, { passive: true });
+      }
       return;
     }, 0);
   }
@@ -6084,6 +6286,22 @@ function attachArchiveThumbInteractions(thumb, onActivate) {
   requestAnimationFrame(() => updateMarkerSizesForViewBox());
 }
 
+// Builds a label + value pair for an archive stat line (e.g. "avg. belonging
+// :  3.5") as separate spans so the label and its answer can carry different
+// fonts (see .archiveStatLabel/.archiveStatValue in styles.css).
+function setArchiveStatRow(el, labelText, valueText) {
+  if (!el) return;
+  el.textContent = "";
+  if (!valueText) return;
+  const label = document.createElement("span");
+  label.className = "archiveStatLabel";
+  label.textContent = labelText;
+  const value = document.createElement("span");
+  value.className = "archiveStatValue";
+  value.textContent = valueText;
+  el.append(label, value);
+}
+
 function renderArchiveGrid() {
   if (!elArchiveGrid || !elArchiveEmpty) return;
 
@@ -6127,24 +6345,22 @@ function renderArchiveGrid() {
     const item = document.createElement("div");
     item.className = "archiveItem";
 
-    const serial = Number.isFinite(Number(snap?.serial)) && Number(snap?.serial) > 0 ? Number(snap.serial) : i + 1;
     const serialEl = document.createElement("div");
     serialEl.className = "archiveSerial";
-    // Archive tile title should be the map name (e.g. HilaLustig.08addrs), not lifemapNN.
-    renderMapLabelLikeSignature(serialEl, snap, snap?.label || formatLifeMapLabel(serial));
+    // Archive tile title is just the map name, exactly as typed on the
+    // address-entry page -- no title-casing, no address count.
+    serialEl.textContent = String(snap?.fullName || "").trim() || formatLifeMapLabel(
+      Number.isFinite(Number(snap?.serial)) && Number(snap?.serial) > 0 ? Number(snap.serial) : i + 1
+    );
 
     const averageEl = document.createElement("div");
     averageEl.className = "archiveAverageBelonging";
     const averageBelonging = formatAverageBelongingForAddresses(snap?.addresses);
-    averageEl.textContent = averageBelonging ? `average belonging :\u00a0\u00a0\u00a0\u00a0\u00a0${averageBelonging}` : "";
+    setArchiveStatRow(averageEl, "avg. belonging :\u00a0\u00a0\u00a0\u00a0\u00a0", averageBelonging);
 
     const cumulativeEl = document.createElement("div");
     cumulativeEl.className = "archiveCumulativeDistance";
-    cumulativeEl.textContent = `cumulative distance :\u00a0\u00a0\u00a0\u00a0\u00a0${formatCumulativeDistanceForAddresses(snap?.addresses)}`;
-
-    const countriesEl = document.createElement("div");
-    countriesEl.className = "archiveCountriesRoute";
-    countriesEl.textContent = formatCountriesForAddresses(snap?.addresses);
+    setArchiveStatRow(cumulativeEl, "cumulative distance :\u00a0\u00a0\u00a0\u00a0\u00a0", formatCumulativeDistanceForAddresses(snap?.addresses));
 
     const preview = document.createElement("div");
     preview.className = "archivePreview";
@@ -6153,6 +6369,17 @@ function renderArchiveGrid() {
 
     const footer = document.createElement("div");
     footer.className = "archiveFooter";
+
+    const showBtn = document.createElement("button");
+    showBtn.type = "button";
+    showBtn.className = "archiveShowBtn";
+    showBtn.textContent = "show map";
+    showBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openSavedMapSnapshotFromArchive(snap);
+    });
+    footer.appendChild(showBtn);
 
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
@@ -6172,7 +6399,6 @@ function renderArchiveGrid() {
     item.appendChild(serialEl);
     item.appendChild(averageEl);
     item.appendChild(cumulativeEl);
-    item.appendChild(countriesEl);
     preview.appendChild(thumb);
     attachArchiveThumbInteractions(thumb, () => openSavedMapSnapshotFromArchive(snap));
     item.appendChild(preview);
@@ -6610,7 +6836,15 @@ async function refreshAddressCoords() {
 }
 
 function getStep1GeoMarkerColor() {
-  if (step1SummaryPhaseActive) return "#000000";
+  // step1SummaryPhaseActive stays true for the rest of the session once a
+  // map is finished, including while re-editing it afterward -- forcing
+  // black here was never actually exercised in the normal finished view
+  // (dots are rendered once, right before this flag flips true, and never
+  // re-rendered again while just viewing), but re-editing DOES trigger a
+  // re-render (every "add home" save calls updateStep1GeoMapMarkers()
+  // again), so without this exception the dots would flip to black the
+  // moment you save any ring during a review.
+  if (step1SummaryPhaseActive && !step1EditModeAfterFinishActive) return "#000000";
   return isDarkBasemap(basemapStyleId) ? "#f4f2ea" : "#000000";
 }
 
@@ -7237,7 +7471,7 @@ function updateStep1JourneyTimeline() {
   const firstYear = withYears[0].year;
   const span = Math.max(1, endYear - firstYear);
   // Matches .step1JourneyTimeline's CSS width — keep these two in sync.
-  const vbW = 980;
+  const vbW = 950;
   const labelGap = 10;
   const lineY = 12;
 
@@ -7911,11 +8145,11 @@ function armStep1RingReadingHover() {
       openEmotionMapSoloFromStep1RingReading(ringIdx);
       return;
     }
-    openStep1HomeEditMode(ringIdx);
+    handleStep1RingClick(ringIdx);
   });
 }
 
-function openEmotionMapSoloFromStep1RingReading(ringIdx) {
+function openEmotionMapSoloFromStep1RingReading(ringIdx, originOverride) {
   if (!isStep1DataEntryFinished()) return;
   const idx = Number(ringIdx);
   if (!Number.isFinite(idx)) return;
@@ -7931,6 +8165,32 @@ function openEmotionMapSoloFromStep1RingReading(ringIdx) {
   _emotionSoloOriginStrokeWidthPx = null;
   _emotionSoloOriginPathD = null;
   _emotionSoloOriginViewBox = null;
+
+  // The caller already knows exactly where this ring is on screen right now
+  // (e.g. the fullscreen emotion map's ring spread) -- use that directly as
+  // the fly-animation origin instead of re-measuring Step 1's own ring-
+  // reading panel below, which has no relationship to that on-screen
+  // position and would make the animation start from the wrong place.
+  if (originOverride && originOverride.rect && originOverride.rect.width > 0 && originOverride.rect.height > 0) {
+    _emotionSoloOriginRect = originOverride.rect;
+    _emotionSoloOriginColor = originOverride.color || "#111827";
+    _emotionSoloOriginStrokeWidthPx = originOverride.strokeWidthPx || 2;
+    _emotionSoloOriginPathD = originOverride.pathD || null;
+    _emotionSoloOriginViewBox = originOverride.viewBox || null;
+    pendingEmotionSoloTargetRingSizePx = originOverride.targetRingSizePx || null;
+    pendingEmotionSoloShapeParams = originOverride.shapeParams || null;
+    pendingEmotionSoloFocusIndex = Math.max(0, Math.floor(idx));
+    pendingEmotionStart = null;
+    showPage("emotion");
+    return;
+  }
+
+  // Entering solo any other way (e.g. Step 1's own ring-reading strip) --
+  // make sure a stale flag from an abandoned spread/Step2->solo trip
+  // (entered but never actually left via "back") can't misroute this one.
+  _emotionSoloReturnToStep1FullscreenSpread = false;
+  _emotionSoloReturnToStep2 = false;
+
   // All of the measurements below (getBoundingClientRect/getBBox on the
   // ring-reading panel's own SVGs) return zeroed-out garbage if the Step 1
   // page is display:none — which it is whenever this is invoked from the
@@ -8649,6 +8909,61 @@ function resolveStep1EmotionFullscreenRingOverlaps() {
   }
 }
 
+// Measures the map's own visible content (rings, or Step 2's dots/route)
+// together with the reading panel as ONE combined unit, then shifts both by
+// the same amount so that unit's combined bounding box is centered on the
+// page -- the gap/relationship between the two never changes, only where
+// the pair as a whole sits. Idempotent: always re-measures from each
+// element's un-shifted ("natural") position first, so calling it again
+// (e.g. on resize) recomputes cleanly instead of compounding a prior shift.
+function centerReadingUnit(mapContentEls, wrapEl, panelEl) {
+  if (!wrapEl || !panelEl) return;
+  wrapEl.style.transform = "none";
+  panelEl.style.transform = "none";
+
+  const panelRect = panelEl.getBoundingClientRect();
+  if (!panelRect || !(panelRect.width > 0)) return;
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  (mapContentEls || []).forEach((el) => {
+    if (!el || typeof el.getBoundingClientRect !== "function") return;
+    const r = el.getBoundingClientRect();
+    if (!r || !(r.width > 0) || !(r.height > 0)) return;
+    if (r.left < minX) minX = r.left;
+    if (r.right > maxX) maxX = r.right;
+  });
+  if (!Number.isFinite(minX)) return;
+  if (panelRect.left < minX) minX = panelRect.left;
+  if (panelRect.right > maxX) maxX = panelRect.right;
+
+  const combinedCenter = (minX + maxX) / 2;
+  const viewportCenter = (window.innerWidth || 1200) / 2;
+  const shift = viewportCenter - combinedCenter;
+
+  const applied = Math.abs(shift) > 0.5 ? `translateX(${shift}px)` : "";
+  wrapEl.style.transform = applied;
+  panelEl.style.transform = applied;
+}
+
+function centerStep1EmotionFullscreenReadingUnit() {
+  const wrapEl = document.getElementById("step1EmotionFullscreenWrap");
+  const panelEl = document.getElementById("step1EmotionFullscreenInfo");
+  if (!wrapEl || !panelEl || !elStep1EmotionFullscreenSvg) return;
+  const rings = Array.from(elStep1EmotionFullscreenSvg.querySelectorAll('[data-emotion-ring="1"]'));
+  centerReadingUnit(rings, wrapEl, panelEl);
+}
+
+let _step2ReadingUnitResizeArmed = false;
+
+function centerStep2ReadingUnit() {
+  const wrapEl = document.getElementById("step2MapWrap");
+  const panelEl = document.getElementById("step2ReadingInfo");
+  if (!wrapEl || !panelEl) return;
+  const mapContentEls = Array.from(document.querySelectorAll("#pageStep2 .lifepathStep2Dot, #pageStep2 .lifepathStep2Path"));
+  centerReadingUnit(mapContentEls, wrapEl, panelEl);
+}
+
 function fitStep1EmotionFullscreenInnerRing() {
   if (!elStep1EmotionFullscreenSvg) return;
   const rings = Array.from(elStep1EmotionFullscreenSvg.querySelectorAll('[data-emotion-ring="1"]'));
@@ -9140,8 +9455,7 @@ function updateStep1EmotionFullscreenInfo() {
   setStep1EmotionFullscreenInfoRow(elStep1EmotionFullscreenInfoAvg, "avg. belonging :", avg, "step1EmotionFullscreenInfoStatValue");
 
   // Raw (untransliterated, un-title-cased) country/city text -- exactly as
-  // typed on the address-entry page, unlike formatCountriesForAddresses/
-  // formatCitiesForAddresses which normalize for the archive grid.
+  // typed on the address-entry page.
   const countries = formatRawCountriesForAddresses(validAddrs);
   setStep1EmotionFullscreenInfoRow(elStep1EmotionFullscreenInfoCountries, "countries :", countries !== "--" ? countries : "", "step1EmotionFullscreenInfoListValue");
 
@@ -9431,7 +9745,10 @@ function armStep1EmotionFullscreenRingHover() {
       const ring = ringFromEventTarget(e.target);
       const homeNum = ring ? Number(ring.getAttribute("data-emotion-home-num")) || 0 : 0;
       if (homeNum > 0) {
-        openEmotionMapSoloFromStep1RingReading(homeNum - 1);
+        _emotionSoloReturnToStep1FullscreenSpread = true;
+        _emotionSoloReturnToStep2 = false;
+        const origin = buildEmotionSoloOriginFromRingEl(ring, homeNum - 1);
+        openEmotionMapSoloFromStep1RingReading(homeNum - 1, origin);
         return;
       }
       exitStep1EmotionFullscreenRingSpread();
@@ -9567,6 +9884,25 @@ function enterStep1EmotionFullscreenRingSpread(clickedRing) {
   const pxPerVbUnit = ctm ? Math.max(1e-6, Math.hypot(ctm.a, ctm.b)) : 1;
   const targetRowPx = Math.max(200, (window.innerWidth || 1200) - 160);
   const usableW = targetRowPx / pxPerVbUnit;
+
+  // The row is laid out centered on the true page middle (not on the ring
+  // cluster's own current, off-center position) -- converting the physical
+  // viewport center into this SVG's current viewBox units via the same CTM.
+  // Each ring's own dx below is still measured from its actual current
+  // position (cx), so the animation itself still glides smoothly from
+  // wherever the map currently sits; only the row's target center moves.
+  let pageCenterVbX = cx;
+  if (ctm) {
+    try {
+      const inv = ctm.inverse();
+      const pt = elStep1EmotionFullscreenSvg.createSVGPoint();
+      pt.x = (window.innerWidth || 1200) / 2;
+      pt.y = 0;
+      pageCenterVbX = pt.matrixTransform(inv).x;
+    } catch {
+      // ignore
+    }
+  }
   // Fixed edge-to-edge gap between adjacent spread rings, held to a constant
   // physical 34px on screen (converted to this viewBox's current units) —
   // the row is laid out cumulatively (each ring's edge to the next ring's
@@ -9610,7 +9946,7 @@ function enterStep1EmotionFullscreenRingSpread(clickedRing) {
   const spreadFitScale = sumShapeR > 0 ? Math.max(0.15, Math.min(1, availableForShapes / (sumShapeR * 2))) : 1;
 
   const rowWidth = sumShapeR * 2 * spreadFitScale + sumStrokeHalf * 2 + totalGaps;
-  let cursor = cx - rowWidth / 2;
+  let cursor = pageCenterVbX - rowWidth / 2;
   const targets = new Map();
   rings.forEach((ring, i) => {
     const visualR = shapeRs[i] * spreadFitScale + strokeHalves[i];
@@ -9777,6 +10113,10 @@ if (elStep1EmotionFullscreenBtn) {
     showPage("step1EmotionFullscreen");
     populateStep1EmotionFullscreenSvg();
     fitStep1EmotionFullscreenInnerRing();
+    // Map + reading panel treated as one unit and centered together (their
+    // own gap never changes) -- done before the open animation below so its
+    // own "grow to" measurement already reflects the final, centered rect.
+    centerStep1EmotionFullscreenReadingUnit();
     // Built (hidden) only once the map has finished growing into place, so
     // each label anchors to its ring's final position — they stay hidden
     // until hovered; see showStep1EmotionFullscreenRingLabel().
@@ -9789,6 +10129,7 @@ if (elStep1EmotionFullscreenBtn) {
       window.addEventListener("resize", () => {
         if (elPageStep1EmotionFullscreen && !elPageStep1EmotionFullscreen.classList.contains("hidden")) {
           fitStep1EmotionFullscreenInnerRing();
+          centerStep1EmotionFullscreenReadingUnit();
           renderStep1EmotionFullscreenRingLabels();
         }
       }, { passive: true });
@@ -9871,14 +10212,26 @@ function updateStep1HomesList() {
     getStep1DisplayValidAddresses().length,
     parseInt(String(elHomesCount?.value || ""), 10) || 0
   );
-  const validAddrs = getStep1DisplayValidAddresses();
+  // Plain committed addresses, NOT getStep1DisplayValidAddresses() -- that
+  // one merges the live, uncommitted form/preview values into whichever
+  // index is being edited, which would make this list "type live" as the
+  // user edits an address. Only totalExpected (row count) above needs the
+  // live-preview-aware version, to size in a placeholder row for a brand
+  // new home still being typed; the actual per-row content below should
+  // only ever reflect what's actually saved (addresses[idx]).
+  const validAddrs = Array.isArray(addresses) ? addresses.filter((a) => a && a.valid !== false) : [];
 
-  // A home's data should only "type itself out" once it's actually committed
-  // (the user clicked add home / finish / Save Changes) — not while it's still
-  // a live, uncommitted preview of whatever is currently in the form fields.
-  const hasPreviewOverlay = Boolean(step1PendingPreviewAddress);
+  // A brand-new home's data should only "type itself out" once it's actually
+  // committed (the user clicked add home / finish) — not while it's still a
+  // live, uncommitted preview of whatever is currently in the form fields.
+  // This does NOT apply while editing an already-committed home: that one
+  // already has real saved data, so it should keep showing it throughout the
+  // edit instead of blanking out, only actually changing once the edit is
+  // saved (add home is clicked -- addresses[idx] is what's read above, so
+  // it updates itself naturally at that point, not any sooner).
+  const hasPreviewOverlay = Boolean(step1PendingPreviewAddress) && !isStep1EditModeActive();
   const previewOverlayIdx = hasPreviewOverlay
-    ? (isStep1EditModeActive() ? _step1EditingIdx : (Array.isArray(addresses) ? addresses.length : 0))
+    ? (Array.isArray(addresses) ? addresses.length : 0)
     : -1;
 
   elStep1HomesList.innerHTML = "";
@@ -10370,7 +10723,7 @@ function updateHomeLogoScrollMorph() {
   const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--step1-scale")) || 1;
   const targetTop = 34 * scale;
   const targetLeft = 40 * scale;
-  const targetWidth = 86.4 * scale;
+  const targetWidth = 100 * scale;
 
   // Sticks once the logo's natural top edge reaches the same top margin it
   // will end up at (targetTop) -- not the bare screen edge (0).
@@ -13160,6 +13513,51 @@ function updateStep2SignatureLabel() {
   if (elPostcardCardMapName) elPostcardCardMapName.textContent = mapName;
 }
 
+// Reading panel on the route/movement map fullscreen page -- copied from
+// the emotion fullscreen page's own panel (see
+// updateStep1EmotionFullscreenInfo()), using "homes" in place of "rings".
+function updateStep2ReadingInfo() {
+  if (!elStep2ReadingInfoName) return;
+  const validAddrs = (Array.isArray(addresses) ? addresses : []).filter((a) => a && a.valid !== false);
+
+  elStep2ReadingInfoName.textContent = formatStep2SignatureDisplayName(elStudentName?.value || "");
+
+  const homesCount = validAddrs.length;
+  elStep2ReadingInfoCount.textContent = homesCount > 0
+    ? `${homesCount} home${homesCount === 1 ? "" : "s"}`
+    : "";
+
+  const birthYear = validAddrs.length ? Math.floor(Number(validAddrs[0].startYear)) : NaN;
+  const age = Number.isFinite(birthYear) ? Math.max(0, new Date().getFullYear() - birthYear) : "";
+  setStep2ReadingInfoRow(elStep2ReadingInfoAge, "age :", age, "step2ReadingInfoStatValue");
+
+  let avg = "";
+  if (validAddrs.length) {
+    const sum = validAddrs.reduce((s, a) => s + normalizeBelongingRate(a.belonging_rate, 5), 0);
+    avg = Math.round((sum / validAddrs.length) * 10) / 10;
+  }
+  setStep2ReadingInfoRow(elStep2ReadingInfoAvg, "avg. belonging :", avg, "step2ReadingInfoStatValue");
+
+  const countries = formatRawCountriesForAddresses(validAddrs);
+  setStep2ReadingInfoRow(elStep2ReadingInfoCountries, "countries :", countries !== "--" ? countries : "", "step2ReadingInfoListValue");
+
+  const cities = formatRawCitiesForAddresses(validAddrs);
+  setStep2ReadingInfoRow(elStep2ReadingInfoCities, "cities :", cities !== "--" ? cities : "", "step2ReadingInfoListValue");
+}
+
+function setStep2ReadingInfoRow(el, labelText, valueText, valueClass) {
+  if (!el) return;
+  el.textContent = "";
+  if (valueText === "" || valueText == null) return;
+  const label = document.createElement("span");
+  label.className = "step2ReadingInfoLabel";
+  label.textContent = labelText;
+  const value = document.createElement("span");
+  value.className = valueClass;
+  value.textContent = String(valueText);
+  el.append(label, value);
+}
+
 function updatePostcardCardMapName() {
   if (!elPostcardCardMapName) return;
   const name = normalizeNameForMapLabel(elStudentName?.value || "");
@@ -13489,13 +13887,14 @@ function renderStep2AddressDots() {
 
     const rate = normalizeBelongingRate(a.belonging_rate, stableBelongingRateFromId(a.id));
     const homeNo = formatHomeNumber(i + 1);
-    const label = formatAddressAsInList(a);
-    const hoverLabel = formatAddressForHoverLabel(label);
+    // Exactly as typed on the address-entry page -- same language, same
+    // spelling, no transliteration/reformatting.
+    const hoverLabel = escapeHtmlText(formatAddressAsTyped(a));
     const lat = Number(a.lat);
     const lon = Number(a.lon);
     const belongingLabel = String(rate).padStart(2, "0");
     const tooltipHtml = `<div><span>home no.${homeNo}</span><span style="margin-left: 30px;">belonging&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="position: relative; left: -9px;">${belongingLabel}</span></span></div><div>${hoverLabel}</div>`;
-    const innerRadius = 4;
+    const innerRadius = 3.6;
     const radius = innerRadius + rate / 2;
     const dot = L.circleMarker([lat, lon], {
       renderer: step2VectorRenderer,
@@ -13531,6 +13930,31 @@ function renderStep2AddressDots() {
     dot.on("mouseout", () => {
       if (typeof step2HoverResetFn === "function") step2HoverResetFn();
       enforceStep2Order();
+    });
+    dot.on("click", () => {
+      const el = typeof dot.getElement === "function" ? dot.getElement() : dot._path;
+      const rect = el && typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+      if (!rect || !(rect.width > 0) || !(rect.height > 0)) return;
+      const strokeWidthPx = belongingCircleStrokeWeight(rate);
+      const ringSize = Math.max(rect.width, rect.height);
+      _emotionSoloReturnToStep2 = true;
+      _emotionSoloReturnToStep1FullscreenSpread = false;
+      openEmotionMapSoloFromStep1RingReading(i, {
+        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+        color: overlayColor,
+        strokeWidthPx,
+        pathD: null,
+        viewBox: null,
+        targetRingSizePx: ringSize > 0 ? ringSize * 1.5 : null,
+        shapeParams: {
+          index: i,
+          phi: 0,
+          ampRatio: 0,
+          strokeRatio: null,
+          strokeWidth: strokeWidthPx,
+          strokeWidthPx,
+        },
+      });
     });
     markerLayer.addLayer(dot);
   }
@@ -13635,12 +14059,30 @@ function updateStep1TopProgress() {
   const isRtlName = /[֐-׿]/.test(studentName);
   const progressText = `\u200e${currentText}/${totalText}\u200e`;
   const isFinished = isStep1DataEntryFinished();
-  elStep1TopProgressSummary.dir = isRtlName ? "rtl" : "ltr";
   elStep1TopProgressCounter.dir = "ltr";
   elStep1TopProgressSummary.replaceChildren();
   const nameSpan = document.createElement("span");
   nameSpan.className = "step1TopProgressName";
   nameSpan.textContent = studentName;
+
+  // Editing an already-finished map (via the "edit" button, or by clicking
+  // a ring/home in the finished dashboard): "edit" is shown as its own
+  // title above the name (#step1EditModeTitle, styled/positioned exactly
+  // like .step1MapCompleteTitle -- see styles.css), so this row just needs
+  // the name + xx/yy (which home of the total is open).
+  if (step1EditModeAfterFinishActive && isStep1EditModeActive()) {
+    elStep1TopProgressSummary.dir = isRtlName ? "rtl" : "ltr";
+    const spacer = document.createTextNode("    ");
+    const homesSpan = document.createElement("span");
+    homesSpan.className = "step1TopProgressHomes";
+    homesSpan.dir = "ltr";
+    homesSpan.textContent = progressText;
+    elStep1TopProgressSummary.append(nameSpan, spacer, homesSpan);
+    elStep1TopProgressCounter.textContent = "";
+    return;
+  }
+
+  elStep1TopProgressSummary.dir = isRtlName ? "rtl" : "ltr";
   if (isFinished) {
     elStep1TopProgressSummary.append(nameSpan);
     elStep1TopProgressCounter.textContent = "";
@@ -15552,6 +15994,7 @@ if (elStudentName) {
     // Keep postcard/Step 2 labels in sync while editing.
     try {
       updateStep2SignatureLabel();
+      updateStep2ReadingInfo();
       updatePostcardCardMapName();
       updateStep1GeoMapNameLabel();
       updateStep1TopProgress();
@@ -16070,6 +16513,22 @@ function armStep1EditFieldActivation() {
   }
 }
 
+// Clicking a ring/dot that maps to a specific home during data entry
+// (before finishing): an already-entered home opens for editing as before.
+// The very next one still awaiting entry (its placeholder ring/dot, not
+// committed yet) has nothing saved to load -- clicking it instead just
+// brings focus to the form so typing can continue from there.
+function handleStep1RingClick(ringIdx) {
+  const isNextUnfilled = !isStep1EditModeActive()
+    && !isStep1DataEntryFinished()
+    && ringIdx === (Array.isArray(addresses) ? addresses.length : 0);
+  if (isNextUnfilled) {
+    if (elCity) elCity.focus({ preventScroll: true });
+    return;
+  }
+  openStep1HomeEditMode(ringIdx);
+}
+
 function openStep1HomeEditMode(ringIdx) {
   if (ringIdx < 0 || ringIdx >= (Array.isArray(addresses) ? addresses.length : 0)) return;
 
@@ -16188,7 +16647,7 @@ function openStep1HomeEditMode(ringIdx) {
       ringIdx = rings.indexOf(target);
     }
 
-    openStep1HomeEditMode(ringIdx);
+    handleStep1RingClick(ringIdx);
   });
 })();
 
@@ -16324,6 +16783,12 @@ function enterStep1EditMode(idx) {
   setStep1RingReadingEditFocus(idx);
   setStep1HomesListFocus(idx);
   setStep1EmotionEditFocus(idx);
+  // Geographic map: same "just this ring" focus the other panels already
+  // get, instead of staying zoomed out to the whole route.
+  const editAddr = Array.isArray(addresses) ? addresses[idx] : null;
+  if (editAddr && Number.isFinite(editAddr.lat) && Number.isFinite(editAddr.lon)) {
+    focusStep1GeoMapAt(editAddr.lat, editAddr.lon, 15.5, { animate: true });
+  }
   if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
 }
 
@@ -16336,6 +16801,8 @@ function exitStep1EditMode() {
   setStep1RingReadingEditFocus(-1);
   setStep1HomesListFocus(-1);
   setStep1EmotionEditFocus(-1);
+  // Zoom back out to the whole route, reversing the single-ring focus above.
+  fitStep1GeoMapToAllAddresses({ animate: true });
   updateStep1Headers();
   if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
 }
@@ -16413,7 +16880,14 @@ if (elStep1AddrNextBtn) {
     address.lon = prev.lon;
     address.displayName = prev.displayName || "";
 
-    exitStep1EditMode();
+    // Reviewing/re-saving homes one at a time after finish (see "edit"):
+    // stay in edit mode and advance to the next ring below instead of
+    // exiting immediately, unless this is the last ring in the review.
+    const isAfterFinishEdit = step1EditModeAfterFinishActive && editingIdx >= 0;
+    const isLastInAfterFinishReview = isAfterFinishEdit && editingIdx >= addresses.length - 1;
+    if (!isAfterFinishEdit || isLastInAfterFinishReview) {
+      exitStep1EditMode();
+    }
 
     const lastHome = editingIdx >= 0
       ? (addresses.length >= (parseInt(String(elHomesCount?.value || ""), 10) || 0))
@@ -16452,6 +16926,7 @@ if (elStep1AddrNextBtn) {
       // Keep the current layout — don't change phases.
       step1SummaryPhaseActive = true;
       if (elPageStep1) elPageStep1.classList.add("step1-finished-state");
+      growStep1DashboardAnimated();
       // Deliberately NOT stopping the per-home entry loops here: this path
       // never calls renderStep1EmotionMap()/startEmotionSound() (see the
       // "keep placeholders intact" comment above), so those entry loops are
@@ -16516,9 +16991,17 @@ if (elStep1AddrNextBtn) {
       resetStep1BelongingSliderToDefault();
       finishStep1AddressFieldsClearAnimation();
 
-      // If editing after all homes were done, re-hide the form + this button —
-      // back to "click any ring/address to edit it" browsing, per home.
-      if (lastHome) {
+      if (isAfterFinishEdit && !isLastInAfterFinishReview) {
+        // More rings left to review — advance to the next one, still in
+        // edit mode (repopulates the form with its saved data).
+        openStep1HomeEditMode(editingIdx + 1);
+      } else if (isAfterFinishEdit) {
+        // Was the last ring in the review sequence — fully exit back to
+        // the normal (grown) finished dashboard.
+        step1ExitEditAfterFinish();
+      } else if (lastHome) {
+        // If editing after all homes were done, re-hide the form + this button —
+        // back to "click any ring/address to edit it" browsing, per home.
         const divAddrEdit = elPageStep1 && elPageStep1.querySelector(".div-3 > .div-2");
         if (divAddrEdit) divAddrEdit.style.display = "none";
         if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
@@ -16526,7 +17009,7 @@ if (elStep1AddrNextBtn) {
 
       updateStep1AddrNextBtnState();
       updateStep1Headers();
-      if (!lastHome && elCity) elCity.focus({ preventScroll: true });
+      if (!lastHome && !isAfterFinishEdit && elCity) elCity.focus({ preventScroll: true });
     }
   });
 }
@@ -16709,6 +17192,7 @@ if (elStep1BelongNextBtn) {
       // Recolor route to black.
       step1SummaryPhaseActive = true;
       if (elPageStep1) elPageStep1.classList.add("step1-finished-state");
+      growStep1DashboardAnimated();
       stopStep1EntrySound();
       updateStep1TopProgress();
       clearStep1HomesListFocus();
@@ -16847,6 +17331,29 @@ if (elEmotionSoloBackBtn) {
     stopEmotionSoundForSoloRing();
     setEmotionSoundFocus(null);
     resumeStep1EntrySoundFromSolo();
+
+    // Came here from the fullscreen emotion map's ring spread (see the
+    // spread click handler) -- return there instead of Step 1, re-entering
+    // spread so it looks exactly like where the user left off.
+    if (_emotionSoloReturnToStep1FullscreenSpread) {
+      _emotionSoloReturnToStep1FullscreenSpread = false;
+      _step1SkipSoundRebuildOnce = true;
+      showPage("step1EmotionFullscreen");
+      populateStep1EmotionFullscreenSvg();
+      fitStep1EmotionFullscreenInnerRing();
+      enterStep1EmotionFullscreenRingSpread(null);
+      return;
+    }
+
+    // Came here from the route/movement map (Step 2) -- return there instead
+    // of Step 1. showPage("step2") already fully re-renders the map/dots/
+    // reading panel on every entry, so no extra rebuild is needed here.
+    if (_emotionSoloReturnToStep2) {
+      _emotionSoloReturnToStep2 = false;
+      showPage("step2");
+      return;
+    }
+
     // showPage("step1") below always triggers renderStep1EmotionMap(), which
     // would otherwise tear down and rebuild the sound session — this flag
     // tells it to leave sound alone this one time, so what
@@ -17695,7 +18202,13 @@ function updateAddHomeBtnState() {
   // the default add-home image, same as the plain "add home" state.
   const img = elAddHomeBtn.querySelector(".btnImg");
   if (img) {
-    const showFinish = !isStep1EditModeActive() && isLastHome();
+    // Reviewing homes one at a time after finish (see step1EditAfterFinish()):
+    // "finish" shows specifically on the last ring in that review sequence,
+    // since saving it exits edit mode instead of advancing to another one.
+    const isLastInAfterFinishReview = step1EditModeAfterFinishActive
+      && isStep1EditModeActive()
+      && _step1EditingIdx >= (Array.isArray(addresses) ? addresses.length : 0) - 1;
+    const showFinish = (!isStep1EditModeActive() && isLastHome()) || isLastInAfterFinishReview;
     img.classList.toggle("btnImgFinish", showFinish);
     img.classList.toggle("btnImgAddHome", !showFinish);
     img.src = showFinish ? "buttons/finish.png" : "buttons/add-home.png";
@@ -17913,6 +18426,7 @@ if (elCreateLifePathBtn) {
 
     // Ensure the signature label is computed before showing Step 2.
     updateStep2SignatureLabel();
+    updateStep2ReadingInfo();
 
     if (createLifePathTransitionActive) return;
     createLifePathTransitionActive = true;
@@ -19590,6 +20104,7 @@ function resetForNextStudent() {
       "step1-finished-state"
     );
   }
+  step1DashboardGrown = false;
   renderList();
   clearMap();
 

@@ -6,7 +6,7 @@
     <title>LifePath</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="styles.css?v=2026-07-19-freeze-layout" />
+    <link rel="stylesheet" href="styles.css?v=2026-07-22-dot-color-expand-nextring" />
   </head>
   <body>
     <main class="app">
@@ -60,7 +60,7 @@
         <header class="topbar">
           <button id="archiveBackBtn" class="archiveBackBtn closeToHomeBtn textLink" type="button"><img class="btnImg btnImgBack" src="buttons/back.png" alt="back" /></button>
           <div class="archiveSearchWrap">
-            <input id="archiveSearchInput" class="archiveSearchInput" type="text" placeholder="search name" aria-label="Search maps by name" />
+            <input id="archiveSearchInput" class="archiveSearchInput" type="text" placeholder="search map" aria-label="Search maps by name" />
           </div>
         </header>
 
@@ -120,6 +120,7 @@
           <div class="step1LeftOverlay" aria-hidden="true"></div>
           <h1 class="createYourMapTitle">CREATE YOUR MAP</h1>
           <h1 class="step1MapCompleteTitle">YOUR MAP IS COMPLETE</h1>
+          <h1 id="step1EditModeTitle" class="step1EditModeTitle">edit</h1>
           <h2 class="step1EmotionMapTitle">EMOTION MAP</h2>
           <div id="step1AvgBelonging" class="step1PanelStat step1AvgBelonging"></div>
           <div id="step1RingReading" class="step1RingReading" aria-label="Ring reading">
@@ -238,12 +239,12 @@
         </header>
 
         <div class="step1EmotionFullscreenBody">
-          <div class="step1EmotionFullscreenWrap" aria-label="Emotion map (full screen)">
+          <div id="step1EmotionFullscreenWrap" class="step1EmotionFullscreenWrap" aria-label="Emotion map (full screen)">
             <svg id="step1EmotionFullscreenSvg" class="step1EmotionFullscreenSvg" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
           </div>
 
           <div id="step1EmotionFullscreenInfo" class="step1EmotionFullscreenInfo" aria-label="Emotion map reading">
-            <div class="step1EmotionFullscreenInfoTitle">emotion map reading</div>
+            <div class="step1EmotionFullscreenInfoTitle">map reading</div>
             <div class="step1EmotionFullscreenInfoNameRow">
               <span id="step1EmotionFullscreenInfoName" class="step1EmotionFullscreenInfoName"></span>
               <span id="step1EmotionFullscreenInfoRings" class="step1EmotionFullscreenInfoRings"></span>
@@ -271,12 +272,29 @@
 
   <img class="step2LogoText appLogoImage" src="logo.png" alt="LifePath" />
 
-        <div class="mapWrap">
+        <div id="step2MapWrap" class="mapWrap">
           <div id="map" class="map" aria-label="Vector path map"></div>
         </div>
 
         <div id="signatureLabel" class="step2Signature" aria-hidden="true"></div>
         <div id="coordinateLabel" class="step2Coordinates hidden" aria-hidden="true"></div>
+
+        <div id="step2ReadingInfo" class="step2ReadingInfo" aria-label="Map reading">
+          <div class="step2ReadingInfoTitle">map reading</div>
+          <div class="step2ReadingInfoNameRow">
+            <span id="step2ReadingInfoName" class="step2ReadingInfoName"></span>
+            <span id="step2ReadingInfoCount" class="step2ReadingInfoCount"></span>
+          </div>
+          <div class="step2ReadingInfoStats">
+            <div id="step2ReadingInfoAge" class="step2ReadingInfoStat"></div>
+            <div id="step2ReadingInfoAvg" class="step2ReadingInfoStat"></div>
+          </div>
+          <div class="step2ReadingInfoLists">
+            <div id="step2ReadingInfoCountries" class="step2ReadingInfoList"></div>
+            <div id="step2ReadingInfoCities" class="step2ReadingInfoList"></div>
+          </div>
+          <div class="step2ReadingInfoHint">Click a point to open Ring Reading</div>
+        </div>
 
         <!-- Keep existing controls in DOM (hidden) to avoid breaking JS references -->
         <div class="hidden">
@@ -349,6 +367,6 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-      <script src="app.js?v=2026-07-19-freeze-layout"></script>
+      <script src="app.js?v=2026-07-22-dot-color-expand-nextring"></script>
   </body>
 </html>
