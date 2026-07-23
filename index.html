@@ -6,7 +6,7 @@
     <title>LifePath</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="styles.css?v=2026-07-22-dot-color-expand-nextring" />
+    <link rel="stylesheet" href="styles.css?v=2026-07-23-allmaps-dot-fill-mode" />
   </head>
   <body>
     <main class="app">
@@ -81,8 +81,10 @@
         </header>
 
         <img class="step2LogoText appLogoImage" src="logo.png" alt="LifePath" />
-        <h2 class="step2MapTitle">ARCHIVE: ALL MAPS</h2>
-        <div id="allMapsTotalLabel" class="allMapsTotalLabel" aria-hidden="true">total maps: 00</div>
+
+        <div id="allMapsZoomHint" class="allMapsZoomHint" aria-hidden="true">
+          <span class="allMapsZoomHintText">zoom in</span>
+        </div>
 
         <div class="allMapsBody">
           <div id="savedMapsEmpty" class="allMapsEmpty hidden">No saved maps yet.</div>
@@ -90,10 +92,13 @@
           <div id="allMapsCountLabel" class="allMapsCount" aria-hidden="true"></div>
           <button type="button" id="allMapsHideMapBtn" class="textLink">show map</button>
           <div class="allMapsPanel" aria-label="Saved maps list">
-            <div class="allMapsSearchWrap">
-              <input id="allMapsSearchInput" class="allMapsSearchInput" type="text" placeholder="search name" aria-label="Search all maps by name" />
+            <div class="allMapsListToggleRow">
+              <button type="button" id="allMapsListToggleBtn" class="allMapsListToggle" aria-expanded="false" aria-controls="savedMapsList">show maps list</button>
             </div>
-            <ol id="savedMapsList" class="allMapsList"></ol>
+            <div class="allMapsSearchWrap allMapsListCollapsed">
+              <input id="allMapsSearchInput" class="allMapsSearchInput" type="text" placeholder="search map" aria-label="Search all maps by name" />
+            </div>
+            <ol id="savedMapsList" class="allMapsList allMapsListCollapsed"></ol>
           </div>
         </div>
       </section>
@@ -367,6 +372,6 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-      <script src="app.js?v=2026-07-22-dot-color-expand-nextring"></script>
+      <script src="app.js?v=2026-07-23-allmaps-dot-fill-mode"></script>
   </body>
 </html>

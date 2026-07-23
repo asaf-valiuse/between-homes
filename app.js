@@ -2576,15 +2576,35 @@ function getStep2RouteDotFillStyle() {
   };
 }
 
+// Tied to "show map" (allMapsTilesVisible) -- see restyleAllMapsOverlaysForBasemap()
+// and the render loop in renderAllMapsCombinedMap() for how the
+// highlighted/dimmed variants (getAllMapsHighlightColor()/
+// getAllMapsDimmedRouteColor()) build on top of this.
 function getAllMapsOverlayStrokeColor() {
-  // Tiles are at 20% opacity, so routes stay black for visibility.
-  return "#000000";
+  return allMapsTilesVisible ? "#f4f2eb" : "#000000";
+}
+
+function getAllMapsHighlightColor() {
+  // While the map is showing, the selected/highlighted route just stays at
+  // the same "shown" color as every other route -- only the *other*
+  // (dimmed) routes get recolored, via getAllMapsDimmedRouteColor().
+  return allMapsTilesVisible ? "#f4f2eb" : "#000000";
+}
+
+function getAllMapsDimmedRouteColor() {
+  return allMapsTilesVisible ? "#77756d" : "#c8c7c1";
 }
 
 function getAllMapsRouteDotFillStyle() {
+  if (allMapsTilesVisible) {
+    return {
+      fillColor: "transparent",
+      fillOpacity: 0,
+    };
+  }
   return {
-    fillColor: "transparent",
-    fillOpacity: 0,
+    fillColor: "#f4f2ea",
+    fillOpacity: 1,
   };
 }
 
@@ -2644,14 +2664,15 @@ function restyleStep2OverlaysForBasemap() {
 function restyleAllMapsOverlaysForBasemap() {
   if (!allMapsVectorLayer) return;
   const baseColor = getAllMapsOverlayStrokeColor();
-  const highlightColor = "#000000";
+  const highlightColor = getAllMapsHighlightColor();
+  const dimmedColor = getAllMapsDimmedRouteColor();
   const someHighlighted = Boolean(allMapsHighlightedKey);
   try {
     allMapsVectorLayer.eachLayer((layer) => {
       if (!layer || typeof layer.setStyle !== "function") return;
       const key = String(layer?.options?.lifepathAllMapsKey || "");
       const isHighlighted = someHighlighted && Boolean(key) && key === allMapsHighlightedKey;
-      const color = isHighlighted ? highlightColor : (someHighlighted ? "#c8c7c1" : baseColor);
+      const color = isHighlighted ? highlightColor : (someHighlighted ? dimmedColor : baseColor);
       layer.setStyle({ color, ...getAllMapsRouteDotFillStyle() });
     });
     // Bring highlighted layers to the top so they're never hidden by gray routes.
@@ -3067,21 +3088,7 @@ function renderMapLabelLikeSignature(target, snapshot, fallbackLabel) {
   const raw = String(fallbackLabel || snapshot?.label || "").trim();
   const match = raw.match(/^(.+)\.(\d+)addrs$/i);
   const name = formatStep2SignatureDisplayName(snapshot?.fullName || (match ? formatArchiveMapNamePart(match[1]) : ""));
-  const count = formatAddrCount(Array.isArray(snapshot?.addresses) ? snapshot.addresses.length : (match ? Number(match[2]) : 0));
-  target.textContent = "";
-  if (!name || !count) {
-    target.textContent = raw;
-    return;
-  }
-  const main = document.createElement("div");
-  main.className = "step2SignatureMain";
-  const nameEl = document.createElement("span");
-  nameEl.textContent = name;
-  const countEl = document.createElement("span");
-  countEl.className = "step2SignatureCount";
-  countEl.textContent = `${count} addrs`;
-  main.append(nameEl, countEl);
-  target.appendChild(main);
+  target.textContent = name || raw;
 }
 
 function normalizeNameForMapLabel(text) {
@@ -5024,9 +5031,10 @@ const elAllMapsMap = document.getElementById("allMapsMap");
 const elAllMapsHideMapBtn = document.getElementById("allMapsHideMapBtn");
 const elAllMapsEditBtn = document.getElementById("allMapsEditBtn");
 const elAllMapsCountLabel = document.getElementById("allMapsCountLabel");
-const elAllMapsTotalLabel = document.getElementById("allMapsTotalLabel");
 const elAllMapsZoomLabel = document.getElementById("allMapsZoomLabel");
 const elAllMapsSearchInput = document.getElementById("allMapsSearchInput");
+const elAllMapsSearchWrap = document.querySelector("#pageAllMaps .allMapsSearchWrap");
+const elAllMapsListToggleBtn = document.getElementById("allMapsListToggleBtn");
 
 const elCountry = document.getElementById("country");
 const elCity = document.getElementById("city");
@@ -5142,7 +5150,14 @@ function updateStep1Scale() {
   let headerTimelineTop = 206;
   if (step1DashboardGrown) {
     const desiredGrowth = dashboardHeightBase * 0.4;
-    const compression = Math.min(desiredGrowth, Math.max(0, headerSlack));
+    const rawCompression = Math.min(desiredGrowth, Math.max(0, headerSlack));
+    // The whole grown dashboard reads 10% shorter than the plain +40% growth
+    // above would give -- applied to the full grown height (base + growth),
+    // not just the growth portion, so it's derived here rather than just
+    // scaling desiredGrowth.
+    const grownHeightFull = dashboardHeightBase + rawCompression;
+    const grownHeightTarget = grownHeightFull * 0.9;
+    const compression = Math.max(0, grownHeightTarget - dashboardHeightBase);
     const t = headerSlack > 0 ? compression / headerSlack : 0;
     const newGapToLabel = gapToLabel - (gapToLabel - MIN_GAP_LABEL) * t;
     const newGapToTimeline = gapToTimeline - (gapToTimeline - MIN_GAP_TIMELINE) * t;
@@ -6877,6 +6892,15 @@ function updateCurrentEmotionRingStroke(rate) {
   if (idx < allRings.length) {
     const w = emotionRingStrokeWeight(rate);
     allRings[idx].setAttribute("stroke-width", String(w));
+    // Keep the ring's own breathe-loop state in sync too -- otherwise the
+    // updateAllEmotionRingAngles() call right after this one reads the
+    // stale pre-drag ring.sw as its new transition's start value and the
+    // stroke visibly snaps back before re-animating to what we just set.
+    const ringData = _activeEmotionRings.find((r) => r.idx === idx);
+    if (ringData) {
+      ringData.sw = w;
+      if (ringData._transition) ringData._transition.oldSW = w;
+    }
   }
 }
 
@@ -10462,6 +10486,9 @@ function resetAllMapsZoomToBase() {
     focusAllMapsOnIsraelLocationsMax();
     setAllMapsZoomLabelBaseToCurrentView();
     updateAllMapsZoomLabel();
+    allMapsZoomHintBaseZoom = allMapsMap.getZoom();
+    allMapsZoomHintDismissed = false;
+    updateAllMapsZoomHint();
   } catch {
     // ignore
   }
@@ -10547,7 +10574,8 @@ function focusAllMapsOnHighlightedSnapshotIsraelOnly(targetKey) {
 
   if (allValidPts.length === 1) {
     try {
-      allMapsMap.setView(allValidPts[0], 6, { animate: false });
+      // Slightly less zoomed in than a plain fixed 6.
+      allMapsMap.setView(allValidPts[0], 5.3, { animate: false });
       enforceMinZoomToAvoidBlankViewport(allMapsMap);
       return true;
     } catch {
@@ -10560,7 +10588,9 @@ function focusAllMapsOnHighlightedSnapshotIsraelOnly(targetKey) {
     : (allValidPts.length > 0 ? L.latLngBounds(allValidPts) : ISRAEL_BOUNDS);
   if (!bounds.isValid()) return false;
 
-  const pad = (israelPts.length > 0 || allValidPts.length > 0) ? 0.06 : ISRAEL_FIT_PADDING;
+  // More padding than before -- fits the same bounds slightly less
+  // tightly/zoomed in.
+  const pad = (israelPts.length > 0 || allValidPts.length > 0) ? 0.12 : ISRAEL_FIT_PADDING;
   try {
     allMapsMap.fitBounds(bounds.pad(pad), {
       animate: false,
@@ -10577,7 +10607,6 @@ function updateAllMapsCountLabel(visibleCount) {
   const n = Math.max(0, Number(visibleCount) || 0);
   const two = n < 100 ? String(n).padStart(2, "0") : String(n);
   if (elAllMapsCountLabel) elAllMapsCountLabel.textContent = `${two}lifepathe.maps`;
-  if (elAllMapsTotalLabel) elAllMapsTotalLabel.textContent = `total maps: ${two}`;
 }
 
 function updateAllMapsHideMapLabel() {
@@ -10592,6 +10621,7 @@ function setAllMapsTilesVisible(enabled) {
     updateAllMapsHideMapLabel();
     if (elPageAllMaps) {
       elPageAllMaps.classList.toggle("dark-map-ui", Boolean(allMapsTilesVisible) && isDarkBasemap(basemapStyleId));
+      elPageAllMaps.classList.toggle("tiles-visible", Boolean(allMapsTilesVisible));
     }
     restyleAllMapsOverlaysForBasemap();
     return;
@@ -10622,6 +10652,7 @@ function setAllMapsTilesVisible(enabled) {
 
   if (elPageAllMaps) {
     elPageAllMaps.classList.toggle("dark-map-ui", Boolean(allMapsTilesVisible) && isDarkBasemap(basemapStyleId));
+    elPageAllMaps.classList.toggle("tiles-visible", Boolean(allMapsTilesVisible));
   }
 
   // Keep overlays readable when toggling tiles.
@@ -10639,8 +10670,8 @@ function ensureAllMapsMap() {
     zoomControl: false,
     attributionControl: false,
     // Smoother zoom on trackpads / high-res wheels.
-    zoomSnap: 0.3,
-    zoomDelta: 0.3,
+    zoomSnap: 0.4,
+    zoomDelta: 0.4,
     wheelPxPerZoomLevel: 50,
     wheelDebounceTime: 15,
   });
@@ -10670,6 +10701,7 @@ function ensureAllMapsMap() {
 
   allMapsMap.on("zoomend", () => {
     updateAllMapsZoomLabel();
+    updateAllMapsZoomHint();
     if (allMapsTilesVisible && isLineArtBasemap(basemapStyleId) && allMapsLineArtLayer) {
       scheduleLineArtUpdate(allMapsMap, allMapsLineArtLayer, allMapsLineArtState);
     }
@@ -10679,6 +10711,11 @@ function ensureAllMapsMap() {
     if (allMapsTilesVisible && isLineArtBasemap(basemapStyleId) && allMapsLineArtLayer) {
       scheduleLineArtUpdate(allMapsMap, allMapsLineArtLayer, allMapsLineArtState);
     }
+  });
+
+  // Clicking anywhere on the routes/map area cancels the current focus.
+  allMapsMap.on("click", () => {
+    if (allMapsHighlightedKey) toggleAllMapsHighlightKey(allMapsHighlightedKey);
   });
 
   // Use a sane default view near Israel (match Step 2; avoid world view).
@@ -10802,6 +10839,40 @@ if (elPageWelcome) {
   elPageWelcome.addEventListener("mousemove", handleHomePageMouseMove);
 }
 
+// All Maps: "zoom in" hint, same cursor-following pattern as the home
+// page's scroll hint above. Visible until the user zooms in past whatever
+// zoom level the map started at (allMapsZoomHintBaseZoom, captured in
+// resetAllMapsZoomToBase() once the initial fit settles) -- unlike the
+// scroll hint, this is a one-way latch: once hidden by zooming in, it
+// stays hidden even if the user zooms back out.
+let allMapsZoomHintX = 60;
+let allMapsZoomHintY = 60;
+let allMapsZoomHintBaseZoom = null;
+let allMapsZoomHintDismissed = false;
+
+function updateAllMapsZoomHint() {
+  const hint = document.getElementById("allMapsZoomHint");
+  if (!hint) return;
+  if (!allMapsZoomHintDismissed) {
+    const zoomedIn = Boolean(
+      allMapsZoomHintBaseZoom !== null && allMapsMap && allMapsMap.getZoom() > allMapsZoomHintBaseZoom + 0.05
+    );
+    if (zoomedIn) allMapsZoomHintDismissed = true;
+  }
+  hint.style.transform = `translate(${allMapsZoomHintX + HOME_SCROLL_HINT_OFFSET_X}px, ${allMapsZoomHintY + HOME_SCROLL_HINT_OFFSET_Y}px)`;
+  hint.classList.toggle("allMapsZoomHintHidden", allMapsZoomHintDismissed);
+}
+
+function handleAllMapsMouseMove(e) {
+  allMapsZoomHintX = e.clientX;
+  allMapsZoomHintY = e.clientY;
+  updateAllMapsZoomHint();
+}
+
+if (elPageAllMaps) {
+  elPageAllMaps.addEventListener("mousemove", handleAllMapsMouseMove);
+}
+
 let homeLogoScrollRaf = 0;
 function scheduleHomeLogoScrollMorph() {
   if (homeLogoScrollRaf) return;
@@ -10893,6 +10964,36 @@ function toggleHiddenSavedMapSnapshot(keyOrLabel) {
   renderAllMapsCombinedMap();
 }
 
+// Shared by a list entry's name and its on/off button (see
+// renderAllMapsCombinedMap()) -- both toggle the exact same highlight/focus
+// state, just from two different controls.
+function toggleAllMapsHighlightKey(effectiveKey) {
+  if (allMapsHighlightedKey && effectiveKey && allMapsHighlightedKey === effectiveKey) {
+    allMapsHighlightedKey = null;
+    allMapsPendingFocusKey = null;
+    if (allMapsViewBeforeHighlightFocus && isFinite(allMapsViewBeforeHighlightFocus.zoom)) {
+      allMapsPendingRestoreView = allMapsViewBeforeHighlightFocus;
+    }
+    allMapsViewBeforeHighlightFocus = null;
+  } else {
+    // Remember the current view so toggling off can restore it.
+    try {
+      const c = allMapsMap ? allMapsMap.getCenter() : null;
+      const z = allMapsMap ? allMapsMap.getZoom() : NaN;
+      if (c && isFinite(c.lat) && isFinite(c.lng) && isFinite(z)) {
+        allMapsViewBeforeHighlightFocus = { center: c, zoom: z };
+      } else {
+        allMapsViewBeforeHighlightFocus = null;
+      }
+    } catch {
+      allMapsViewBeforeHighlightFocus = null;
+    }
+    allMapsHighlightedKey = effectiveKey || null;
+    allMapsPendingFocusKey = allMapsHighlightedKey;
+  }
+  renderAllMapsCombinedMap();
+}
+
 function renderAllMapsCombinedMap() {
   if (!allMapsMap || !allMapsVectorLayer || !elSavedMapsEmpty) return;
 
@@ -10940,11 +11041,9 @@ function renderAllMapsCombinedMap() {
 
   updateAllMapsCountLabel(visibleItems.length);
 
-  const tooltipIndex = buildAllMapsTooltipIndex(visibleItems);
-
   if (elSavedMapsList) {
     elSavedMapsList.innerHTML = "";
-    for (const snap of sortedItems) {
+    sortedItems.forEach((snap, idx) => {
       const li = document.createElement("li");
       li.className = "allMapsListItem";
 
@@ -10960,36 +11059,19 @@ function renderAllMapsCombinedMap() {
       const isNameHighlighted = Boolean(allMapsHighlightedKey) && Boolean(effectiveKey) && effectiveKey === allMapsHighlightedKey;
       if (isNameHighlighted) nameBtn.classList.add("isHighlighted");
       else if (allMapsHighlightedKey) nameBtn.classList.add("isDimmed");
-      nameBtn.addEventListener("click", () => {
-        if (allMapsHighlightedKey && effectiveKey && allMapsHighlightedKey === effectiveKey) {
-          allMapsHighlightedKey = null;
-          allMapsPendingFocusKey = null;
-          if (allMapsViewBeforeHighlightFocus && isFinite(allMapsViewBeforeHighlightFocus.zoom)) {
-            allMapsPendingRestoreView = allMapsViewBeforeHighlightFocus;
-          }
-          allMapsViewBeforeHighlightFocus = null;
-        } else {
-          // Remember the current view so toggling off can restore it.
-          try {
-            const c = allMapsMap ? allMapsMap.getCenter() : null;
-            const z = allMapsMap ? allMapsMap.getZoom() : NaN;
-            if (c && isFinite(c.lat) && isFinite(c.lng) && isFinite(z)) {
-              allMapsViewBeforeHighlightFocus = { center: c, zoom: z };
-            } else {
-              allMapsViewBeforeHighlightFocus = null;
-            }
-          } catch {
-            allMapsViewBeforeHighlightFocus = null;
-          }
-          allMapsHighlightedKey = effectiveKey || null;
-          allMapsPendingFocusKey = allMapsHighlightedKey;
-        }
-        renderAllMapsCombinedMap();
-      });
+      nameBtn.addEventListener("click", () => toggleAllMapsHighlightKey(effectiveKey));
 
-      li.appendChild(nameBtn);
+      // Sequential index next to each name (001, 002, ...), replacing the
+      // old on/off button.
+      const numberEl = document.createElement("span");
+      numberEl.className = "allMapsListNumber";
+      if (isNameHighlighted) numberEl.classList.add("isHighlighted");
+      else if (allMapsHighlightedKey) numberEl.classList.add("isDimmed");
+      numberEl.textContent = String(idx + 1).padStart(3, "0");
+
+      li.append(nameBtn, numberEl);
       elSavedMapsList.appendChild(li);
-    }
+    });
 
     // Keep search behavior stable after list re-renders: do not filter,
     // only jump focus to the first matching name.
@@ -11010,7 +11092,8 @@ function renderAllMapsCombinedMap() {
     const effectiveKey = snapKey || snapLabel;
     const isHighlighted = Boolean(allMapsHighlightedKey) && Boolean(effectiveKey) && effectiveKey === allMapsHighlightedKey;
     const someHighlighted = Boolean(allMapsHighlightedKey);
-    const highlightColor = "#000000";
+    const highlightColor = getAllMapsHighlightColor();
+    const dimmedColor = getAllMapsDimmedRouteColor();
 
     /** @type {L.CircleMarker[]} */
     const highlightedDots = [];
@@ -11040,7 +11123,7 @@ function renderAllMapsCombinedMap() {
       const innerRadius = 4;
       const radius = innerRadius + rate / 2;
       const baseColor = getAllMapsOverlayStrokeColor();
-      const overlayColor = isHighlighted ? highlightColor : (someHighlighted ? "#c8c7c1" : baseColor);
+      const overlayColor = isHighlighted ? highlightColor : (someHighlighted ? dimmedColor : baseColor);
       const dot = L.circleMarker([lat, lon], {
         radius,
         weight: belongingCircleStrokeWeight(rate),
@@ -11049,16 +11132,6 @@ function renderAllMapsCombinedMap() {
         ...getAllMapsRouteDotFillStyle(),
         lifepathAllMapsKey: effectiveKey,
       });
-      const key = allMapsCoordKey(lat, lon);
-      const hoverHtml = tooltipIndex.get(key) || "";
-      if (hoverHtml) {
-        dot.bindTooltip(hoverHtml, {
-          direction: "right",
-          offset: [12, 0],
-          sticky: false,
-          className: "lifepathAllMapsTooltip",
-        });
-      }
       allMapsVectorLayer.addLayer(dot);
       if (isHighlighted && typeof dot.bringToFront === "function") highlightedDots.push(dot);
     }
@@ -11067,7 +11140,7 @@ function renderAllMapsCombinedMap() {
 
     if (segments.length) {
       const baseColor = getAllMapsOverlayStrokeColor();
-      const overlayColor = isHighlighted ? highlightColor : (someHighlighted ? "#c8c7c1" : baseColor);
+      const overlayColor = isHighlighted ? highlightColor : (someHighlighted ? dimmedColor : baseColor);
       const line = L.polyline(segments, {
         weight: 1,
         opacity: 1,
@@ -11173,59 +11246,23 @@ function renderAllMapsCombinedMap() {
   }
 }
 
-function allMapsCoordKey(lat, lon) {
-  const a = Number(lat);
-  const b = Number(lon);
-  // 6 decimals ~ 0.1m-0.2m at these latitudes; good enough for stable grouping.
-  return `${a.toFixed(6)},${b.toFixed(6)}`;
-}
-
-function connectedFullNameForHover(raw) {
-  const s = sanitizeEnglishOnlyName(String(raw || "").trim());
-  // Keep casing, remove spaces/punctuation.
-  return s.replace(/[^A-Za-z]+/g, "");
-}
-
-function buildAllMapsTooltipIndex(items) {
-  /** @type {Map<string, Set<string>>} */
-  const byCoord = new Map();
-
-  for (const snap of items) {
-    const fullConnected = connectedFullNameForHover(snap?.fullName || "");
-    const addrs = Array.isArray(snap?.addresses) ? snap.addresses : [];
-    for (const a of addrs) {
-      if (!a || a.valid === false) continue;
-      const lat = Number(a.lat);
-      const lon = Number(a.lon);
-      if (!isFinite(lat) || !isFinite(lon)) continue;
-
-      const rate = normalizeBelongingRate(a.belonging_rate, stableBelongingRateFromId(a.id));
-      const rate2 = String(Math.max(0, Math.floor(Number(rate) || 0))).padStart(2, "0");
-
-      const namePart = fullConnected || String(snap?.label || "");
-      const line = `${namePart}.belonging${rate2}`;
-
-      const key = allMapsCoordKey(lat, lon);
-      const set = byCoord.get(key) || new Set();
-      set.add(line);
-      byCoord.set(key, set);
-    }
-  }
-
-  /** @type {Map<string, string>} */
-  const out = new Map();
-  for (const [k, set] of byCoord.entries()) {
-    const lines = Array.from(set);
-    lines.sort((a, b) => a.localeCompare(b));
-    out.set(k, lines.join("<br>"));
-  }
-  return out;
-}
-
 if (elAllMapsHideMapBtn) {
   elAllMapsHideMapBtn.addEventListener("click", () => {
     ensureAllMapsMap();
     toggleAllMapsTiles();
+  });
+}
+
+if (elAllMapsListToggleBtn && elSavedMapsList) {
+  let allMapsListVisible = false;
+  elAllMapsListToggleBtn.addEventListener("click", () => {
+    allMapsListVisible = !allMapsListVisible;
+    // The search row only ever shows alongside the names list (see
+    // .allMapsListCollapsed in styles.css for the fade/slide animation).
+    elSavedMapsList.classList.toggle("allMapsListCollapsed", !allMapsListVisible);
+    if (elAllMapsSearchWrap) elAllMapsSearchWrap.classList.toggle("allMapsListCollapsed", !allMapsListVisible);
+    elAllMapsListToggleBtn.textContent = allMapsListVisible ? "hide maps list" : "show maps list";
+    elAllMapsListToggleBtn.setAttribute("aria-expanded", allMapsListVisible ? "true" : "false");
   });
 }
 
@@ -11318,8 +11355,12 @@ const EMOTION_RING_SCALE = 0.845 * EMOTION_TIGHTEN * EMOTION_GEOMETRY_SCALE * EM
 // Requirement: tighten strokes by 50%, while still reflecting belonging rate.
 const EMOTION_STROKE_SCALE = 0.319 * EMOTION_TIGHTEN * EMOTION_GEOMETRY_SCALE * EMOTION_STROKE_THICKEN;
 // Visual strength of the belonging/location distortion.
-// Higher => stronger pull/push at the ring's location angle.
-const EMOTION_DISTORTION_SCALE = 5.6;
+// Higher => stronger pull/push at the ring's location angle. Scaled down
+// 10% across every rate (rate 10 included) so its own already-dampened pull
+// (see rate10Dampen below) reads a bit weaker still, while every other
+// rate's pull shrinks by that same proportion, preserving their relative
+// balance.
+const EMOTION_DISTORTION_SCALE = 5.6 * 0.9;
 // Distortion response curve: higher => increases separation near 10.
 const EMOTION_DISTORTION_EXP = 1.35;
 // Max distortion amplitude as a fraction of ring radius (before curve applied).
@@ -12238,7 +12279,9 @@ function ringDistortionOptsForAmp(amplitude, organicSeed) {
   const a = Number(amplitude) || 0;
   const base = {};
   if (organicSeed !== undefined) {
-    base.organic = 1;
+    // Slightly stronger than the neutral 1 -- applies to every ring alike,
+    // regardless of its own stroke width.
+    base.organic = 1.12;
     base.organicSeed = Number(organicSeed) || 0;
   }
   // Only soften inward pulls (negative amplitude => belonging < 5).
@@ -12912,7 +12955,11 @@ function renderStep1EmotionMap(options) {
   // Use the total expected homes count (from homesCount field) so ring positions
   // match the placeholder template. Filled rings stay at their template position.
   const totalExpected = Math.max(n, parseInt(String(elHomesCount?.value || ""), 10) || n);
-  const placeholderMaxR = Math.min(cx, cy) - 20;
+  // Same size treatment as renderStep1PlaceholderEmotionRings() -- 20%
+  // smaller for 5-or-fewer-home maps, 10% bigger for 11-or-more -- so the
+  // map doesn't jump in size once the first ring is activated.
+  const mapSizeScale = totalExpected <= 5 ? 0.8 : (totalExpected >= 11 ? 1.1 : 1);
+  const placeholderMaxR = (Math.min(cx, cy) - 20) * mapSizeScale;
   const placeholderGap = placeholderMaxR / (totalExpected + 1);
 
   // Override target radii to match placeholder positions.
@@ -16059,7 +16106,18 @@ function renderStep1PlaceholderEmotionRings() {
   const cy = vbH / 2;
   const strokeW = 1.5;
   const padding = 20;
-  const maxR = Math.min(cx, cy) - padding;
+  // Small maps (5 homes or fewer) read as needlessly sparse at full size --
+  // draw them 20% smaller than the usual fit-to-canvas size. Large maps (11+
+  // rings) get drawn 10% bigger instead -- ring positions only, stroke
+  // widths are untouched either way.
+  const mapSizeScale = n <= 5 ? 0.8 : (n >= 11 ? 1.1 : 1);
+  let maxR = (Math.min(cx, cy) - padding) * mapSizeScale;
+  // Safety: for very large home counts, the 10% growth above could push the
+  // outermost ring (plus its stroke) past the SVG's edge -- cap it so that
+  // never happens.
+  const safeOuterEdge = Math.min(cx, cy) - 10;
+  const maxRForSafeEdge = (safeOuterEdge - strokeW / 2) * (n + 1) / n;
+  maxR = Math.min(maxR, maxRForSafeEdge);
   const gap = maxR / (n + 1);
 
   for (let i = 0; i < n; i++) {
@@ -16792,7 +16850,8 @@ function enterStep1EditMode(idx) {
   if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
 }
 
-function exitStep1EditMode() {
+function exitStep1EditMode(opts) {
+  const options = opts && typeof opts === "object" ? opts : {};
   _step1EditingIdx = -1;
   if (elPageStep1) elPageStep1.classList.remove("step1-edit-mode");
   clearStep1EditFieldActive();
@@ -16802,7 +16861,10 @@ function exitStep1EditMode() {
   setStep1HomesListFocus(-1);
   setStep1EmotionEditFocus(-1);
   // Zoom back out to the whole route, reversing the single-ring focus above.
-  fitStep1GeoMapToAllAddresses({ animate: true });
+  // Skipped for a plain new-address save (see call site): the geo map should
+  // stay focused on the address just entered, not fit to the whole route --
+  // that whole-route zoom-out only happens on Finish.
+  if (!options.keepGeoFocus) fitStep1GeoMapToAllAddresses({ animate: true });
   updateStep1Headers();
   if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
 }
@@ -16886,7 +16948,11 @@ if (elStep1AddrNextBtn) {
     const isAfterFinishEdit = step1EditModeAfterFinishActive && editingIdx >= 0;
     const isLastInAfterFinishReview = isAfterFinishEdit && editingIdx >= addresses.length - 1;
     if (!isAfterFinishEdit || isLastInAfterFinishReview) {
-      exitStep1EditMode();
+      // Plain new-address save (editingIdx < 0): keep the geo map focused on
+      // the address just entered instead of zooming out to fit the whole
+      // route -- that only happens on Finish. Actual ring edits (editingIdx
+      // >= 0) keep the existing "zoom back out" behavior.
+      exitStep1EditMode(editingIdx < 0 ? { keepGeoFocus: true } : undefined);
     }
 
     const lastHome = editingIdx >= 0

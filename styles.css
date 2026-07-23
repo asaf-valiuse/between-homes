@@ -333,6 +333,36 @@ body {
   opacity: 0;
 }
 
+/* "Zoom in" hint on All Maps: same cursor-following pattern as
+   .homeScrollHint above (real OS cursor plays the icon role; position set
+   live via transform in app.js, only opacity transitions). Visible until
+   the user zooms in past whatever zoom the map started at, then a one-way
+   latch: it stays hidden even if they zoom back out (see
+   updateAllMapsZoomHint()/allMapsZoomHintDismissed in app.js). Re-armed
+   the next time the page is freshly entered. */
+#pageAllMaps .allMapsZoomHint {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2300;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+  will-change: transform;
+}
+
+#pageAllMaps .allMapsZoomHint.allMapsZoomHintHidden {
+  opacity: 0;
+}
+
+#pageAllMaps .allMapsZoomHintText {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  text-transform: lowercase;
+  color: #c3c1b7;
+}
+
 .homeScrollHintText {
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
@@ -721,8 +751,10 @@ body {
 }
 
 /* Home page's archive/all maps/about buttons are 7% smaller than every
-   other .btnImg (18.48px * 0.93). */
-.homePageTopActions .btnImg {
+   other .btnImg (18.48px * 0.93). All Maps' own back button matches this
+   exactly too (see #pageAllMaps .allMapsActions below). */
+.homePageTopActions .btnImg,
+#pageAllMaps .allMapsActions .btnImg {
   height: calc(17.1864px * var(--step1-scale, 1));
 }
 
@@ -813,7 +845,7 @@ button:hover .btnImgFinish {
 }
 
 #pageAllMaps .allMapsListName {
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif !important;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
 }
 
 /* Confined to the left half of the page -- matches the emotion fullscreen
@@ -1366,32 +1398,9 @@ button:hover .btnImgFinish {
   display: none !important;
 }
 
-/* All Maps: hover tooltip for map name (no bubble, 12px) */
-.leaflet-tooltip.lifepathAllMapsTooltip {
-  font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
-  font-size: 12px;
-  font-weight: 400 !important;
-  line-height: 14px;
-  white-space: normal;
-  text-align: left;
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  color: #000000 !important;
-}
-
 /* Dark map UI (All Maps): tooltip text becomes white. */
-#pageAllMaps.dark-map-ui .leaflet-tooltip.lifepathAllMapsTooltip,
 #pageAllMaps.dark-map-ui .leaflet-tooltip {
   color: #ffffff !important;
-}
-
-.leaflet-tooltip.lifepathAllMapsTooltip:before,
-.leaflet-tooltip.lifepathAllMapsTooltip:after {
-  display: none !important;
 }
 
 /* Step 2 fallback: if any Leaflet tooltip is created without our class,
@@ -2391,7 +2400,11 @@ img.postcardCardLogo {
 #pageAllMaps .allMapsActions {
   position: fixed;
   right: 40px;
-  top: 36px;
+  /* Matches the home page's "about" button exactly (.homePageTopActions):
+     same flat, unscaled top -- not calc(34px * scale), which (unlike the
+     home page's own top-actions row) drifts apart from it on any viewport
+     narrower than the 1920px design width. */
+  top: 34px;
   z-index: 2200;
   display: flex;
   gap: 18px;
@@ -2407,20 +2420,6 @@ img.postcardCardLogo {
   padding-bottom: 4px;
   margin-bottom: -4px;
   text-decoration: underline;
-}
-
-#pageAllMaps .allMapsTotalLabel {
-  position: fixed;
-  left: 42px;
-  top: 107px;
-  z-index: 2000;
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 1;
-  white-space: nowrap;
-  text-transform: lowercase !important;
-  pointer-events: none;
 }
 
 /* All Maps: back hover is orange (matches other pages). */
@@ -2460,6 +2459,22 @@ img.postcardCardLogo {
   opacity: 0.3;
 }
 
+/* "show map" (setAllMapsTilesVisible()/.tiles-visible in app.js) displays
+   the map at full opacity instead of the dimmed default above. */
+#pageAllMaps.tiles-visible .allMapsMap .leaflet-tile-pane {
+  opacity: 1;
+}
+
+/* Routes have no hover affordance (no tooltip, no click handler -- only
+   the list's on/off buttons toggle highlighting), so their default
+   Leaflet cursor:pointer is just misleading once the map itself is
+   visible underneath. pointer-events:none removes that cursor AND
+   guarantees drag-to-pan/wheel-to-zoom pass straight through to the map
+   even when the cursor is directly over a line/circle. */
+#pageAllMaps.tiles-visible .allMapsMap .leaflet-interactive {
+  pointer-events: none;
+}
+
 #pageAllMaps .allMapsPanel {
   position: fixed;
   left: auto;
@@ -2473,17 +2488,94 @@ img.postcardCardLogo {
   flex-direction: column;
   align-items: flex-end;
   min-height: 0;
+  /* This box spans almost the full viewport height (top:36 to bottom:24)
+     regardless of whether the search row/list are actually visible --
+     without this, it silently swallows every drag/wheel interaction with
+     the map underneath across that whole area, even while collapsed.
+     Each actually-interactive descendant re-enables its own
+     pointer-events below; .allMapsListCollapsed (already existing)
+     correctly turns it back off for whichever of them is currently
+     hidden. */
+  pointer-events: none;
+}
+
+#pageAllMaps .allMapsListToggleRow,
+#pageAllMaps .allMapsSearchWrap,
+#pageAllMaps .allMapsList {
+  pointer-events: auto;
+}
+
+/* All Maps: houses the list-visibility toggle button. position:fixed
+   lifts it out of .allMapsPanel's flex-column flow -- right-aligned with
+   the back button (.allMapsActions), raised close to its row now that the
+   maps-count label that used to sit above it is gone. */
+#pageAllMaps .allMapsListToggleRow {
+  position: fixed;
+  top: 70px;
+  right: 40px;
+  z-index: 2200;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* Toggles #savedMapsList's (+ the search row's) visibility. Matches
+   #allMapsHideMapBtn's own text-link styling. */
+#pageAllMaps .allMapsListToggle {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: #000000;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
+  text-transform: lowercase !important;
+  padding-bottom: 4px;
+  text-decoration: underline;
+  text-decoration-thickness: 0.75px;
+  text-underline-offset: 1px;
+}
+
+#pageAllMaps .allMapsListToggle:hover:not(:disabled) {
+  color: #000000;
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
 }
 
 #pageAllMaps .allMapsSearchWrap {
-  width: 240px;
-  margin: 40px 0 10px;
+  /* 40% shorter than the original 240px. */
+  width: 144px;
+  /* Room below the fixed toggle row above (raised along with it -- see
+     .allMapsListToggleRow), and before the list below. */
+  margin: 64px 0 30px;
   display: flex;
   justify-content: flex-end;
 }
 
+/* Animated show/hide for the search row + names list, toggled together by
+   #allMapsListToggleBtn (see its click handler in app.js). Opacity/transform
+   only (no display:none) so the fade/slide is actually visible; .allMapsList
+   already reserves its own scroll space via flex, so leaving that space
+   reserved while collapsed doesn't shift anything else in the panel. */
+#pageAllMaps .allMapsSearchWrap,
+#pageAllMaps .allMapsList {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+#pageAllMaps .allMapsSearchWrap.allMapsListCollapsed,
+#pageAllMaps .allMapsList.allMapsListCollapsed {
+  opacity: 0;
+  transform: translateY(-20px);
+  pointer-events: none;
+}
+
 #pageAllMaps .allMapsSearchInput {
-  width: 240px;
+  width: 144px;
   height: 28px;
   border: 0;
   border-bottom: 0.1px solid rgba(0, 0, 0, 0.65);
@@ -2542,13 +2634,14 @@ img.postcardCardLogo {
   pointer-events: none;
 }
 
-/* All Maps: show/hide map button matches Step 2 placement */
+/* All Maps: show/hide map button, raised to vertical screen center. */
 #pageAllMaps #allMapsHideMapBtn {
   position: fixed;
   left: 42px;
   right: auto;
-  top: auto;
-  bottom: 36px;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
   z-index: 2000;
 
   display: inline-block;
@@ -2571,6 +2664,10 @@ img.postcardCardLogo {
 
 #pageAllMaps .allMapsList {
   margin: 0;
+  /* Shifts the list (and its scrollbar, which otherwise sits flush against
+     the right-aligned text) further right, without moving .allMapsPanel
+     itself (that would misalign it from .allMapsListToggleRow above). */
+  margin-right: -24px;
   padding: 0;
   list-style: none;
   display: grid;
@@ -2578,7 +2675,12 @@ img.postcardCardLogo {
   font-family: "80-kb-Sharp", "80kb Sharp", Helvetica, sans-serif;
   font-weight: 400;
   font-size: 17px;
-  width: min(480px, calc(100vw - 84px));
+  /* Left edge lines up with the search row's own left edge: search is
+     144px wide with no extra offset, but this list also carries a
+     margin-right:-24px (see below) shifting its right edge (and its
+     scrollbar) 24px further right than search's -- so it needs to be
+     144+24=168px to still land on the same left edge. */
+  width: min(168px, calc(100vw - 84px));
   flex: 1;
   min-height: 0;
 
@@ -2587,15 +2689,23 @@ img.postcardCardLogo {
   overflow-y: auto;
   overscroll-behavior: contain;
 
-  /* Scrollable without showing a scrollbar (still scrolls via trackpad/mouse wheel). */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* old Edge/IE */
+  /* Thin visible scrollbar on the right, for scrolling the list up/down. */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #c9c8c1 transparent; /* Firefox */
 }
 
-/* WebKit scrollbar hiding (Chrome/Safari). */
+/* WebKit scrollbar styling (Chrome/Safari). */
 #pageAllMaps .allMapsList::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  width: 6px;
+}
+
+#pageAllMaps .allMapsList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#pageAllMaps .allMapsList::-webkit-scrollbar-thumb {
+  background: #c9c8c1;
+  border-radius: 3px;
 }
 
 #pageAllMaps .allMapsListItem {
@@ -2604,47 +2714,41 @@ img.postcardCardLogo {
   align-items: baseline;
   justify-content: flex-end;
   min-width: 0;
+  /* Shifts the name+button row 20px left, independent of the list
+     container's own box (and thus its scrollbar, which stays put -- a
+     transform doesn't affect layout/scrollbar position). */
+  transform: translateX(-20px);
 }
 
 #pageAllMaps .allMapsListName {
   display: inline-block;
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 15.5px;
+  font-size: 14.5px;
   color: #000000;
   text-transform: none !important;
-  text-decoration: underline;
-  text-decoration-thickness: 0.75px;
-  text-underline-offset: 1px;
   background: transparent;
   border: 0;
   padding: 0;
   padding-bottom: 4px;
   margin-bottom: -4px;
-  cursor: pointer;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: right;
   direction: ltr;
+  cursor: pointer;
+  /* Shifted 3px left -- a transform (not margin) so it doesn't disturb
+     the flex layout the number label's own position depends on. */
+  transform: translateX(-3px);
 }
 
 #pageAllMaps .allMapsListName:hover:not(:disabled) {
-  color: #000000;
-  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
-  font-weight: 700;
-}
-
-#pageAllMaps .allMapsListName .step2SignatureMain {
-  display: inline-flex;
-  align-items: baseline;
-  text-transform: none !important;
-}
-
-#pageAllMaps .allMapsListName .step2SignatureCount {
-  margin-left: 13px;
-  text-transform: none !important;
+  /* !important to win against the base font-family rule above (also
+     !important) -- among !important rules the more specific one (this
+     has an extra :hover) wins regardless of source order. */
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
 }
 
 #pageAllMaps .allMapsListName.isHidden {
@@ -2652,12 +2756,6 @@ img.postcardCardLogo {
 }
 
 #pageAllMaps .allMapsListName.isHighlighted {
-  color: #000000;
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
-  font-weight: 400;
-}
-
-#pageAllMaps .allMapsListName.isHighlighted:hover:not(:disabled) {
   color: #000000;
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
   font-weight: 400;
@@ -2672,9 +2770,26 @@ img.postcardCardLogo {
   color: #c9c8c1;
 }
 
-.lifepathAllMapsTooltip {
-  font-size: 12px;
-  line-height: 14px;
+/* Sequential index (001, 002, ...) beside each name, replacing the old
+   on/off button -- a plain label, not interactive. */
+#pageAllMaps .allMapsListNumber {
+  flex: none;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 13px;
+  /* This (no .isHighlighted/.isDimmed class) is exactly the "nothing is
+     selected" state -- see renderAllMapsCombinedMap() in app.js, which
+     only adds one of those two classes when allMapsHighlightedKey is
+     already set. */
+  color: #000000;
+}
+
+#pageAllMaps .allMapsListNumber.isHighlighted {
+  color: #000000;
+}
+
+#pageAllMaps .allMapsListNumber.isDimmed {
+  color: #c9c8c1;
 }
 
 .content {
@@ -3124,8 +3239,7 @@ input[type="reset"]:hover:not(:disabled) {
 }
 
 #pageAllMaps.dark-map-ui .closeToHomeBtn:hover:not(:disabled),
-#pageAllMaps.dark-map-ui .allMapsListToggle:hover:not(:disabled),
-#pageAllMaps.dark-map-ui .allMapsListName:hover:not(:disabled):not(.isHidden) {
+#pageAllMaps.dark-map-ui .allMapsListToggle:hover:not(:disabled) {
   color: #000000;
 }
 
@@ -3280,6 +3394,62 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageAllMaps.dark-map-ui #allMapsHideMapBtn:hover:not(:disabled) {
   color: #f2f0e8;
+}
+
+/* "show map" (allMapsTilesVisible/.tiles-visible in app.js) recolors
+   routes (see getAllMapsOverlayStrokeColor() and friends in app.js), map
+   names, buttons, and the logo to #f4f2eb -- regardless of whether the
+   basemap itself is light or dark, unlike .dark-map-ui above. Placed after
+   every .dark-map-ui rule touching these same elements so this wins
+   whenever both classes are active at once (equal specificity, later
+   wins). */
+#pageAllMaps.tiles-visible .brand,
+#pageAllMaps.tiles-visible .closeToHomeBtn,
+#pageAllMaps.tiles-visible .allMapsListToggle,
+#pageAllMaps.tiles-visible #allMapsHideMapBtn,
+#pageAllMaps.tiles-visible .allMapsListName,
+#pageAllMaps.tiles-visible .allMapsListNumber {
+  color: #f4f2eb;
+}
+
+/* No hover feedback needed on buttons while the map is shown -- they just
+   stay at their own current color (also cancels .dark-map-ui's own
+   hover-to-black rules above, since dark-map-ui only ever applies when
+   tiles-visible is also active). */
+#pageAllMaps.tiles-visible .closeToHomeBtn:hover:not(:disabled),
+#pageAllMaps.tiles-visible .allMapsListToggle:hover:not(:disabled),
+#pageAllMaps.tiles-visible #allMapsHideMapBtn:hover:not(:disabled) {
+  color: #f4f2eb;
+}
+
+/* The focused map's own name/number stay at the same "shown" color as
+   everything else (matching getAllMapsHighlightColor() in app.js) -- same
+   specificity as .dark-map-ui's own .isHighlighted rules above (ID + 3
+   classes), placed after them so this wins whenever both are active.
+   Every *other* name/number (someone else is focused) gets dimmed to
+   #77756d instead, matching getAllMapsDimmedRouteColor(). */
+#pageAllMaps.tiles-visible .allMapsListName.isHighlighted,
+#pageAllMaps.tiles-visible .allMapsListNumber.isHighlighted {
+  color: #f4f2eb;
+}
+
+#pageAllMaps.tiles-visible .allMapsListName.isDimmed,
+#pageAllMaps.tiles-visible .allMapsListNumber.isDimmed {
+  color: #77756d;
+}
+
+/* logo.png is a solid black mark on a transparent background -- this
+   filter chain (invert to white, then sepia+brightness to shape it down
+   to an off-white) approximates #f4f2eb without needing a separate
+   light-colored logo asset. */
+#pageAllMaps.tiles-visible .step2LogoText {
+  filter: invert(1) sepia(0.59) brightness(0.957);
+}
+
+/* Search row: underline and typed text both match the "shown" color too. */
+#pageAllMaps.tiles-visible .allMapsSearchInput {
+  border-bottom-color: #f4f2eb;
+  color: #f4f2eb;
 }
 
 #pageStep2.dark-map-ui #hideMapBtn:hover:not(:disabled) {
