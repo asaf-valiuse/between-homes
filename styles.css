@@ -3849,7 +3849,7 @@ input[type="reset"]:hover:not(:disabled) {
   pointer-events: none;
 }
 
-#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1MapCompleteTitle {
+#pageStep1.step1-finished-state:not(.step1-edit-mode):not(.step1-archive-loaded) .step1MapCompleteTitle {
   display: block;
   animation: step1MapCompleteFadeOut 5.8s ease-out forwards;
 }
@@ -3910,6 +3910,15 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1HomesListTitle,
 #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1MoveFrequencyLabel {
   color: #87857c;
+}
+
+#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1EmotionMapTitle,
+#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1MovementMapTitleCenter,
+#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1RingReadingTitle,
+#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1TimeBelongingTitle,
+#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1HomesListTitle,
+#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1MoveFrequencyLabel {
+  color: #000000;
 }
 
 #pageStep1 .step1EmotionMapTitle {
@@ -4167,7 +4176,8 @@ input[type="reset"]:hover:not(:disabled) {
   width: 460px;
   top: calc(var(--step1-dashboard-top, 285px) + 40px);
   margin: 0;
-  padding-left: 30px;
+  padding: 0 4px calc(7px * var(--step1-inv-scale, 1)) 30px;
+  box-sizing: border-box;
   text-align: left;
   font-family: "NarkissBlock-Light-TRIAL", sans-serif;
   font-weight: 400;
@@ -4176,7 +4186,8 @@ input[type="reset"]:hover:not(:disabled) {
   line-height: 1;
   letter-spacing: 0;
   color: #000000;
-  z-index: 4;
+  background: transparent;
+  z-index: 8;
   pointer-events: none;
   text-transform: lowercase;
 }
@@ -4184,10 +4195,11 @@ input[type="reset"]:hover:not(:disabled) {
 /* Route preview: third panel from left */
 #pageStep1 .step1RoutePreview {
   position: absolute;
-  left: 1040px;
-  top: calc(var(--step1-dashboard-top, 285px) + 12px);
-  width: 480px;
-  height: calc(var(--step1-dashboard-top-section, 486px) - 12px);
+  left: 1050px;
+  top: calc(var(--step1-dashboard-top, 285px) + 30px);
+  width: 490px;
+  height: calc(var(--step1-dashboard-top-section, 486px) - 30px);
+  outline: 1px solid #ff0000;
   border-left: none;
   z-index: 3;
   pointer-events: auto;
@@ -4199,11 +4211,12 @@ input[type="reset"]:hover:not(:disabled) {
   width: 100%;
   height: 100%;
   display: block;
-  overflow: visible;
+  overflow: hidden;
   /* Shrinks/shifts only the drawn route itself -- .step1RoutePreview's own
      box (and its ::before/::after divider lines, which are positioned off
      that box, not this svg) is completely untouched by this transform. */
-  transform: translateX(15px) scale(0.9);
+  transform-origin: 0 0;
+  transform: translate(5px, 0);
 }
 
 #pageStep1 .step1RoutePreview::before {
@@ -4212,13 +4225,13 @@ input[type="reset"]:hover:not(:disabled) {
   /* .step1RoutePreview itself was widened/shifted (left: 1050px -> 1040px,
      top: 305px -> 297px) to enlarge the frame -- these offsets compensate so
      this divider line still renders at its original, unmoved position. */
-  left: 10px;
-  top: 28px;
+  left: 0;
+  top: 0;
   width: 0.1px;
-  height: calc(100% - 28px);
+  height: 100%;
   background: #000000;
   opacity: 0.65;
-  z-index: 5;
+  z-index: 9;
 }
 
 #pageStep1 .step1FullscreenBtn {
@@ -5554,8 +5567,8 @@ input[type="reset"]:hover:not(:disabled) {
   /* Same compensation as .step1RoutePreview::before -- keeps this line's
      endpoints at their original absolute position after the frame's
      left/width were changed to enlarge it. */
-  left: 17px;
-  right: -12px;
+  left: 7px;
+  right: 0;
   top: 100%;
   height: 0.1px;
   background: #000000;
@@ -5804,6 +5817,10 @@ input[type="reset"]:hover:not(:disabled) {
   font-size: 20px;
   color: #c9c8c1;
   pointer-events: none;
+}
+
+#pageStep1.step1-finished-state .step1EmotionPlaceholderText {
+  display: none !important;
 }
 
 #pageStep1 .text-wrapper-6:disabled,

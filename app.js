@@ -2130,12 +2130,17 @@ function addressDotRadius(rate) {
   return ADDRESS_DOT_INNER_RADIUS + belongingCircleStrokeWeight(rate) / 2;
 }
 
-// Route preview only -- slightly smaller than ADDRESS_DOT_INNER_RADIUS
-// (which the geo map and journey timeline still use), same outward-only
-// stroke growth otherwise.
-const ROUTE_PREVIEW_DOT_INNER_RADIUS = 3.9;
+// Leaflet's geo-map SVG is rendered through a different transform than the
+// movement-map SVG, so matching raw radius values makes the movement-map
+// dots visibly larger. Scale the route-preview objects to match the black map
+// on screen while preserving the same rate-to-size relation.
+const ROUTE_PREVIEW_OBJECT_SCALE = 0.68;
+const ROUTE_PREVIEW_DOT_INNER_RADIUS = ADDRESS_DOT_INNER_RADIUS * ROUTE_PREVIEW_OBJECT_SCALE;
+function routePreviewStrokeWeight(rate) {
+  return belongingCircleStrokeWeight(rate) * ROUTE_PREVIEW_OBJECT_SCALE;
+}
 function routePreviewDotRadius(rate) {
-  return ROUTE_PREVIEW_DOT_INNER_RADIUS + belongingCircleStrokeWeight(rate) / 2;
+  return ROUTE_PREVIEW_DOT_INNER_RADIUS + routePreviewStrokeWeight(rate) / 2;
 }
 
 /** @type {Address[]} */
@@ -2821,6 +2826,7 @@ let geoLayerEnabled = false;
 
 /** @type {{id?:string,label?:string,savedAt?:string} | null} */
 let currentEditingSnapshot = null;
+let currentLoadedMapDisplayName = "";
 
 function ensureSnapshotId(snapshot) {
   const existing = snapshot && typeof snapshot === "object" ? String(snapshot.id || "") : "";
@@ -3226,6 +3232,61 @@ function getSavedMapKey(snap) {
   const id = String(snap.id || "").trim();
   if (id) return id;
   return String(snap.label || "").trim();
+}
+
+function getAddressesSignatureForList(list) {
+  try {
+    const parts = [];
+    for (const a of Array.isArray(list) ? list : []) {
+      if (!a) continue;
+      const id = String(a.id || "");
+      const valid = a.valid === false ? "0" : "1";
+      const lat = isFinite(a.lat) ? Number(a.lat).toFixed(5) : "";
+      const lon = isFinite(a.lon) ? Number(a.lon).toFixed(5) : "";
+      const rate = String(normalizeBelongingRate(a.belonging_rate, stableBelongingRateFromId(a.id))).padStart(2, "0");
+      parts.push([id, valid, lat, lon, rate].join("~"));
+    }
+    return parts.join("|");
+  } catch {
+    return "";
+  }
+}
+
+function getSavedMapKeyForCurrentMap() {
+  const label = getCurrentMapLabel();
+  if (!label) return "";
+
+  const fullName = String(elStudentName?.value || "").trim();
+  const addressSignature = getAddressesSignatureForList(addresses);
+  const list = getSavedMaps();
+  const matches = (Array.isArray(list) ? list : []).filter((snap) => {
+    if (!snap || String(snap.label || "") !== label) return false;
+    const sameName = !fullName || String(snap.fullName || "").trim() === fullName;
+    if (!sameName) return false;
+    if (!addressSignature) return true;
+    return getAddressesSignatureForList(snap.addresses) === addressSignature;
+  });
+
+  const newest = matches.sort((a, b) => {
+    const at = Date.parse(String(a?.updatedAt || a?.savedAt || ""));
+    const bt = Date.parse(String(b?.updatedAt || b?.savedAt || ""));
+    if (isFinite(at) && isFinite(bt)) return bt - at;
+    if (isFinite(bt)) return 1;
+    if (isFinite(at)) return -1;
+    return 0;
+  })[0];
+
+  return getSavedMapKey(newest);
+}
+
+function prepareAllMapsFocusForCurrentMap() {
+  const key = getSavedMapKeyForCurrentMap();
+  allMapsHighlightedKey = key || null;
+  allMapsPendingFocusKey = key || null;
+  allMapsPendingRestoreView = null;
+  allMapsViewBeforeHighlightFocus = null;
+  setAllMapsListVisible(true);
+  return Boolean(key);
 }
 
 // New flow (Welcome -> Step 1 -> Step 2)
@@ -4936,6 +4997,7 @@ if (elStep1PrintBtn) {
 if (elStep1TopAllMapsBtn) {
   elStep1TopAllMapsBtn.addEventListener("click", async () => {
     await refreshServerMapsCache();
+    prepareAllMapsFocusForCurrentMap();
     showPage("allmaps");
   });
 }
@@ -4947,21 +5009,7 @@ function maybeResetStep1AfterCreateSave() {
 }
 
 function getAddressesSignatureForAutoSave() {
-  try {
-    const parts = [];
-    for (const a of Array.isArray(addresses) ? addresses : []) {
-      if (!a) continue;
-      const id = String(a.id || "");
-      const valid = a.valid === false ? "0" : "1";
-      const lat = isFinite(a.lat) ? Number(a.lat).toFixed(5) : "";
-      const lon = isFinite(a.lon) ? Number(a.lon).toFixed(5) : "";
-      const rate = String(normalizeBelongingRate(a.belonging_rate, stableBelongingRateFromId(a.id))).padStart(2, "0");
-      parts.push([id, valid, lat, lon, rate].join("~"));
-    }
-    return parts.join("|");
-  } catch {
-    return "";
-  }
+  return getAddressesSignatureForList(addresses);
 }
 
 function maybeAutoSaveCurrentMapSnapshot() {
@@ -6364,9 +6412,10 @@ function renderArchiveGrid() {
     serialEl.className = "archiveSerial";
     // Archive tile title is just the map name, exactly as typed on the
     // address-entry page -- no title-casing, no address count.
-    serialEl.textContent = String(snap?.fullName || "").trim() || formatLifeMapLabel(
+    const archiveDisplayName = String(snap?.fullName || "").trim() || formatLifeMapLabel(
       Number.isFinite(Number(snap?.serial)) && Number(snap?.serial) > 0 ? Number(snap.serial) : i + 1
     );
+    serialEl.textContent = archiveDisplayName;
 
     const averageEl = document.createElement("div");
     averageEl.className = "archiveAverageBelonging";
@@ -6385,16 +6434,16 @@ function renderArchiveGrid() {
     const footer = document.createElement("div");
     footer.className = "archiveFooter";
 
-    const showBtn = document.createElement("button");
-    showBtn.type = "button";
-    showBtn.className = "archiveShowBtn";
-    showBtn.textContent = "show map";
-    showBtn.addEventListener("click", (e) => {
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "archiveShowBtn";
+    openBtn.textContent = "open";
+    openBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      openSavedMapSnapshotFromArchive(snap);
+      openSavedMapSnapshotFromArchive(snap, archiveDisplayName);
     });
-    footer.appendChild(showBtn);
+    footer.appendChild(openBtn);
 
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
@@ -6408,29 +6457,26 @@ function renderArchiveGrid() {
     footer.appendChild(removeBtn);
 
     item.addEventListener("click", () => {
-      openSavedMapSnapshotFromArchive(snap);
+      openSavedMapSnapshotFromArchive(snap, archiveDisplayName);
     });
 
     item.appendChild(serialEl);
     item.appendChild(averageEl);
     item.appendChild(cumulativeEl);
     preview.appendChild(thumb);
-    attachArchiveThumbInteractions(thumb, () => openSavedMapSnapshotFromArchive(snap));
+    attachArchiveThumbInteractions(thumb, () => openSavedMapSnapshotFromArchive(snap, archiveDisplayName));
     item.appendChild(preview);
     item.appendChild(footer);
     elArchiveGrid.appendChild(item);
   }
 }
 
-function openSavedMapSnapshotFromArchive(snapshot) {
+function openSavedMapSnapshotFromArchive(snapshot, archiveDisplayName = "") {
   if (!snapshot) return;
 
-  // If the user opens a map from Archive, closing (X) should return to Archive.
-  step2OpenedFromArchive = true;
-  setStep2CloseReturnPage("archive");
-
   // Requirement: after clicking an Archive tile, show the pulsing-circle
-  // transition for 1.5 seconds, then display the selected map.
+  // transition for 1.5 seconds, then display the selected map in its
+  // finished editing state.
   if (createLifePathTransitionActive) return;
   createLifePathTransitionActive = true;
   showCreateLifePathTransition(true);
@@ -6438,7 +6484,7 @@ function openSavedMapSnapshotFromArchive(snapshot) {
   setTimeout(() => {
     try {
       showCreateLifePathTransition(false);
-      openSavedMapSnapshot(snapshot);
+      openSavedMapSnapshotFinishedFromArchive(snapshot, archiveDisplayName);
     } finally {
       createLifePathTransitionActive = false;
     }
@@ -6507,16 +6553,7 @@ function forceStep2OpenFitToAddressesSoon(triesLeft = 200) {
   // Apply the snap on the next frame, after Leaflet recalculates its size.
   requestAnimationFrame(() => {
     try {
-      // For one-home maps, focus directly on that home (including Israel cases).
-      // For multi-home maps, keep the Israel-focused max-fit behavior.
-      const validLatLngs = getValidAddressLatLngs();
-      if (validLatLngs.length <= 1) {
-        focusMapOnAddresses();
-      } else {
-        // Snap to a view that zooms in as much as possible while still including
-        // all Israel-located points.
-        focusMapOnIsraelLocationsMax();
-      }
+      focusMapOnIsraelLocationsMax();
       setStep2ZoomLabelBaseToCurrentView();
       updateStep2ZoomLabel();
       step2OpenShouldFitToAddresses = false;
@@ -6543,7 +6580,7 @@ function forceStep2OpenFitToAddressesSoon(triesLeft = 200) {
   });
 }
 
-function openSavedMapSnapshot(snapshot) {
+function loadSavedMapSnapshotIntoEditingState(snapshot, archiveDisplayName = "") {
   if (!snapshot) return;
 
   // Track which saved map is being edited so re-saving updates in place.
@@ -6572,6 +6609,7 @@ function openSavedMapSnapshot(snapshot) {
 
   const nextName = sanitizeEnglishOnlyName(String(snapshot.fullName || ""));
   if (elStudentName) elStudentName.value = nextName;
+  currentLoadedMapDisplayName = String(archiveDisplayName || snapshot.fullName || snapshot.label || "").trim();
 
   const nextAddressesRaw = Array.isArray(snapshot.addresses) ? snapshot.addresses : [];
   try {
@@ -6602,17 +6640,47 @@ function openSavedMapSnapshot(snapshot) {
     const hasSetting = snapshot && typeof snapshot === "object" && Object.prototype.hasOwnProperty.call(snapshot, "geoLayerEnabled");
     setGeoLayerEnabled(hasSetting ? Boolean(snapshot.geoLayerEnabled) : true);
   }
+}
 
-  // Requirement: opening a LifePath map should start with all Israel visible.
-  // (Ignore the stored view when entering Step 2 from the Archive.)
-  pendingStep2View = null;
+function openSavedMapSnapshotFinishedFromArchive(snapshot, archiveDisplayName = "") {
+  if (!snapshot) return;
+  resetStep1AfterCreateSaveArmed = false;
+  resetStep1AfterCreateSavePending = false;
+  loadSavedMapSnapshotIntoEditingState(snapshot, archiveDisplayName);
 
-  // Note: showPage('step2') schedules its opening fit on a timer, so setting
-  // this immediately after the page switch still affects the fit.
-  showPage("step2");
-  step2OpenExtraZoomStops = 0;
-  requestStep2OpenFitToAddresses();
-  forceStep2OpenFitToAddressesSoon(200);
+  step1EditModeAfterFinishActive = false;
+  step1SummaryPhaseActive = true;
+  if (elPageStep1) {
+    elPageStep1.classList.remove("step1-address-phase", "step1-summary-phase");
+    elPageStep1.classList.add("step1-belonging-phase", "step1-finished-state", "step1-archive-loaded");
+  }
+
+  step1DashboardGrown = true;
+  updateStep1Scale();
+  _step1SkipEmotionRebuildOnce = true;
+  showPage("step1", { scroll: "step1", behavior: "auto" });
+  updateStep1TopProgress();
+  updateStep1HomesList();
+  updateStep1RingReading();
+  clearStep1HomesListFocus();
+  if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
+
+  const divAddr = elPageStep1 && elPageStep1.querySelector(".div-3 > .div-2");
+  if (divAddr) divAddr.style.display = "none";
+
+  setTimeout(() => {
+    try {
+      updateStep1Scale();
+      ensureStep1GeoMap();
+      renderStep1EmotionMap({ frozenLayout: snapshot.emotionLayoutSnapshot || null });
+      fitStep1GeoMapToIsraelBoundaries({ animate: false });
+      updateStep1GeoMapMarkers();
+      if (step1GeoRouteLine) step1GeoRouteLine.setStyle({ color: getStep1GeoRouteColor(), weight: 1 });
+      updateStep1TimeBelonging();
+    } catch {
+      // ignore
+    }
+  }, 0);
 }
 
 /** @type {L.Map | null} */
@@ -6647,6 +6715,8 @@ let allMapsViewBeforeHighlightFocus = null;
 
 /** @type {{ center: L.LatLng, zoom: number } | null} */
 let allMapsPendingRestoreView = null;
+
+let allMapsListVisible = false;
 
 let allMapsSearchQuery = "";
 
@@ -6850,6 +6920,10 @@ async function refreshAddressCoords() {
   }
 }
 
+function isStep1ArchiveLoadedView() {
+  return Boolean(elPageStep1 && elPageStep1.classList.contains("step1-archive-loaded"));
+}
+
 function getStep1GeoMarkerColor() {
   // step1SummaryPhaseActive stays true for the rest of the session once a
   // map is finished, including while re-editing it afterward -- forcing
@@ -6859,8 +6933,12 @@ function getStep1GeoMarkerColor() {
   // re-render (every "add home" save calls updateStep1GeoMapMarkers()
   // again), so without this exception the dots would flip to black the
   // moment you save any ring during a review.
-  if (step1SummaryPhaseActive && !step1EditModeAfterFinishActive) return "#000000";
+  if (step1SummaryPhaseActive && !step1EditModeAfterFinishActive && !isStep1ArchiveLoadedView()) return "#000000";
   return isDarkBasemap(basemapStyleId) ? "#f4f2ea" : "#000000";
+}
+
+function getStep1GeoRouteColor() {
+  return isDarkBasemap(basemapStyleId) ? "#f3f1e6" : "#000000";
 }
 
 function getStep1GeoRouteDotFillStyle() {
@@ -6970,7 +7048,7 @@ function updateStep1GeoRouteLine() {
     className: "lifepathStep2Path",
     weight: 1,
     opacity: 1,
-    color: "#f3f1e6",
+    color: getStep1GeoRouteColor(),
     lineCap: "round",
     lineJoin: "round",
   }).addTo(step1GeoMap);
@@ -6989,6 +7067,83 @@ function updateStep1GeoMapMarkers() {
   updateStep1TimeBelonging();
 }
 
+function clearStep1GeoMapState() {
+  try {
+    if (step1GeoMarkerLayer) step1GeoMarkerLayer.clearLayers();
+    if (step1GeoRouteLine && step1GeoMap) step1GeoMap.removeLayer(step1GeoRouteLine);
+    step1GeoRouteLine = null;
+    clearStep1FocusMarker();
+    step1MapPreEntry = true;
+    if (elStep1GeoMap) elStep1GeoMap.classList.add("map-pre-entry");
+    if (elPageStep1) elPageStep1.classList.add("map-colors-dark");
+    if (elStep1RoutePreview) elStep1RoutePreview.innerHTML = "";
+    if (step1GeoMap) {
+      step1GeoMap.fitBounds(ISRAEL_BOUNDS.pad(ISRAEL_FIT_PADDING), {
+        animate: false,
+        paddingTopLeft: [0, 0],
+        paddingBottomRight: [0, 0],
+      });
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function fitStep1GeoMapToIsraelBoundaries(options) {
+  const opts = options && typeof options === "object" ? options : {};
+  ensureStep1GeoMap();
+  if (!step1GeoMap) return;
+
+  const israelPts = getStep1GeoRouteLatLngs().filter((ll) => ISRAEL_BOUNDS.contains(ll));
+  const bounds = israelPts.length > 1 ? L.latLngBounds(israelPts) : ISRAEL_BOUNDS;
+  const pad = israelPts.length > 1 ? 0.15 : ISRAEL_FIT_PADDING;
+
+  step1MapPreEntry = false;
+  if (elStep1GeoMap) elStep1GeoMap.classList.remove("map-pre-entry");
+  if (elPageStep1) elPageStep1.classList.remove("map-colors-dark");
+
+  const applyFit = () => {
+    if (!step1GeoMap) return;
+    step1GeoMap.invalidateSize(true);
+    if (israelPts.length === 1) {
+      step1GeoMap.setView(israelPts[0], 15.5, { animate: false });
+      return;
+    }
+    step1GeoMap.fitBounds(bounds.pad(pad), {
+      animate: false,
+      paddingTopLeft: [0, 0],
+      paddingBottomRight: [0, 0],
+    });
+  };
+
+  if (opts.animate) {
+    step1GeoMap.invalidateSize(true);
+    requestAnimationFrame(() => {
+      if (!step1GeoMap) return;
+      step1GeoMap.invalidateSize(true);
+      if (israelPts.length === 1) {
+        step1GeoMap.flyTo(israelPts[0], 15.5, { animate: true, duration: 1.4, easeLinearity: 0.25 });
+      } else {
+        step1GeoMap.flyToBounds(bounds.pad(pad), {
+          animate: true,
+          duration: 1.4,
+          easeLinearity: 0.25,
+          paddingTopLeft: [0, 0],
+          paddingBottomRight: [0, 0],
+        });
+      }
+    });
+    setTimeout(() => {
+      if (step1GeoMap) step1GeoMap.invalidateSize(true);
+    }, 120);
+    return;
+  }
+
+  applyFit();
+  requestAnimationFrame(applyFit);
+  setTimeout(applyFit, 120);
+}
+
 function updateStep1GeoMapView() {}
 
 function focusStep1GeoMapAt(lat, lon, zoom, options) {
@@ -6996,6 +7151,10 @@ function focusStep1GeoMapAt(lat, lon, zoom, options) {
   const latNum = Number(lat);
   const lonNum = Number(lon);
   if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return;
+  if (step1EditModeAfterFinishActive || isStep1ArchiveLoadedView()) {
+    fitStep1GeoMapToIsraelBoundaries({ animate: Boolean(opts.animate) });
+    return;
+  }
   ensureStep1GeoMap();
   if (!step1GeoMap) return;
 
@@ -7160,12 +7319,13 @@ function setStep1RoutePreviewHover(targetDot) {
 
 function setStep1RoutePreviewEditFocus(idx = _step1EditingIdx) {
   const dots = getStep1RoutePreviewDots();
-  const hasFocus = isStep1EditModeActive() && idx >= 0 && idx < dots.length;
+  const hasFocus = isStep1EditModeActive() && idx >= 0 && dots.some((dot) => Number(dot.dataset.addressIndex) === idx);
   for (const line of getStep1RoutePreviewLines()) {
     line.setAttribute("stroke", hasFocus ? "#c3c1b7" : "#000000");
   }
   dots.forEach((dot, dotIdx) => {
-    dot.setAttribute("stroke", hasFocus && dotIdx !== idx ? "#c3c1b7" : "#000000");
+    const addressIdx = Number(dot.dataset.addressIndex);
+    dot.setAttribute("stroke", hasFocus && addressIdx !== idx ? "#c3c1b7" : "#000000");
   });
 }
 
@@ -7234,7 +7394,7 @@ function armStep1RoutePreviewHover() {
     }
     const dot = dotFromEventTarget(e.target);
     if (!dot) return;
-    const ringIdx = getStep1RoutePreviewDots().indexOf(dot);
+    const ringIdx = Number(dot.dataset.addressIndex);
     if (ringIdx < 0) return;
     openStep1HomeEditMode(ringIdx);
   });
@@ -7247,13 +7407,20 @@ function updateStep1RoutePreview() {
   const allAddrs = getStep1DisplayAddresses()
     .filter((a) => a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon));
 
+  const isInIsrael = (lat, lon) => ISRAEL_BOUNDS.contains(L.latLng(Number(lat), Number(lon)));
   const pts = allAddrs.map((a, index) => ({
     lat: Number(a.lat),
     lon: Number(a.lon),
+    inIsrael: isInIsrael(a.lat, a.lon),
     rate: normalizeBelongingRate(a.belonging_rate, stableBelongingRateFromId(a.id)),
     homeLabel: `home no.${formatHomeNumber(index + 1)}`,
     addressLabel: formatAddressAsTyped(a),
+    addressIndex: index,
   }));
+
+  const israelPts = pts.filter((p) => p.inIsrael);
+  const viewPts = israelPts.length > 0 ? israelPts : pts;
+  const viewAddressIndexes = new Set(viewPts.map((p) => p.addressIndex));
 
   // Track the displayed point count, including the current address preview, so
   // the route animation runs while entering the address and does not rerun on save.
@@ -7266,25 +7433,22 @@ function updateStep1RoutePreview() {
   }
 
   const panelRect = elStep1RoutePreview.getBoundingClientRect();
-  const svgW = Math.max(320, Math.round(panelRect.width || 460));
-  const svgH = Math.max(220, Math.round(panelRect.height || 500));
+  const svgW = Math.max(1, panelRect.width || 460);
+  const svgH = Math.max(1, panelRect.height || 500);
   const NS = "http://www.w3.org/2000/svg";
 
-  // Focus view on Israeli points only; draw lines to all points.
-  const israelSW = [29.2018, 34.01202];
-  const israelNE = [33.359948, 35.83459];
-  const isInIsrael = (lat, lon) => lat >= israelSW[0] && lat <= israelNE[0] && lon >= israelSW[1] && lon <= israelNE[1];
-  const israelPts = pts.filter((p) => isInIsrael(p.lat, p.lon));
-  const useIsraelViewport = israelPts.length > 0;
-  const viewPts = useIsraelViewport
-    ? [{ lat: israelSW[0], lon: israelSW[1] }, { lat: israelNE[0], lon: israelNE[1] }]
-    : pts;
+  const screenToSvgSize = Math.max(
+    svgW / Math.max(1, panelRect.width || svgW),
+    svgH / Math.max(1, panelRect.height || svgH)
+  );
+  const routePreviewStrokeWeightPx = (rate) => routePreviewStrokeWeight(rate) * screenToSvgSize;
+  const routePreviewDotRadiusPx = (rate) => ROUTE_PREVIEW_DOT_INNER_RADIUS * screenToSvgSize + routePreviewStrokeWeightPx(rate) / 2;
 
   const MAX_BELONGING_RATE = 10;
-  // Slightly smaller inner radius than the geo map/timeline (see
-  // routePreviewDotRadius()), same outward-only stroke growth otherwise.
-  const MAX_STROKE_WIDTH = belongingCircleStrokeWeight(MAX_BELONGING_RATE);
-  const MAX_OUTER_RADIUS = ROUTE_PREVIEW_DOT_INNER_RADIUS + MAX_STROKE_WIDTH;
+  // Screen-pixel-aware radius/stroke: the SVG viewBox follows the rendered
+  // panel size, and these values are converted from target pixels to SVG units.
+  const MAX_STROKE_WIDTH = routePreviewStrokeWeightPx(MAX_BELONGING_RATE);
+  const MAX_OUTER_RADIUS = ROUTE_PREVIEW_DOT_INNER_RADIUS * screenToSvgSize + MAX_STROKE_WIDTH;
   const BORDER_INSET = 5;
   const minCenterX = BORDER_INSET + MAX_OUTER_RADIUS;
   const maxCenterX = svgW - BORDER_INSET - MAX_OUTER_RADIUS;
@@ -7312,7 +7476,9 @@ function updateStep1RoutePreview() {
   const toX = (lon) => Math.round((offsetX + (lon - minLon) * scale) * 10) / 10;
   const toY = (lat) => Math.round((offsetY + (maxLat - lat) * scale) * 10) / 10;
 
-  // Build all coords.
+  // Build all route coords. The scale/center is computed from Israeli points
+  // only, but off-Israel points remain in the path so lines still head outward
+  // and clip naturally at the panel edge.
   const coords = pts.map((p) => {
     return {
       x: toX(p.lon),
@@ -7320,15 +7486,19 @@ function updateStep1RoutePreview() {
       rate: p.rate,
       homeLabel: p.homeLabel,
       addressLabel: p.addressLabel,
+      addressIndex: p.addressIndex,
+      inIsrael: p.inIsrael,
     };
   });
 
   if (coords.length > 0) {
+    const fitCoords = coords.filter((c) => viewAddressIndexes.has(c.addressIndex));
+    const zoomCoords = fitCoords.length > 0 ? fitCoords : coords;
     let minX = Infinity;
     let maxX = -Infinity;
     let minY = Infinity;
     let maxY = -Infinity;
-    for (const c of coords) {
+    for (const c of zoomCoords) {
       if (c.x < minX) minX = c.x;
       if (c.x > maxX) maxX = c.x;
       if (c.y < minY) minY = c.y;
@@ -7343,21 +7513,22 @@ function updateStep1RoutePreview() {
     // same city) drawn tiny in the middle of a mostly-empty box instead of
     // actually filling it -- raised so it can zoom in as far as the points'
     // own spread calls for.
-    const zoom = Math.max(0.2, Math.min(40, zoomFit));
+    const ROUTE_PREVIEW_ZOOM_RATIO = 0.8;
+    const zoom = Math.max(0.2, Math.min(40, zoomFit * ROUTE_PREVIEW_ZOOM_RATIO));
     const srcCx = (minX + maxX) / 2;
     const srcCy = (minY + maxY) / 2;
     const dstCx = (minCenterX + maxCenterX) / 2;
     const dstCy = (minCenterY + maxCenterY) / 2;
 
     for (const c of coords) {
-      const x = (c.x - srcCx) * zoom + dstCx;
-      const y = (c.y - srcCy) * zoom + dstCy;
-      const minAllowedX = minCenterX;
-      const maxAllowedX = maxCenterX;
-      const minAllowedY = minCenterY;
-      const maxAllowedY = maxCenterY;
-      c.x = Math.max(minAllowedX, Math.min(maxAllowedX, x));
-      c.y = Math.max(minAllowedY, Math.min(maxAllowedY, y));
+      c.x = (c.x - srcCx) * zoom + dstCx;
+      c.y = (c.y - srcCy) * zoom + dstCy;
+    }
+
+    const bottomMostVisibleY = Math.max(...zoomCoords.map((c) => c.y));
+    const lowerIntoFrameShift = Math.max(0, maxCenterY - bottomMostVisibleY);
+    if (lowerIntoFrameShift > 0) {
+      for (const c of coords) c.y += lowerIntoFrameShift;
     }
   }
 
@@ -7367,13 +7538,52 @@ function updateStep1RoutePreview() {
   svg.setAttribute("width", String(svgW));
   svg.setAttribute("height", String(svgH));
   svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+
+  const clipRouteSegmentToPanel = (a, b) => {
+    const canReachPanelFrame = !a.inIsrael || !b.inIsrael;
+    const xMin = canReachPanelFrame ? 0 : minCenterX;
+    const xMax = canReachPanelFrame ? svgW : maxCenterX;
+    const yMin = canReachPanelFrame ? 0 : minCenterY;
+    const yMax = canReachPanelFrame ? svgH : maxCenterY;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    let t0 = 0;
+    let t1 = 1;
+    const clip = (p, q) => {
+      if (p === 0) return q >= 0;
+      const r = q / p;
+      if (p < 0) {
+        if (r > t1) return false;
+        if (r > t0) t0 = r;
+      } else {
+        if (r < t0) return false;
+        if (r < t1) t1 = r;
+      }
+      return true;
+    };
+    if (
+      !clip(-dx, a.x - xMin) ||
+      !clip(dx, xMax - a.x) ||
+      !clip(-dy, a.y - yMin) ||
+      !clip(dy, yMax - a.y)
+    ) {
+      return null;
+    }
+    return [
+      { x: a.x + t0 * dx, y: a.y + t0 * dy },
+      { x: a.x + t1 * dx, y: a.y + t1 * dy },
+    ];
+  };
 
   // Draw lines for all but the last segment (already completed).
   if (coords.length >= 2) {
     let pathD = "";
     const lineEnd = isNewPoint ? coords.length - 1 : coords.length;
-    for (let i = 0; i < lineEnd; i++) {
-      pathD += (i === 0 ? "M" : "L") + `${coords[i].x},${coords[i].y}`;
+    for (let i = 1; i < lineEnd; i++) {
+      const clipped = clipRouteSegmentToPanel(coords[i - 1], coords[i]);
+      if (!clipped) continue;
+      pathD += `M${clipped[0].x},${clipped[0].y}L${clipped[1].x},${clipped[1].y}`;
     }
     const path = document.createElementNS(NS, "path");
     path.setAttribute("d", pathD);
@@ -7389,11 +7599,14 @@ function updateStep1RoutePreview() {
     if (isNewPoint) {
       const prev = coords[coords.length - 2];
       const last = coords[coords.length - 1];
+      const clippedAnimationSegment = clipRouteSegmentToPanel(prev, last);
       const animLine = document.createElementNS(NS, "line");
-      animLine.setAttribute("x1", String(prev.x));
-      animLine.setAttribute("y1", String(prev.y));
-      animLine.setAttribute("x2", String(prev.x));
-      animLine.setAttribute("y2", String(prev.y));
+      const animFrom = clippedAnimationSegment ? clippedAnimationSegment[0] : prev;
+      const animTo = clippedAnimationSegment ? clippedAnimationSegment[1] : prev;
+      animLine.setAttribute("x1", String(animFrom.x));
+      animLine.setAttribute("y1", String(animFrom.y));
+      animLine.setAttribute("x2", String(animFrom.x));
+      animLine.setAttribute("y2", String(animFrom.y));
       animLine.setAttribute("stroke", "#000000");
       animLine.setAttribute("stroke-width", "0.6");
       animLine.setAttribute("stroke-linecap", "round");
@@ -7406,14 +7619,14 @@ function updateStep1RoutePreview() {
       const growLine = (now) => {
         const t = Math.min(1, (now - start) / duration);
         const ease = 1 - Math.pow(1 - t, 3);
-        animLine.setAttribute("x2", String(prev.x + (last.x - prev.x) * ease));
-        animLine.setAttribute("y2", String(prev.y + (last.y - prev.y) * ease));
+        animLine.setAttribute("x2", String(animFrom.x + (animTo.x - animFrom.x) * ease));
+        animLine.setAttribute("y2", String(animFrom.y + (animTo.y - animFrom.y) * ease));
         if (t < 1) {
           requestAnimationFrame(growLine);
         } else {
           // Line complete — now grow the dot.
-          const sw = belongingCircleStrokeWeight(last.rate);
-          const r = routePreviewDotRadius(last.rate);
+          const sw = routePreviewStrokeWeightPx(last.rate);
+          const r = routePreviewDotRadiusPx(last.rate);
           const dot = document.createElementNS(NS, "circle");
           dot.setAttribute("cx", String(last.x));
           dot.setAttribute("cy", String(last.y));
@@ -7422,6 +7635,7 @@ function updateStep1RoutePreview() {
           dot.setAttribute("stroke", "#000000");
           dot.setAttribute("stroke-width", String(sw));
           dot.setAttribute("data-step1-route-dot", "1");
+          dot.setAttribute("data-address-index", String(last.addressIndex));
           dot.setAttribute("data-home-label", last.homeLabel || "");
           dot.setAttribute("data-address-label", last.addressLabel || "");
           dot.style.pointerEvents = "all";
@@ -7444,8 +7658,8 @@ function updateStep1RoutePreview() {
   const dotEnd = isNewPoint ? coords.length - 1 : coords.length;
   for (let i = 0; i < dotEnd; i++) {
     const c = coords[i];
-    const sw = belongingCircleStrokeWeight(c.rate);
-    const r = routePreviewDotRadius(c.rate);
+    const sw = routePreviewStrokeWeightPx(c.rate);
+    const r = routePreviewDotRadiusPx(c.rate);
     const dot = document.createElementNS(NS, "circle");
     dot.setAttribute("cx", String(c.x));
     dot.setAttribute("cy", String(c.y));
@@ -7454,6 +7668,7 @@ function updateStep1RoutePreview() {
     dot.setAttribute("stroke", "#000000");
     dot.setAttribute("stroke-width", String(sw));
     dot.setAttribute("data-step1-route-dot", "1");
+    dot.setAttribute("data-address-index", String(c.addressIndex));
     dot.setAttribute("data-home-label", c.homeLabel || "");
     dot.setAttribute("data-address-label", c.addressLabel || "");
     dot.style.pointerEvents = "all";
@@ -7462,6 +7677,18 @@ function updateStep1RoutePreview() {
 
   elStep1RoutePreview.appendChild(svg);
   setStep1RoutePreviewEditFocus();
+}
+
+let _step1RoutePreviewLayoutRaf = 0;
+function scheduleStep1RoutePreviewLayoutUpdate() {
+  if (_step1RoutePreviewLayoutRaf) cancelAnimationFrame(_step1RoutePreviewLayoutRaf);
+  _step1RoutePreviewLayoutRaf = requestAnimationFrame(() => {
+    _step1RoutePreviewLayoutRaf = requestAnimationFrame(() => {
+      _step1RoutePreviewLayoutRaf = 0;
+      if (!elPageStep1 || elPageStep1.classList.contains("hidden")) return;
+      updateStep1RoutePreview();
+    });
+  });
 }
 
 // --- Panel Stats (avg belonging + journey distance) ---
@@ -11078,6 +11305,13 @@ function renderAllMapsCombinedMap() {
     applyAllMapsSearchMatchHighlight(allMapsSearchQuery);
     if (allMapsSearchQuery) {
       focusAllMapsListNameByQuery(allMapsSearchQuery);
+    } else if (allMapsHighlightedKey) {
+      const selected = elSavedMapsList.querySelector(".allMapsListName.isHighlighted");
+      try {
+        selected?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -11253,16 +11487,22 @@ if (elAllMapsHideMapBtn) {
   });
 }
 
-if (elAllMapsListToggleBtn && elSavedMapsList) {
-  let allMapsListVisible = false;
-  elAllMapsListToggleBtn.addEventListener("click", () => {
-    allMapsListVisible = !allMapsListVisible;
-    // The search row only ever shows alongside the names list (see
-    // .allMapsListCollapsed in styles.css for the fade/slide animation).
-    elSavedMapsList.classList.toggle("allMapsListCollapsed", !allMapsListVisible);
-    if (elAllMapsSearchWrap) elAllMapsSearchWrap.classList.toggle("allMapsListCollapsed", !allMapsListVisible);
+function setAllMapsListVisible(visible) {
+  allMapsListVisible = Boolean(visible);
+  if (elSavedMapsList) elSavedMapsList.classList.toggle("allMapsListCollapsed", !allMapsListVisible);
+  if (elAllMapsSearchWrap) elAllMapsSearchWrap.classList.toggle("allMapsListCollapsed", !allMapsListVisible);
+  if (elAllMapsListToggleBtn) {
     elAllMapsListToggleBtn.textContent = allMapsListVisible ? "hide maps list" : "show maps list";
     elAllMapsListToggleBtn.setAttribute("aria-expanded", allMapsListVisible ? "true" : "false");
+  }
+}
+
+if (elAllMapsListToggleBtn && elSavedMapsList) {
+  setAllMapsListVisible(false);
+  elAllMapsListToggleBtn.addEventListener("click", () => {
+    // The search row only ever shows alongside the names list (see
+    // .allMapsListCollapsed in styles.css for the fade/slide animation).
+    setAllMapsListVisible(!allMapsListVisible);
   });
 }
 
@@ -13710,21 +13950,16 @@ function focusMapOnIsraelLocationsMax() {
   // Goal: zoom in as much as possible while still including all relevant
   // locations inside Israel. If no points are inside Israel, fall back to
   // the default Israel rectangle.
-  const validPts = (Array.isArray(addresses) ? addresses : [])
-    .filter((a) => a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon))
-    .map((a) => L.latLng(Number(a.lat), Number(a.lon)));
-
-  // Single-home maps should open with the home centered, even if it is outside Israel.
-  if (validPts.length === 1) {
-    map.setView(validPts[0], 6, { animate: false });
-    enforceMinZoomToAvoidBlankViewport(map);
-    return;
-  }
-
   const pts = (Array.isArray(addresses) ? addresses : [])
     .filter((a) => a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon))
     .map((a) => L.latLng(Number(a.lat), Number(a.lon)))
     .filter((ll) => ISRAEL_BOUNDS.contains(ll));
+
+  if (pts.length === 1) {
+    map.setView(pts[0], 6, { animate: false });
+    enforceMinZoomToAvoidBlankViewport(map);
+    return;
+  }
 
   const bounds = pts.length > 0 ? L.latLngBounds(pts) : ISRAEL_BOUNDS;
   if (!bounds.isValid()) return;
@@ -14093,7 +14328,7 @@ function alignStep1TopProgressCounter() {
 
 function updateStep1TopProgress() {
   if (!elStep1TopProgressSummary || !elStep1TopProgressCounter) return;
-  const studentName = String(elStudentName?.value || "").trim();
+  const studentName = String(currentLoadedMapDisplayName || elStudentName?.value || "").trim();
   const totalHomes = getStep1TotalHomesCount();
   if (!studentName && !totalHomes) {
     elStep1TopProgressSummary.textContent = "";
@@ -15763,6 +15998,7 @@ window.addEventListener("resize", () => {
   updateStep1Scale();
   resetHomeLogoScrollMorph();
   updateBelongingValueLabel();
+  scheduleStep1RoutePreviewLayoutUpdate();
   resizeSplashCanvas();
   if (splashEnabled) redrawSplash();
 
@@ -15784,6 +16020,7 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", () => {
     updateStep1Scale();
     updateBelongingValueLabel();
+    scheduleStep1RoutePreviewLayoutUpdate();
   }, { passive: true });
 }
 
@@ -15908,6 +16145,19 @@ if (elPostcardPreviewOverlay) {
 
 function wireHomeLogoNavigation() {
   const els = Array.from(document.querySelectorAll(".brand, .life-path, .appLogoImage"));
+  const resetProcessAndGoHome = () => {
+    try {
+      resetForNextStudent();
+      setStatus("");
+      setAddressStatus("");
+    } catch {
+      // ignore
+    }
+    step2OpenedFromArchive = false;
+    setStep2CloseReturnPage("step1");
+    showPage("welcome");
+  };
+
   for (const el of els) {
     // Avoid double-wiring.
     if (el.dataset && el.dataset.homeWired === "1") continue;
@@ -15921,54 +16171,12 @@ function wireHomeLogoNavigation() {
       // ignore
     }
 
-    el.addEventListener("click", () => {
-      const fromStep2 = (() => {
-        try {
-          return Boolean(el && typeof el.closest === "function" && el.closest("#pageStep2"));
-        } catch {
-          return false;
-        }
-      })();
-
-      if (fromStep2 && step2OpenedFromArchive) {
-        try {
-          resetForNextStudent();
-          setStatus("");
-          setAddressStatus("");
-        } catch {
-          // ignore
-        }
-        step2OpenedFromArchive = false;
-        setStep2CloseReturnPage("step1");
-      }
-
-      showPage("welcome");
-    });
+    el.addEventListener("click", resetProcessAndGoHome);
 
     el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        const fromStep2 = (() => {
-          try {
-            return Boolean(el && typeof el.closest === "function" && el.closest("#pageStep2"));
-          } catch {
-            return false;
-          }
-        })();
-
-        if (fromStep2 && step2OpenedFromArchive) {
-          try {
-            resetForNextStudent();
-            setStatus("");
-            setAddressStatus("");
-          } catch {
-            // ignore
-          }
-          step2OpenedFromArchive = false;
-          setStep2CloseReturnPage("step1");
-        }
-
-        showPage("welcome");
+        resetProcessAndGoHome();
       }
     });
   }
@@ -16037,6 +16245,7 @@ if (elStudentName) {
       const newPos = Math.min(pos, after.length);
       elStudentName.setSelectionRange(newPos, newPos);
     }
+    currentLoadedMapDisplayName = "";
 
     // Keep postcard/Step 2 labels in sync while editing.
     try {
@@ -16841,12 +17050,7 @@ function enterStep1EditMode(idx) {
   setStep1RingReadingEditFocus(idx);
   setStep1HomesListFocus(idx);
   setStep1EmotionEditFocus(idx);
-  // Geographic map: same "just this ring" focus the other panels already
-  // get, instead of staying zoomed out to the whole route.
-  const editAddr = Array.isArray(addresses) ? addresses[idx] : null;
-  if (editAddr && Number.isFinite(editAddr.lat) && Number.isFinite(editAddr.lon)) {
-    focusStep1GeoMapAt(editAddr.lat, editAddr.lon, 15.5, { animate: true });
-  }
+  fitStep1GeoMapToIsraelBoundaries({ animate: true });
   if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
 }
 
@@ -16860,11 +17064,7 @@ function exitStep1EditMode(opts) {
   setStep1RingReadingEditFocus(-1);
   setStep1HomesListFocus(-1);
   setStep1EmotionEditFocus(-1);
-  // Zoom back out to the whole route, reversing the single-ring focus above.
-  // Skipped for a plain new-address save (see call site): the geo map should
-  // stay focused on the address just entered, not fit to the whole route --
-  // that whole-route zoom-out only happens on Finish.
-  if (!options.keepGeoFocus) fitStep1GeoMapToAllAddresses({ animate: true });
+  if (!options.keepGeoFocus) fitStep1GeoMapToIsraelBoundaries({ animate: true });
   updateStep1Headers();
   if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
 }
@@ -16991,7 +17191,10 @@ if (elStep1AddrNextBtn) {
     if (lastHome && editingIdx < 0) {
       // Keep the current layout — don't change phases.
       step1SummaryPhaseActive = true;
-      if (elPageStep1) elPageStep1.classList.add("step1-finished-state");
+      if (elPageStep1) {
+        elPageStep1.classList.remove("step1-archive-loaded");
+        elPageStep1.classList.add("step1-finished-state");
+      }
       growStep1DashboardAnimated();
       // Deliberately NOT stopping the per-home entry loops here: this path
       // never calls renderStep1EmotionMap()/startEmotionSound() (see the
@@ -17009,8 +17212,7 @@ if (elStep1AddrNextBtn) {
       const divAddr = elPageStep1 && elPageStep1.querySelector(".div-3 > .div-2");
       if (divAddr) divAddr.style.display = "none";
 
-      // Zoom out and fit the whole route (all homes), not just the last address.
-      fitStep1GeoMapToAllAddresses({ animate: true });
+      fitStep1GeoMapToIsraelBoundaries({ animate: true });
 
       // Auto-save to server and local archive.
       const studentName = String(elStudentName?.value || "").trim();
@@ -17186,7 +17388,7 @@ if (elStep1BelongNextBtn) {
       // Show the summary phase
       step1TransitionPhase("step1-belonging-phase", "step1-summary-phase", () => {
         renderStep1Summary();
-        fitStep1GeoMapToAllAddresses({ animate: true });
+        fitStep1GeoMapToIsraelBoundaries({ animate: true });
       });
       // Auto-save the map to the archive (both movement and emotion).
       const studentName = String(elStudentName?.value || "").trim();
@@ -17257,7 +17459,10 @@ if (elStep1BelongNextBtn) {
 
       // Recolor route to black.
       step1SummaryPhaseActive = true;
-      if (elPageStep1) elPageStep1.classList.add("step1-finished-state");
+      if (elPageStep1) {
+        elPageStep1.classList.remove("step1-archive-loaded");
+        elPageStep1.classList.add("step1-finished-state");
+      }
       growStep1DashboardAnimated();
       stopStep1EntrySound();
       updateStep1TopProgress();
@@ -20167,11 +20372,26 @@ function resetForNextStudent() {
       "step1-address-phase",
       "step1-belonging-phase",
       "step1-summary-phase",
-      "step1-finished-state"
+      "step1-finished-state",
+      "step1-archive-loaded"
     );
   }
   step1DashboardGrown = false;
   renderList();
+  try {
+    updateStep1HomesList();
+    if (elStep1TimeBelongingChart) elStep1TimeBelongingChart.innerHTML = "";
+    _tbSvg = null;
+    _tbPoints = [];
+    _tbDurPoints = [];
+    if (elStep1RingReadingContent) elStep1RingReadingContent.innerHTML = "";
+    _step1RingReadingHoveredPath = null;
+    _step1RingReadingRenderKey = "";
+    hideStep1RingReadingTooltip();
+    clearStep1GeoMapState();
+  } catch {
+    // ignore
+  }
   clearMap();
 
   // Clear Step 1 name + editing pointers.
@@ -20181,6 +20401,7 @@ function resetForNextStudent() {
     // ignore
   }
   currentEditingSnapshot = null;
+  currentLoadedMapDisplayName = "";
   lastAutoSavedAddressesSignature = "";
   pendingStep2View = null;
 
