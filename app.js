@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "lifepath.addresses.v1";
 // Bump cache key so older cached results don't persist (also refreshes coords after geocode improvements).
-const GEOCODE_CACHE_KEY = "lifepath.geocodeCache.v11.google-street-types";
+const GEOCODE_CACHE_KEY = "lifepath.geocodeCache.v12.city-only-validation";
 
 // Sound assets (served from project root).
 // Note: filenames include spaces; use a URL-encoded path.
@@ -5065,9 +5065,7 @@ function sanitizeEnglishOnlyName(raw) {
 function isStep1FormComplete() {
   const country = String(elCountry?.value || "").trim();
   const city = String(elCity?.value || "").trim();
-  const street = String(elStreet?.value || "").trim();
-  const number = String(elNumber?.value || "").trim();
-  return Boolean(country && city && street && number && currentAddressVerified);
+  return Boolean(country && city && currentAddressVerified);
 }
 
 function updateAddButtonState() {
@@ -16745,10 +16743,9 @@ function updateStep1AddrNextBtnState() {
   if (elStep1AddrNextBtn) {
     const country = String(elCountry?.value || "").trim();
     const city = String(elCity?.value || "").trim();
-    const street = String(elStreet?.value || "").trim();
     const number = String(elNumber?.value || "").trim();
     const year = String(elStartYear?.value || "").trim();
-    const allFilled = Boolean(country && city && street && isValidStartYear(year));
+    const allFilled = Boolean(country && city && isValidStartYear(year));
     elStep1AddrNextBtn.classList.toggle("active", allFilled);
   }
   const countryForHint = String(elCountry?.value || "").trim();
@@ -16801,7 +16798,10 @@ if (elCountry) elCountry.addEventListener("input", updateStep1AddrNextBtnState);
 if (elCity) elCity.addEventListener("input", updateStep1AddrNextBtnState);
 if (elStreet) elStreet.addEventListener("input", updateStep1AddrNextBtnState);
 if (elNumber) elNumber.addEventListener("input", updateStep1AddrNextBtnState);
-if (elStartYear) elStartYear.addEventListener("input", updateStep1AddrNextBtnState);
+if (elStartYear) {
+  elStartYear.addEventListener("input", updateStep1AddrNextBtnState);
+  elStartYear.addEventListener("focus", () => { void focusStep1MapFromYearFocus(); });
+}
 
 // Set the initial City / Street,number placeholder without calling
 // updateStep1AddrNextBtnState() this early (it also calls
@@ -17382,7 +17382,6 @@ function hasStep1FullAddressInput() {
     String(elCountry?.value || "").trim()
     && String(elCity?.value || "").trim()
     && String(elStreet?.value || "").trim()
-    && String(elNumber?.value || "").trim()
   );
 }
 
@@ -17390,6 +17389,8 @@ async function verifyCurrentCity() {
   syncStreetAndNumberFields();
   const country = String(elCountry?.value || "").trim();
   const city = String(elCity?.value || "").trim();
+  const street = String(elStreet?.value || "").trim();
+  const number = String(elNumber?.value || "").trim();
   if (!country || !city) return null;
 
   const requestSeq = ++verifyCityRequestSeq;
@@ -17403,6 +17404,15 @@ async function verifyCurrentCity() {
     && nominatimItemMatchesCityExactly(candidate, city));
   if (found) {
     if (elCity) elCity.classList.remove("address-error");
+    if (!street) {
+      setStep1PreviewAddressFromGeo({ country, city, state: getValue("state"), street, number }, {
+        lat: Number(found.lat),
+        lon: Number(found.lon),
+        displayName: String(found.display_name || [city, country].filter(Boolean).join(", ")),
+        matchLevel: "city",
+        source: "google",
+      }, { renderMarkers: false });
+    }
     return found;
   }
 
@@ -17417,11 +17427,21 @@ function verifyCurrentAddress() {
   const street = String(elStreet?.value || "").trim();
   const number = String(elNumber?.value || "").trim();
 
-  if (!country || !city || !street || !number) {
+  if (!country || !city) {
     currentAddressVerified = false;
     step1PendingPreviewAddress = null;
     updateAddButtonState();
     updateStep1GeoMapMarkers();
+    return;
+  }
+
+  if (!street) {
+    verifyCurrentCity();
+    return;
+  }
+
+  if (!number) {
+    verifyCurrentStreetWithDiagnosis({ country, city, state: getValue("state"), street, number });
     return;
   }
 
@@ -17443,6 +17463,30 @@ function verifyCurrentAddressWithDiagnosis(address) {
   geocodeStep1FullAddressInOrder(address)
     .then((geo) => {
       if (requestSeq !== verifyAddressRequestSeq) return;
+      setStep1PreviewAddressFromGeo(address, geo, { renderMarkers: false });
+      if (_step1NextAfterVerify) {
+        _step1NextAfterVerify = false;
+        setTimeout(() => { if (elStep1AddrNextBtn) elStep1AddrNextBtn.click(); }, 0);
+      }
+    })
+    .catch(() => {
+      if (requestSeq !== verifyAddressRequestSeq) return;
+      currentAddressVerified = false;
+      step1PendingPreviewAddress = null;
+      _step1NextAfterVerify = false;
+      clearAddressFieldErrors();
+      updateAddButtonState();
+      updateStep1AddrNextBtnState();
+      markAddressFieldError("Street");
+    });
+}
+
+function verifyCurrentStreetWithDiagnosis(address) {
+  const requestSeq = ++verifyAddressRequestSeq;
+  resolveStep1StreetFocus(address)
+    .then((geo) => {
+      if (requestSeq !== verifyAddressRequestSeq) return;
+      if (!geo) throw new Error("No street result");
       setStep1PreviewAddressFromGeo(address, geo, { renderMarkers: false });
       if (_step1NextAfterVerify) {
         _step1NextAfterVerify = false;
@@ -17646,9 +17690,24 @@ function getNominatimItemStreetTokens(item) {
 const EXACT_GEOCODE_MATCH_ALIASES = {
   "ישראל": ["israel"],
   "yshral": ["israel"],
+  "אלונים": ["alonim"],
+  "קיבוץאלונים": ["alonim"],
   "telavivyafo": ["telaviv"],
   "תלאביביפו": ["תלאביב"],
 };
+
+const GOOGLE_GEOCODE_PLACE_QUERY_ALIASES = {
+  "אלונים": ["Alonim"],
+  "קיבוץאלונים": ["Kibbutz Alonim", "Alonim"],
+};
+
+const HEBREW_SETTLEMENT_PREFIX_WORDS = new Set(["קיבוץ", "מושב", "יישוב", "ישוב", "כפר"]);
+
+function withoutHebrewSettlementPrefix(value) {
+  const words = String(value || "").trim().split(/\s+/).filter(Boolean);
+  if (words.length > 1 && HEBREW_SETTLEMENT_PREFIX_WORDS.has(words[0])) return words.slice(1).join(" ");
+  return String(value || "").trim();
+}
 
 const EXACT_GEOCODE_STREET_TYPE_SUFFIXES = [
   "street", "st", "st.", "road", "rd", "rd.", "avenue", "ave", "ave.", "boulevard", "blvd", "blvd.",
@@ -17668,10 +17727,12 @@ function withoutGenericStreetTypeWords(value) {
 function normalizedExactMatchValues(value) {
   const values = new Set();
   const raw = normalizeTextForMatch(value);
+  const withoutSettlementPrefix = normalizeTextForMatch(withoutHebrewSettlementPrefix(value));
   const latin = normalizeTextForMatch(toEnglishLike(value));
   const withoutStreetType = normalizeTextForMatch(withoutGenericStreetTypeWords(value));
   const latinWithoutStreetType = normalizeTextForMatch(withoutGenericStreetTypeWords(toEnglishLike(value)));
   if (raw) values.add(raw);
+  if (withoutSettlementPrefix) values.add(withoutSettlementPrefix);
   if (latin) values.add(latin);
   if (withoutStreetType) values.add(withoutStreetType);
   if (latinWithoutStreetType) values.add(latinWithoutStreetType);
@@ -17683,7 +17744,7 @@ function normalizedExactMatchValues(value) {
       else values.add(`ה${value}`);
     }
   }
-  for (const key of [raw, latin]) {
+  for (const key of [raw, withoutSettlementPrefix, latin]) {
     const aliases = EXACT_GEOCODE_MATCH_ALIASES[key];
     if (Array.isArray(aliases)) aliases.forEach((alias) => {
       const normalizedAlias = normalizeTextForMatch(alias);
@@ -17793,7 +17854,54 @@ async function resolveStep1CityFocus() {
 
 async function focusCityOnGeoMap() {
   const focus = await resolveStep1CityFocus();
-  if (focus) focusStep1GeoMapAt(focus.lat, focus.lon, 12, { animate: true });
+  if (focus) focusStep1GeoMapAt(focus.lat, focus.lon, 17, { animate: true });
+}
+
+async function focusStep1MapFromYearFocus() {
+  const parsedStreetAndNumber = syncStreetAndNumberFields();
+  const country = String(elCountry?.value || "").trim();
+  const city = String(elCity?.value || "").trim();
+  const street = String(elStreet?.value || "").trim();
+  const number = String(elNumber?.value || "").trim();
+  const rawAddress = String(parsedStreetAndNumber?.raw || "").trim();
+  if (!country || !city) return;
+
+  if (!rawAddress && !street && !number) {
+    await verifyCurrentCity();
+    await focusCityOnGeoMap();
+    return;
+  }
+
+  if (!street) {
+    currentAddressVerified = false;
+    step1PendingPreviewAddress = null;
+    clearStep1FocusMarker();
+    clearAddressFieldErrors();
+    markAddressFieldError("Street");
+    updateAddButtonState();
+    if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
+    return;
+  }
+
+  const address = { country, city, state: getValue("state"), street, number, _origStreetAndNumber: rawAddress };
+  try {
+    const geo = number
+      ? await geocodeStep1FullAddressInOrder(address)
+      : await resolveStep1StreetFocus(address);
+    if (!geo) throw new Error(number ? "No address result" : "No street result");
+    setStep1PreviewAddressFromGeo(address, geo, { renderMarkers: false });
+    clearStep1FocusMarker();
+    focusStep1GeoMapAt(geo.lat, geo.lon, number ? 17 : 15, { animate: true });
+  } catch (e) {
+    console.warn("[yearFocusAddress] error", e);
+    currentAddressVerified = false;
+    step1PendingPreviewAddress = null;
+    clearStep1FocusMarker();
+    clearAddressFieldErrors();
+    markAddressFieldError("Street");
+    updateAddButtonState();
+    if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
+  }
 }
 
 async function resolveStep1StreetFocus(address) {
@@ -17833,7 +17941,7 @@ function scheduleStep1AddressMapSync() {
   const city = String(elCity?.value || "").trim();
   const street = String(elStreet?.value || "").trim();
   const number = String(elNumber?.value || "").trim();
-  if (country && city && street && number) {
+  if (country && city && street) {
     if (_cityFocusDebounceId) window.clearTimeout(_cityFocusDebounceId);
     _cityFocusDebounceId = 0;
     scheduleStreetMapFocus();
@@ -17969,21 +18077,53 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 4500) {
   }
 }
 
-async function fetchGoogleGeocodeItemsForAddress(address, options = {}) {
+function getGoogleGeocodeQueryPlaceVariants(value) {
+  const variants = new Set();
+  const raw = tidyToken(value);
+  const stripped = tidyToken(withoutHebrewSettlementPrefix(raw));
+  [raw, stripped].forEach((item) => {
+    if (!item) return;
+    variants.add(item);
+    const key = normalizeTextForMatch(item);
+    const aliases = GOOGLE_GEOCODE_PLACE_QUERY_ALIASES[key];
+    if (Array.isArray(aliases)) aliases.forEach((alias) => variants.add(tidyToken(alias)));
+  });
+  return Array.from(variants).filter(Boolean);
+}
+
+function buildGoogleGeocodeQueriesForAddress(address, options = {}) {
   const includeNumber = options.includeNumber !== false;
   const streetLine = tidyToken(includeNumber
     ? (address?._origStreetAndNumber || [address?.street, address?.number].filter(Boolean).join(" "))
     : address?.street);
-  const params = {
-    q: [streetLine, address?.city, address?.state, address?.country].filter(Boolean).join(", "),
+  const cityVariants = getGoogleGeocodeQueryPlaceVariants(address?.city);
+  const countryVariants = getGoogleGeocodeQueryPlaceVariants(address?.country);
+  const queries = [];
+  const addQuery = (city, country) => {
+    const q = [streetLine, city, address?.state, country].filter(Boolean).join(", ");
+    if (q && !queries.includes(q)) queries.push(q);
   };
-  if (!params.q) return [];
-  const payload = await fetchJsonWithTimeout("/api/google_geocode", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Accept": "application/json" },
-    body: JSON.stringify({ params }),
-  }, 4500);
-  return payload?.ok && Array.isArray(payload.data) ? payload.data : [];
+  const cities = cityVariants.length ? cityVariants : [tidyToken(address?.city)];
+  const countries = countryVariants.length ? countryVariants : [tidyToken(address?.country)];
+  for (const city of cities) {
+    for (const country of countries) addQuery(city, country);
+  }
+  return queries;
+}
+
+async function fetchGoogleGeocodeItemsForAddress(address, options = {}) {
+  const queries = buildGoogleGeocodeQueriesForAddress(address, options);
+  if (!queries.length) return [];
+  for (const q of queries) {
+    const payload = await fetchJsonWithTimeout("/api/google_geocode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ params: { q } }),
+    }, 4500);
+    const data = payload?.ok && Array.isArray(payload.data) ? payload.data : [];
+    if (data.length) return data;
+  }
+  return [];
 }
 
 async function geocodeStep1FullAddressInOrder(address) {
@@ -18013,7 +18153,7 @@ async function geocodeStep1FullAddressInOrder(address) {
   // finished) -- skip the network entirely.
   const cacheKey = canonicalKey(address);
   const cachedRecord = geocodeCache[cacheKey];
-  if (cachedRecord && isFinite(cachedRecord.lat) && isFinite(cachedRecord.lon)) {
+  if (cachedRecord && cachedRecord.matchLevel === "address" && isFinite(cachedRecord.lat) && isFinite(cachedRecord.lon)) {
     return cachedRecord;
   }
 
@@ -18081,26 +18221,27 @@ async function focusStreetOnGeoMap() {
   const city = String(elCity?.value || "").trim();
   const street = String(elStreet?.value || "").trim();
   const number = String(elNumber?.value || "").trim();
-  if (!country || !city || !street || !number) return;
+  if (!country || !city || !street) return;
   const address = { country, city, state: getValue("state"), street, number, _origStreetAndNumber: parsedStreetAndNumber.raw };
   try {
-    const geo = await geocodeStep1FullAddressInOrder(address);
-    if (!geo) throw new Error("No street result");
+    const geo = number
+      ? await geocodeStep1FullAddressInOrder(address)
+      : await resolveStep1StreetFocus(address);
+    if (!geo) throw new Error(number ? "No address result" : "No street result");
     if (seq !== _streetFocusSeq) return;
-    if (number) setStep1PreviewAddressFromGeo(address, geo, { renderMarkers: false });
+    setStep1PreviewAddressFromGeo(address, geo, { renderMarkers: false });
     clearStep1FocusMarker();
     focusStep1GeoMapAt(geo.lat, geo.lon, number ? 17 : 15, { animate: true });
   } catch (e) {
     console.warn("[streetFocus] error", e);
     if (seq !== _streetFocusSeq) return;
-    // The street/number couldn't be resolved -- don't leave a stale
-    // precise marker from a previous address sitting there, and don't let
-    // the map drift anywhere unexpected. Fall back to just the city (if
-    // that part alone is recognized) so the map stays anchored on the
-    // right city while the street field's own red underline (see
-    // markAddressFieldError()) flags what actually needs fixing.
+    currentAddressVerified = false;
+    step1PendingPreviewAddress = null;
     clearStep1FocusMarker();
-    await focusCityOnGeoMap();
+    clearAddressFieldErrors();
+    markAddressFieldError("Street");
+    updateAddButtonState();
+    if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
   }
 }
 
@@ -18201,9 +18342,8 @@ function updateAddHomeBtnState() {
   const country = String(elCountry?.value || "").trim();
   const city = String(elCity?.value || "").trim();
   const cityVal = String(elCity?.value || "").trim();
-  const streetVal = String(elStreet?.value || "").trim();
   const year = String(elStartYear?.value || "").trim();
-  const allOk = Boolean(country && cityVal && streetVal && isValidStartYear(year) && currentAddressVerified && step1PendingPreviewAddress);
+  const allOk = Boolean(country && cityVal && isValidStartYear(year) && currentAddressVerified && step1PendingPreviewAddress);
   elAddHomeBtn.classList.toggle("active", allOk);
   // Image-swap instead of textContent (which would wipe out the <img>):
   // "Save Changes" (edit mode) has no dedicated asset, so it falls back to
