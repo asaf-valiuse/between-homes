@@ -23,6 +23,28 @@ ROOT = Path(__file__).resolve().parent
 SIGNATURES_JSON_SEED_PATH = ROOT / "signatures.json"
 
 
+def _load_local_env(path: Path = ROOT / ".env") -> None:
+    if not path.exists():
+        return
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        value = value.strip().strip('"').strip("'")
+        os.environ[key] = value
+
+
+_load_local_env()
+
+
 def _default_database_path() -> Path:
     configured = os.environ.get("LIFEPATH_DB_PATH")
     if configured:
@@ -239,6 +261,89 @@ def _photon_feature_to_nominatim_item(feature: dict) -> Optional[dict]:
         "extratags": {},
         "source": "photon",
     }
+
+
+def _google_address_component(components: list, *types: str) -> str:
+    wanted = set(types)
+    for component in components if isinstance(components, list) else []:
+        c_types = component.get("types") if isinstance(component, dict) else None
+        if isinstance(c_types, list) and wanted.intersection(str(t) for t in c_types):
+            return str(component.get("long_name") or component.get("short_name") or "").strip()
+    return ""
+
+
+def _google_geocode_item_to_nominatim_item(item: dict) -> Optional[dict]:
+    if not isinstance(item, dict):
+        return None
+    geometry = item.get("geometry") if isinstance(item.get("geometry"), dict) else {}
+    location = geometry.get("location") if isinstance(geometry.get("location"), dict) else {}
+    try:
+        lat = float(location.get("lat"))
+        lon = float(location.get("lng"))
+    except Exception:
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+
+    components = item.get("address_components") if isinstance(item.get("address_components"), list) else []
+    address = {
+        "house_number": _google_address_component(components, "street_number"),
+        "road": _google_address_component(components, "route"),
+        "city": _google_address_component(components, "locality", "postal_town", "administrative_area_level_2"),
+        "state": _google_address_component(components, "administrative_area_level_1"),
+        "postcode": _google_address_component(components, "postal_code"),
+        "country": _google_address_component(components, "country"),
+    }
+    display_name = str(item.get("formatted_address") or "").strip()
+    return {
+        "place_id": item.get("place_id") or display_name,
+        "lat": str(lat),
+        "lon": str(lon),
+        "display_name": display_name,
+        "class": "place",
+        "type": item.get("types", ["address"])[0] if isinstance(item.get("types"), list) and item.get("types") else "address",
+        "importance": 1,
+        "address": address,
+        "namedetails": {
+            "name": address["road"] or display_name,
+            "name:en": address["road"] or display_name,
+        },
+        "extratags": {},
+        "source": "google",
+    }
+
+
+def _search_google_geocode(params: dict, accept_language: str) -> list:
+    api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("google_maps_api_key_missing")
+    query = str(params.get("q") or "").strip()
+    if not query:
+        parts = [params.get("street"), params.get("city"), params.get("state"), params.get("country")]
+        query = ", ".join(str(part or "").strip() for part in parts if str(part or "").strip())
+    if not query:
+        return []
+    google_params = {
+        "address": query,
+        "key": api_key,
+        "language": (accept_language or "en").split(",", 1)[0][:20] or "en",
+    }
+    query_for_region = " ".join(str(params.get(key) or "") for key in ("q", "country", "city", "street"))
+    if re.search(r"[\u0590-\u05FF]", query_for_region) or re.search(r"\bisrael\b", query_for_region, re.IGNORECASE):
+        google_params["region"] = "il"
+        google_params["components"] = "country:IL"
+        if re.search(r"[\u0590-\u05FF]", query_for_region):
+            google_params["language"] = "he"
+    data = _fetch_json(
+        "https://maps.googleapis.com/maps/api/geocode/json?" + urlencode(google_params),
+        headers={"Accept": "application/json"},
+        timeout=15,
+    )
+    status = str(data.get("status") or "") if isinstance(data, dict) else ""
+    if status not in ("OK", "ZERO_RESULTS"):
+        raise RuntimeError(status or "google_geocode_failed")
+    results = data.get("results") if isinstance(data, dict) else []
+    return [item for item in (_google_geocode_item_to_nominatim_item(result) for result in results if isinstance(result, dict)) if item]
 
 
 def _search_photon(params: dict, accept_language: str) -> list:
@@ -873,7 +978,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path not in ("/api/signatures", "/api/overpass", "/api/nominatim", "/api/state", "/api/maps/rebuild"):
+        if parsed.path not in ("/api/signatures", "/api/overpass", "/api/nominatim", "/api/google_geocode", "/api/state", "/api/maps/rebuild"):
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
             return
 
@@ -992,6 +1097,30 @@ class Handler(SimpleHTTPRequestHandler):
                 )
             return
 
+        if parsed.path == "/api/google_geocode":
+            params = payload.get("params") if isinstance(payload, dict) else None
+            if not isinstance(params, dict):
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "missing_params"})
+                return
+            clean_params = {}
+            for key, value in params.items():
+                key_s = str(key or "").strip()
+                value_s = str(value or "").strip()
+                if key_s and value_s:
+                    clean_params[key_s] = value_s
+            if not clean_params.get("q") and not any(k in clean_params for k in ("street", "city", "country")):
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "missing_query"})
+                return
+            try:
+                items = _search_google_geocode(clean_params, self.headers.get("Accept-Language", "en")[:100])
+                self._send_json(HTTPStatus.OK, {"ok": True, "data": items, "source": "google"})
+            except RuntimeError as e:
+                status = HTTPStatus.SERVICE_UNAVAILABLE if str(e) == "google_maps_api_key_missing" else HTTPStatus.BAD_GATEWAY
+                self._send_json(status, {"ok": False, "error": str(e)})
+            except Exception as e:
+                self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": "google_geocode_failed", "detail": str(e)})
+            return
+
         if parsed.path == "/api/state":
             state_in = payload.get("state") if isinstance(payload, dict) else None
             # Allow posting either {state:{...}} or the state object directly.
@@ -1094,6 +1223,14 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+
+        if parsed.path == "/api/google_maps_config":
+            api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
+            if not api_key:
+                self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "google_maps_api_key_missing"})
+                return
+            self._send_json(HTTPStatus.OK, {"ok": True, "apiKey": api_key, "language": "he", "region": "IL"})
+            return
 
         if parsed.path == "/api/health":
             with _lock:

@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "lifepath.addresses.v1";
 // Bump cache key so older cached results don't persist (also refreshes coords after geocode improvements).
-const GEOCODE_CACHE_KEY = "lifepath.geocodeCache.v8.en";
+const GEOCODE_CACHE_KEY = "lifepath.geocodeCache.v11.google-street-types";
 
 // Sound assets (served from project root).
 // Note: filenames include spaces; use a URL-encoded path.
@@ -1912,37 +1912,6 @@ function formatStandardAddress({ country, city, street, number }) {
   return parts.join(", ");
 }
 
-async function reverseGeocodeEnglish(lat, lon) {
-  const url = new URL("https://nominatim.openstreetmap.org/reverse");
-  url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("lat", String(lat));
-  url.searchParams.set("lon", String(lon));
-  url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("namedetails", "1");
-  url.searchParams.set("extratags", "1");
-  url.searchParams.set("accept-language", "en");
-
-  const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), 8000);
-  let res;
-  try {
-    res = await fetch(url.toString(), {
-      signal: ctrl.signal,
-      headers: {
-        "Accept": "application/json",
-        "Accept-Language": "en",
-      },
-    });
-  } finally {
-    clearTimeout(tid);
-  }
-
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (!data || typeof data !== "object") return null;
-  return data;
-}
-
 /**
  * @typedef {Object} Address
  * @property {string} id
@@ -2136,6 +2105,11 @@ function addressDotRadius(rate) {
 // on screen while preserving the same rate-to-size relation.
 const ROUTE_PREVIEW_OBJECT_SCALE = 0.68;
 const ROUTE_PREVIEW_DOT_INNER_RADIUS = ADDRESS_DOT_INNER_RADIUS * ROUTE_PREVIEW_OBJECT_SCALE;
+const ROUTE_PREVIEW_LINE_STROKE_WIDTH = 0.55;
+const ROUTE_PREVIEW_LINE_OPACITY = 0.9;
+const ROUTE_PREVIEW_LINE_SOFT_STROKE_WIDTH = 1.4;
+const ROUTE_PREVIEW_LINE_SOFT_OPACITY = 0.18;
+const ROUTE_PREVIEW_LINE_SUPERSAMPLE = 4;
 function routePreviewStrokeWeight(rate) {
   return belongingCircleStrokeWeight(rate) * ROUTE_PREVIEW_OBJECT_SCALE;
 }
@@ -2442,6 +2416,7 @@ async function bootstrapServerBackedState() {
 
     serverStateLoaded = true;
     refreshSavedMapsUis();
+    restoreReviewMapAfterRefresh();
 
     // Once server is the source of truth, stop relying on localStorage for these keys.
     try {
@@ -3289,7 +3264,11 @@ function prepareAllMapsFocusForCurrentMap() {
   return Boolean(key);
 }
 
-// New flow (Welcome -> Step 1 -> Step 2)
+// Product pages:
+// - welcome: Home + scroll-down map name entry
+// - map: Map editor/viewer (physical container: #pageStep1)
+// - archive, allmaps, about: top-level pages
+// - emotionExpand / movementExpand: child detail views opened from the map page
 const elPageWelcome = document.getElementById("pageWelcome");
 const elPageAbout = document.getElementById("pageAbout");
 const elPageStep1 = document.getElementById("pageStep1");
@@ -4990,7 +4969,7 @@ if (elStep1ShareBtn) {
 
 if (elStep1PrintBtn) {
   elStep1PrintBtn.addEventListener("click", () => {
-    printPostcardImmediatelyFromStep2();
+    openPrintModal();
   });
 }
 
@@ -5058,23 +5037,6 @@ function showCreateLifePathTransition(show) {
 const elSavedMapsList = document.getElementById("savedMapsList");
 const elSavedMapsEmpty = document.getElementById("savedMapsEmpty");
 
-const elArchiveGrid = document.getElementById("archiveGrid");
-const elArchiveEmpty = document.getElementById("archiveEmpty");
-const elArchiveSearchInput = document.getElementById("archiveSearchInput");
-
-let archiveSearchQuery = "";
-
-if (elArchiveSearchInput) {
-  elArchiveSearchInput.addEventListener("input", () => {
-    archiveSearchQuery = String(elArchiveSearchInput.value || "").trim().toLowerCase();
-    try {
-      renderArchiveGrid();
-    } catch {
-      // ignore
-    }
-  });
-}
-
 const elAllMapsMap = document.getElementById("allMapsMap");
 const elAllMapsHideMapBtn = document.getElementById("allMapsHideMapBtn");
 const elAllMapsEditBtn = document.getElementById("allMapsEditBtn");
@@ -5083,6 +5045,10 @@ const elAllMapsZoomLabel = document.getElementById("allMapsZoomLabel");
 const elAllMapsSearchInput = document.getElementById("allMapsSearchInput");
 const elAllMapsSearchWrap = document.querySelector("#pageAllMaps .allMapsSearchWrap");
 const elAllMapsListToggleBtn = document.getElementById("allMapsListToggleBtn");
+const elAllMapsYearToggleBtn = document.getElementById("allMapsYearToggleBtn");
+const elAllMapsYearControls = document.getElementById("allMapsYearControls");
+const elAllMapsYearSlider = document.getElementById("allMapsYearSlider");
+const elAllMapsYearSliderValue = document.getElementById("allMapsYearSliderValue");
 
 const elCountry = document.getElementById("country");
 const elCity = document.getElementById("city");
@@ -5629,9 +5595,55 @@ function scrollWelcomeToScreen2(behavior) {
 // still remembers the right one when back is eventually clicked.
 let _lastPrimaryPageKey = "step1";
 
+function normalizeAppPageKey(which) {
+  const key = String(which || "");
+  if (key === "map") return "step1";
+  if (key === "movementExpand") return "step2";
+  if (key === "emotionExpand") return "step1EmotionFullscreen";
+  return key;
+}
+
+function publicAppPageKey(pageKey) {
+  if (pageKey === "step1") return "map";
+  if (pageKey === "step2") return "movementExpand";
+  if (pageKey === "step1EmotionFullscreen") return "emotionExpand";
+  return pageKey;
+}
+
+let _appHistoryInitialized = false;
+let _appHistoryRestoring = false;
+let _restoringReviewMapAfterRefresh = false;
+
+function syncAppHistory(pageKey, options) {
+  if (_appHistoryRestoring || options.history === "skip") return;
+  try {
+    if (!window.history || typeof window.history.pushState !== "function") return;
+    const publicKey = publicAppPageKey(pageKey);
+    const currentKey = window.history.state && window.history.state.lifepathPage;
+    if (_appHistoryInitialized && currentKey === publicKey) return;
+
+    const state = { lifepathPage: publicKey };
+    if (!_appHistoryInitialized || options.history === "replace") {
+      window.history.replaceState(state, "", window.location.href);
+      _appHistoryInitialized = true;
+      return;
+    }
+
+    window.history.pushState(state, "", window.location.href);
+  } catch {
+    // Browser history is a convenience layer; page navigation should still work.
+  }
+}
+
 function showPage(which, opts) {
   const options = opts && typeof opts === "object" ? opts : {};
-  const pageKey = which;
+  const pageKey = normalizeAppPageKey(which);
+
+  if (pageKey === "welcome" && serverStateLoaded && !_restoringReviewMapAfterRefresh) {
+    clearReviewMapRefreshMarker();
+  }
+
+  syncAppHistory(pageKey, options);
 
   if (pageKey === "step1" || pageKey === "welcome") {
     _lastPrimaryPageKey = pageKey;
@@ -5665,7 +5677,7 @@ function showPage(which, opts) {
   // renderStep1EmotionMap(), but there's no reason to stop-then-immediately-
   // restart). Only leaving to a page with no connection to the emotion map
   // (Step 2, All Maps, Archive, Welcome) tears it down.
-  if (which !== "emotion" && which !== "step1EmotionFullscreen" && which !== "step1") {
+  if (pageKey !== "emotion" && pageKey !== "step1EmotionFullscreen" && pageKey !== "step1") {
     try {
       _emotionRingFocusIndex = null;
       hideEmotionRingSoloTextOverlays();
@@ -5735,7 +5747,7 @@ function showPage(which, opts) {
   }
 
   // Leaflet needs a size recalculation when its container becomes visible.
-  if (which === "step2") {
+  if (pageKey === "step2") {
     setTimeout(() => {
       // Default behavior: open with all Israel visible.
       step2OpenExtraZoomStops = 0;
@@ -5790,7 +5802,7 @@ function showPage(which, opts) {
     }, 0);
   }
 
-  if (which === "emotion") {
+  if (pageKey === "emotion") {
     setTimeout(() => {
       updateEmotionTitle();
       renderEmotionMap(pendingEmotionStart);
@@ -5799,7 +5811,7 @@ function showPage(which, opts) {
     }, 0);
   }
 
-  if (which === "allmaps") {
+  if (pageKey === "allmaps") {
     setTimeout(() => {
       ensureAllMapsMap();
       // Default: tiles hidden until user clicks "Show map".
@@ -5823,330 +5835,24 @@ function showPage(which, opts) {
     }, 0);
   }
 
-  if (which === "archive") {
+  if (pageKey === "archive") {
     setTimeout(async () => {
       await refreshServerMapsCache();
       renderArchiveGrid();
     }, 0);
   }
+
 }
 
-function createArchiveMiniMapSvg(snapshot) {
-  const isNastyaFaybish = (() => {
-    try {
-      const full = String(snapshot?.fullName || "").trim().toLowerCase();
-      const compact = full.replace(/\s+/g, "");
-      if (compact === "nastyafaybish") return true;
-
-      // Fallback: some older snapshots may only have label like "NastyaFaybish.08addrs".
-      const label = String(snapshot?.label || "").trim().toLowerCase();
-      const labelCompact = label.replace(/\s+/g, "");
-      return labelCompact.startsWith("nastyafaybish.") || labelCompact.startsWith("nastyafaybish");
-    } catch {
-      return false;
-    }
-  })();
-
-  const NS = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(NS, "svg");
-  svg.setAttribute("viewBox", "0 0 100 100");
-  // Keep uniform scaling so circles stay circles (not ellipses).
-  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-  svg.classList.add("archiveThumb");
-
-  // Requirement: zoom the archived thumbnails in by 10%.
-  // This is done by shrinking the viewBox, which does NOT change marker sizes
-  // in screen pixels because marker radii/strokes are stored as base px values
-  // and converted to viewBox units at runtime (see attachArchiveThumbInteractions).
-  const ARCHIVE_INITIAL_ZOOM_FACTOR = 1.21;
-
-  // Archive thumbnails should visually match the Leaflet LifePath maps.
-  // Leaflet circleMarker styling is defined in *pixels*:
-  // - circle radius ~= 5
-  // - circle stroke weight ~= belonging rate
-  // - path line weight ~= 1
-  // Because our thumbnails are SVG with a viewBox, we store these as
-  // "base px" values on elements and convert them to viewBox units at runtime
-  // (see attachArchiveThumbInteractions).
-  const ARCHIVE_LINE_PX = 1;
-  // Match Leaflet styling used elsewhere in the app:
-  // radius = innerRadius + rate/2, stroke weight = rate.
-  const ARCHIVE_CIRCLE_INNER_RADIUS_PX = 3;
-  const ARCHIVE_CIRCLE_STROKE_SCALE = 0.62;
-
-  const addrs = Array.isArray(snapshot?.addresses) ? snapshot.addresses : [];
-  const countries = new Set(
-    addrs
-      .map((a) => (a && a.valid !== false ? String(a.country || "").trim() : ""))
-      .map((c) => toEnglishLike(c).trim().toLowerCase())
-      .filter(Boolean)
-  );
-  // Some specific archive thumbnails need to render against the Israel baseline
-  // even if country parsing collapses to a single value.
-  const useIsraelViewport = countries.size > 1 || isNastyaFaybish;
-
-  const pts = [];
-  for (const a of addrs) {
-    const ok = a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon);
-    if (!ok) continue;
-    const rate = normalizeBelongingRate(a.belonging_rate, stableBelongingRateFromId(a.id));
-    pts.push({ lat: Number(a.lat), lon: Number(a.lon), rate });
-  }
-
-  if (pts.length === 0) {
-    return svg;
-  }
-  let minLon = Infinity;
-  let maxLon = -Infinity;
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-
-  /** @type {{lat:number, lon:number, rate:number}[]} */
-  let israelPts = [];
-
-  if (useIsraelViewport && typeof ISRAEL_BOUNDS !== "undefined" && ISRAEL_BOUNDS) {
-    // Focus on Israel locations: when there are points inside Israel, fit to
-    // their tight bounds (max zoom-in), otherwise fall back to the Israel frame.
-    try {
-      israelPts = pts.filter((p) => {
-        try {
-          return ISRAEL_BOUNDS.contains(L.latLng(Number(p.lat), Number(p.lon)));
-        } catch {
-          return false;
-        }
-      });
-    } catch {
-      israelPts = [];
-    }
-
-    if (israelPts.length > 0) {
-      for (const p of israelPts) {
-        if (p.lon < minLon) minLon = p.lon;
-        if (p.lon > maxLon) maxLon = p.lon;
-        if (p.lat < minLat) minLat = p.lat;
-        if (p.lat > maxLat) maxLat = p.lat;
-      }
-    } else {
-      const sw = ISRAEL_BOUNDS.getSouthWest();
-      const ne = ISRAEL_BOUNDS.getNorthEast();
-      minLon = sw.lng;
-      maxLon = ne.lng;
-      minLat = sw.lat;
-      maxLat = ne.lat;
-    }
-  } else {
-    for (const p of pts) {
-      if (p.lon < minLon) minLon = p.lon;
-      if (p.lon > maxLon) maxLon = p.lon;
-      if (p.lat < minLat) minLat = p.lat;
-      if (p.lat > maxLat) maxLat = p.lat;
-    }
-  }
-
-  const xRange = Math.max(0, maxLon - minLon);
-  const yRange = Math.max(0, maxLat - minLat);
-  const span = Math.max(xRange, yRange, 1e-9);
-  const extraLon = (span - xRange) / 2;
-  const extraLat = (span - yRange) / 2;
-
-  // Padding inside the thumbnail frame.
-  // Markers keep constant *pixel* size (Leaflet-like), so after layout insets
-  // the SVG can become smaller and markers become larger in viewBox units.
-  // Use a larger padding to ensure Israel locations are never clipped.
-  const pad = 18;
-  const inner = 100 - pad * 2;
-
-  const proj = (lon, lat) => {
-    const nx = (lon - minLon + extraLon) / span;
-    const ny = (maxLat - lat + extraLat) / span;
-    const x = pad + nx * inner;
-    const y = pad + ny * inner;
-    return { x, y };
-  };
-
-  const projected = pts.map((p) => ({ ...proj(p.lon, p.lat), rate: p.rate }));
-
-  // Single-home maps should always show one marker centered in the thumbnail.
-  if (projected.length === 1) {
-    projected[0].x = 50;
-    projected[0].y = 50;
-  }
-
-  // Precompute a tighter viewBox for optional zoom-in.
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const p of projected) {
-    if (p.x < minX) minX = p.x;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.y > maxY) maxY = p.y;
-  }
-
-  const clampToView = !useIsraelViewport;
-  const clamp = (v) => (clampToView ? Math.max(0, Math.min(100, v)) : v);
-
-  const poly = document.createElementNS(NS, "polyline");
-  poly.setAttribute(
-    "points",
-    projected
-      .map((p) => `${clamp(p.x).toFixed(2)},${clamp(p.y).toFixed(2)}`)
-      .join(" ")
-  );
-  poly.setAttribute("fill", "none");
-  poly.setAttribute("stroke", "#000000");
-  poly.dataset.baseStrokePx = String(ARCHIVE_LINE_PX);
-  poly.setAttribute("stroke-width", "1");
-  poly.setAttribute("stroke-linecap", "round");
-  poly.setAttribute("stroke-linejoin", "round");
-  svg.appendChild(poly);
-
-  for (const p of projected) {
-    const rate = normalizeBelongingRate(p.rate, 5);
-    const strokePx = Math.max(0.001, rate * ARCHIVE_CIRCLE_STROKE_SCALE);
-
-    const baseRadiusPx = ARCHIVE_CIRCLE_INNER_RADIUS_PX + 0.5 + strokePx / 2;
-
-    const c = document.createElementNS(NS, "circle");
-    c.setAttribute("cx", String(clamp(p.x)));
-    c.setAttribute("cy", String(clamp(p.y)));
-    c.dataset.baseRPx = String(baseRadiusPx);
-    c.dataset.baseStrokePx = String(strokePx);
-    c.setAttribute("r", "1");
-    c.setAttribute("fill", "#f4f2ea");
-    c.setAttribute("stroke", "#000000");
-    c.setAttribute("stroke-width", "1");
-    svg.appendChild(c);
-  }
-
+window.addEventListener("popstate", (event) => {
+  const page = event.state && event.state.lifepathPage ? event.state.lifepathPage : "welcome";
+  _appHistoryRestoring = true;
   try {
-    if (useIsraelViewport) {
-      svg.dataset.fullViewBox = "0 0 100 100";
-      svg.dataset.zoomViewBox = "0 0 100 100";
-
-      // Nastya Faybish: show the saved map framing (center/zoom) like the reference.
-      // We map the saved Leaflet view into our Israel-projected 0..100 space and
-      // derive a viewBox span using Leaflet zoom stops (each stop halves/doubles scale).
-      if (isNastyaFaybish && snapshot?.view && isFinite(snapshot.view.lat) && isFinite(snapshot.view.lng) && isFinite(snapshot.view.zoom)) {
-        // Prefer centering on the Israel cluster (so we don't crop to blank),
-        // but still keep the abroad direction line (points outside viewBox).
-        let israelBox = null;
-        try {
-          if (Array.isArray(israelPts) && israelPts.length > 0) {
-            let bx0 = Infinity;
-            let bx1 = -Infinity;
-            let by0 = Infinity;
-            let by1 = -Infinity;
-            for (const p of israelPts) {
-              const q = proj(Number(p.lon), Number(p.lat));
-              if (q.x < bx0) bx0 = q.x;
-              if (q.x > bx1) bx1 = q.x;
-              if (q.y < by0) by0 = q.y;
-              if (q.y > by1) by1 = q.y;
-            }
-            if (isFinite(bx0) && isFinite(bx1) && isFinite(by0) && isFinite(by1)) {
-              israelBox = { x0: bx0, x1: bx1, y0: by0, y1: by1 };
-            }
-          }
-        } catch {
-          israelBox = null;
-        }
-
-        const center = (() => {
-          if (israelBox) return { x: (israelBox.x0 + israelBox.x1) / 2, y: (israelBox.y0 + israelBox.y1) / 2 };
-          try {
-            if (ISRAEL_BOUNDS.contains(L.latLng(Number(snapshot.view.lat), Number(snapshot.view.lng)))) {
-              return proj(Number(snapshot.view.lng), Number(snapshot.view.lat));
-            }
-          } catch {
-            // ignore
-          }
-          return { x: 50, y: 50 };
-        })();
-
-        let referenceZoom = null;
-        try {
-          referenceZoom = typeof getIsraelReferenceZoom === "function" ? getIsraelReferenceZoom() : null;
-        } catch {
-          referenceZoom = null;
-        }
-        const dz = (Number(snapshot.view.zoom) || 0) - (Number(referenceZoom) || 0);
-        const scale = Math.pow(2, dz);
-        // User request: zoom in 5× compared to the current thumbnail framing.
-        const extraZoomFactor = 5;
-        const desiredSpan = (100 / (isFinite(scale) && scale > 0 ? scale : 1)) / extraZoomFactor;
-        // Never zoom so far that the Israel cluster disappears entirely.
-        const israelSpan = israelBox ? Math.max(israelBox.x1 - israelBox.x0, israelBox.y1 - israelBox.y0) : 0;
-
-        // Add padding so circles/strokes don't get clipped by the viewBox edges.
-        const markerPadUnits = 10;
-        const baseSpan = Math.max(desiredSpan, israelSpan > 0 ? israelSpan + markerPadUnits * 2 : 0);
-        const span = Math.max(3, Math.min(100, baseSpan + markerPadUnits * 2));
-
-        const rawX = (Number(center?.x) || 50) - span / 2;
-        const rawY = (Number(center?.y) || 50) - span / 2;
-        const x = Math.max(0, Math.min(100 - span, rawX));
-        const y = Math.max(0, Math.min(100 - span, rawY));
-        svg.setAttribute("viewBox", `${x.toFixed(2)} ${y.toFixed(2)} ${span.toFixed(2)} ${span.toFixed(2)}`);
-        svg.classList.toggle("isZoomed", span < 99.99);
-      }
-
-      // Apply the requested 10% zoom-in to the current viewBox.
-      try {
-        const fullVb = parseSvgViewBox(svg.dataset.fullViewBox || "0 0 100 100");
-        const curVb = parseSvgViewBox(svg.getAttribute("viewBox") || svg.dataset.fullViewBox || "0 0 100 100");
-        const nextW = Math.max(1, curVb.w / ARCHIVE_INITIAL_ZOOM_FACTOR);
-        const nextH = Math.max(1, curVb.h / ARCHIVE_INITIAL_ZOOM_FACTOR);
-        const cx = curVb.x + curVb.w / 2;
-        const cy = curVb.y + curVb.h / 2;
-        const next = clampSvgViewBoxToBounds({ x: cx - nextW / 2, y: cy - nextH / 2, w: nextW, h: nextH }, fullVb);
-        svg.setAttribute("viewBox", formatSvgViewBox(next));
-      } catch {
-        // ignore
-      }
-
-      return svg;
-    }
-
-    const maxRate = Math.max(1, ...projected.map((p) => normalizeBelongingRate(p.rate, 5))) * ARCHIVE_CIRCLE_STROKE_SCALE;
-    // Outer edge in pixels ~= (innerRadius + rate/2) + rate/2 = innerRadius + rate
-    const maxOuterPx = ARCHIVE_CIRCLE_INNER_RADIUS_PX + maxRate;
-    const margin = 6 + maxOuterPx;
-    const x0 = Math.max(0, minX - margin);
-    const y0 = Math.max(0, minY - margin);
-    const x1 = Math.min(100, maxX + margin);
-    const y1 = Math.min(100, maxY + margin);
-    const w = Math.max(1, x1 - x0);
-    const h = Math.max(1, y1 - y0);
-    const span = Math.max(w, h);
-    const cx = (x0 + x1) / 2;
-    const cy = (y0 + y1) / 2;
-    const sx0 = Math.max(0, Math.min(100 - span, cx - span / 2));
-    const sy0 = Math.max(0, Math.min(100 - span, cy - span / 2));
-    svg.dataset.fullViewBox = "0 0 100 100";
-    svg.dataset.zoomViewBox = `${sx0.toFixed(2)} ${sy0.toFixed(2)} ${span.toFixed(2)} ${span.toFixed(2)}`;
-
-    // Apply the requested 10% zoom-in to the default framing.
-    try {
-      const fullVb = parseSvgViewBox(svg.dataset.fullViewBox || "0 0 100 100");
-      const curVb = parseSvgViewBox(svg.getAttribute("viewBox") || svg.dataset.fullViewBox || "0 0 100 100");
-      const nextW = Math.max(1, curVb.w / ARCHIVE_INITIAL_ZOOM_FACTOR);
-      const nextH = Math.max(1, curVb.h / ARCHIVE_INITIAL_ZOOM_FACTOR);
-      const cx = curVb.x + curVb.w / 2;
-      const cy = curVb.y + curVb.h / 2;
-      const next = clampSvgViewBoxToBounds({ x: cx - nextW / 2, y: cy - nextH / 2, w: nextW, h: nextH }, fullVb);
-      svg.setAttribute("viewBox", formatSvgViewBox(next));
-    } catch {
-      // ignore
-    }
-  } catch {
-    // ignore
+    showPage(page, { history: "skip" });
+  } finally {
+    _appHistoryRestoring = false;
   }
-
-  return svg;
-}
-
+});
 
 function parseSvgViewBox(str) {
   const parts = String(str || "").trim().split(/\s+/).map(Number);
@@ -6182,313 +5888,62 @@ function clampSvgViewBoxToBounds(vb, bounds) {
   return { x, y, w, h };
 }
 
-function attachArchiveThumbInteractions(thumb, onActivate) {
-  if (!thumb) return;
+const REVIEW_MAP_SESSION_KEY = "lifepath.reviewMap.v1";
 
-  let drag = null;
-  let didMove = false;
-
-  const updateMarkerSizesForViewBox = () => {
-    // Convert stored "base px" sizes into viewBox units so the thumbnail
-    // behaves like Leaflet (marker radius/weights stay constant in screen px).
-    const rect = thumb.getBoundingClientRect();
-    const pxW = Math.max(1, Number(rect?.width) || 0);
-    if (!(pxW > 0)) return;
-
-    const vb = parseSvgViewBox(thumb.getAttribute("viewBox"));
-    const unitsPerPx = vb.w / pxW;
-    if (!isFinite(unitsPerPx) || unitsPerPx <= 0) return;
-
-    const polylines = thumb.querySelectorAll("polyline[data-base-stroke-px]");
-    for (const p of polylines) {
-      const baseStrokePx = Number(p.dataset.baseStrokePx);
-      if (!isFinite(baseStrokePx)) continue;
-      // Do not clamp aggressively: when viewBox is very small (heavy zoom-in),
-      // a large minimum in viewBox units turns into *thick* pixels.
-      p.setAttribute("stroke-width", String(Math.max(0.001, baseStrokePx * unitsPerPx)));
-    }
-
-    const circles = thumb.querySelectorAll("circle[data-base-r-px]");
-    for (const c of circles) {
-      const baseRPx = Number(c.dataset.baseRPx);
-      const baseStrokePx = Number(c.dataset.baseStrokePx);
-      if (!isFinite(baseRPx) || !isFinite(baseStrokePx)) continue;
-      c.setAttribute("r", String(Math.max(0.001, baseRPx * unitsPerPx)));
-      c.setAttribute("stroke-width", String(Math.max(0.001, baseStrokePx * unitsPerPx)));
-    }
-  };
-
-  thumb.addEventListener(
-    "wheel",
-    (e) => {
-      const full = thumb.dataset.fullViewBox || "0 0 100 100";
-      const hasZoom = Boolean(thumb.dataset.zoomViewBox);
-      if (!hasZoom) return;
-
-      // Let the page scroll normally when hovering an archive tile.
-      // Only zoom/pan the thumbnail when the user explicitly holds a modifier.
-      if (!(e.ctrlKey || e.metaKey || e.altKey)) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      const rect = thumb.getBoundingClientRect();
-      const px = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5;
-      const py = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5;
-      const ux = Math.max(0, Math.min(1, px));
-      const uy = Math.max(0, Math.min(1, py));
-
-      const current = parseSvgViewBox(thumb.getAttribute("viewBox"));
-      const fullVb = parseSvgViewBox(full);
-
-      const direction = e.deltaY > 0 ? 1 : -1;
-      const factor = direction > 0 ? 1.12 : 1 / 1.12;
-
-      const minSize = 10;
-      const nextW = Math.max(minSize, Math.min(fullVb.w, current.w * factor));
-      const nextH = Math.max(minSize, Math.min(fullVb.h, current.h * factor));
-
-      const mx = current.x + ux * current.w;
-      const my = current.y + uy * current.h;
-
-      const nextX = mx - ux * nextW;
-      const nextY = my - uy * nextH;
-
-      const next = clampSvgViewBoxToBounds({ x: nextX, y: nextY, w: nextW, h: nextH }, fullVb);
-      thumb.setAttribute("viewBox", formatSvgViewBox(next));
-      updateMarkerSizesForViewBox();
-
-      const isFull = Math.abs(next.w - fullVb.w) < 0.01 && Math.abs(next.h - fullVb.h) < 0.01;
-      thumb.classList.toggle("isZoomed", !isFull);
-    },
-    { passive: false }
-  );
-
-  // For thumbnails that are not zoomable/pannable, use a plain click to open.
-  thumb.addEventListener("click", (e) => {
-    const hasZoom = Boolean(thumb.dataset.zoomViewBox);
-    if (hasZoom) return;
-    if (typeof onActivate !== "function") return;
-    e.preventDefault();
-    e.stopPropagation();
-    onActivate();
-  });
-
-  thumb.addEventListener("pointerdown", (e) => {
-    if (e.pointerType === "mouse" && e.button !== 0) return;
-    const full = thumb.dataset.fullViewBox || "0 0 100 100";
-    const hasZoom = Boolean(thumb.dataset.zoomViewBox);
-    if (!hasZoom) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    try {
-      thumb.setPointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
-
-    const rect = thumb.getBoundingClientRect();
-    didMove = false;
-    drag = {
-      id: e.pointerId,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
-      rectW: Math.max(1, rect.width),
-      rectH: Math.max(1, rect.height),
-      startVb: parseSvgViewBox(thumb.getAttribute("viewBox")),
-      bounds: parseSvgViewBox(full),
+function rememberReviewMapForRefresh(snapshot, archiveDisplayName = "") {
+  if (!snapshot) return;
+  try {
+    const marker = {
+      id: String(snapshot.id || ""),
+      label: String(snapshot.label || ""),
+      savedAt: String(snapshot.savedAt || ""),
+      fullName: String(snapshot.fullName || ""),
+      archiveDisplayName: String(archiveDisplayName || snapshot.fullName || snapshot.label || ""),
     };
-    thumb.classList.add("isDragging");
-  });
-
-  thumb.addEventListener("pointermove", (e) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const dx = e.clientX - drag.startClientX;
-    const dy = e.clientY - drag.startClientY;
-
-    if (!didMove && Math.hypot(dx, dy) > 5) didMove = true;
-
-    const unitsPerPxX = drag.startVb.w / drag.rectW;
-    const unitsPerPxY = drag.startVb.h / drag.rectH;
-
-    const nextX = drag.startVb.x - dx * unitsPerPxX;
-    const nextY = drag.startVb.y - dy * unitsPerPxY;
-
-    const next = clampSvgViewBoxToBounds({ x: nextX, y: nextY, w: drag.startVb.w, h: drag.startVb.h }, drag.bounds);
-    thumb.setAttribute("viewBox", formatSvgViewBox(next));
-  });
-
-  const endDrag = (e) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const shouldActivate = !didMove;
-    drag = null;
-    thumb.classList.remove("isDragging");
-    try {
-      thumb.releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
-
-    if (shouldActivate && typeof onActivate === "function") {
-      onActivate();
-    }
-  };
-
-  thumb.addEventListener("pointerup", endDrag);
-  thumb.addEventListener("pointercancel", endDrag);
-
-  // Ensure correct sizing once inserted into the DOM.
-  requestAnimationFrame(() => updateMarkerSizesForViewBox());
-}
-
-// Builds a label + value pair for an archive stat line (e.g. "avg. belonging
-// :  3.5") as separate spans so the label and its answer can carry different
-// fonts (see .archiveStatLabel/.archiveStatValue in styles.css).
-function setArchiveStatRow(el, labelText, valueText) {
-  if (!el) return;
-  el.textContent = "";
-  if (!valueText) return;
-  const label = document.createElement("span");
-  label.className = "archiveStatLabel";
-  label.textContent = labelText;
-  const value = document.createElement("span");
-  value.className = "archiveStatValue";
-  value.textContent = valueText;
-  el.append(label, value);
-}
-
-function renderArchiveGrid() {
-  if (!elArchiveGrid || !elArchiveEmpty) return;
-
-  const list = getSavedMaps();
-  const items = Array.isArray(list) ? list.filter(Boolean) : [];
-
-  // Order tiles by save time (oldest first), filling left-to-right.
-  // Prefer the saved serial when present so lifemap06 is always the 6th save.
-  const ordered = items
-    .map((snap, idx) => ({ snap, idx }))
-    .sort((a, b) => {
-      const sa = Number(a.snap?.serial);
-      const sb = Number(b.snap?.serial);
-      const hasSa = Number.isFinite(sa) && sa > 0;
-      const hasSb = Number.isFinite(sb) && sb > 0;
-      if (hasSa && hasSb) return sa - sb;
-      if (hasSa && !hasSb) return -1;
-      if (!hasSa && hasSb) return 1;
-
-      const ta = Date.parse(String(a.snap?.savedAt || ""));
-      const tb = Date.parse(String(b.snap?.savedAt || ""));
-      if (isFinite(ta) && isFinite(tb)) return ta - tb;
-      if (isFinite(ta) && !isFinite(tb)) return -1;
-      if (!isFinite(ta) && isFinite(tb)) return 1;
-      return a.idx - b.idx;
-    })
-    .map((x) => x.snap);
-
-  const filtered = ordered.filter((snap) => {
-    if (!archiveSearchQuery) return true;
-    const fullName = String(snap?.fullName || "").trim().toLowerCase();
-    const label = String(snap?.label || "").trim().toLowerCase();
-    return fullName.includes(archiveSearchQuery) || label.includes(archiveSearchQuery);
-  });
-
-  elArchiveEmpty.classList.toggle("hidden", filtered.length !== 0);
-
-  elArchiveGrid.innerHTML = "";
-  for (let i = 0; i < filtered.length; i++) {
-    const snap = filtered[i];
-    const item = document.createElement("div");
-    item.className = "archiveItem";
-
-    const serialEl = document.createElement("div");
-    serialEl.className = "archiveSerial";
-    // Archive tile title is just the map name, exactly as typed on the
-    // address-entry page -- no title-casing, no address count.
-    const archiveDisplayName = String(snap?.fullName || "").trim() || formatLifeMapLabel(
-      Number.isFinite(Number(snap?.serial)) && Number(snap?.serial) > 0 ? Number(snap.serial) : i + 1
-    );
-    serialEl.textContent = archiveDisplayName;
-
-    const averageEl = document.createElement("div");
-    averageEl.className = "archiveAverageBelonging";
-    const averageBelonging = formatAverageBelongingForAddresses(snap?.addresses);
-    setArchiveStatRow(averageEl, "avg. belonging :\u00a0\u00a0\u00a0\u00a0\u00a0", averageBelonging);
-
-    const cumulativeEl = document.createElement("div");
-    cumulativeEl.className = "archiveCumulativeDistance";
-    setArchiveStatRow(cumulativeEl, "cumulative distance :\u00a0\u00a0\u00a0\u00a0\u00a0", formatCumulativeDistanceForAddresses(snap?.addresses));
-
-    const preview = document.createElement("div");
-    preview.className = "archivePreview";
-
-    const thumb = createArchiveMiniMapSvg(snap);
-
-    const footer = document.createElement("div");
-    footer.className = "archiveFooter";
-
-    const openBtn = document.createElement("button");
-    openBtn.type = "button";
-    openBtn.className = "archiveShowBtn";
-    openBtn.textContent = "open";
-    openBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openSavedMapSnapshotFromArchive(snap, archiveDisplayName);
-    });
-    footer.appendChild(openBtn);
-
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "archiveRemoveBtn";
-    removeBtn.textContent = "remove map";
-    removeBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      confirmArchiveMapRemoval(snap);
-    });
-    footer.appendChild(removeBtn);
-
-    item.addEventListener("click", () => {
-      openSavedMapSnapshotFromArchive(snap, archiveDisplayName);
-    });
-
-    item.appendChild(serialEl);
-    item.appendChild(averageEl);
-    item.appendChild(cumulativeEl);
-    preview.appendChild(thumb);
-    attachArchiveThumbInteractions(thumb, () => openSavedMapSnapshotFromArchive(snap, archiveDisplayName));
-    item.appendChild(preview);
-    item.appendChild(footer);
-    elArchiveGrid.appendChild(item);
+    sessionStorage.setItem(REVIEW_MAP_SESSION_KEY, JSON.stringify(marker));
+  } catch {
+    // ignore
   }
 }
 
-function openSavedMapSnapshotFromArchive(snapshot, archiveDisplayName = "") {
-  if (!snapshot) return;
+function clearReviewMapRefreshMarker() {
+  try {
+    sessionStorage.removeItem(REVIEW_MAP_SESSION_KEY);
+  } catch {
+    // ignore
+  }
+}
 
-  // Requirement: after clicking an Archive tile, show the pulsing-circle
-  // transition for 1.5 seconds, then display the selected map in its
-  // finished editing state.
-  if (createLifePathTransitionActive) return;
-  createLifePathTransitionActive = true;
-  showCreateLifePathTransition(true);
+function findReviewMapFromRefreshMarker(marker) {
+  if (!marker || typeof marker !== "object") return null;
+  const maps = getSavedMaps();
+  if (!Array.isArray(maps) || !maps.length) return null;
+  const id = String(marker.id || "");
+  const label = String(marker.label || "");
+  const savedAt = String(marker.savedAt || "");
+  const fullName = String(marker.fullName || "");
+  return maps.find((snap) => id && String(snap?.id || "") === id)
+    || maps.find((snap) => label && savedAt && String(snap?.label || "") === label && String(snap?.savedAt || "") === savedAt)
+    || maps.find((snap) => fullName && String(snap?.fullName || "") === fullName)
+    || null;
+}
 
-  setTimeout(() => {
-    try {
-      showCreateLifePathTransition(false);
-      openSavedMapSnapshotFinishedFromArchive(snapshot, archiveDisplayName);
-    } finally {
-      createLifePathTransitionActive = false;
-    }
-  }, 1500);
+function restoreReviewMapAfterRefresh() {
+  let marker = null;
+  try {
+    marker = JSON.parse(sessionStorage.getItem(REVIEW_MAP_SESSION_KEY) || "null");
+  } catch {
+    marker = null;
+  }
+  const snapshot = findReviewMapFromRefreshMarker(marker);
+  if (!snapshot) return false;
+  _restoringReviewMapAfterRefresh = true;
+  try {
+    openSavedMapSnapshotFinishedFromArchive(snapshot, marker?.archiveDisplayName || snapshot.fullName || snapshot.label || "");
+  } finally {
+    _restoringReviewMapAfterRefresh = false;
+  }
+  return true;
 }
 
 /** @type {{lat:number, lng:number, zoom:number} | null} */
@@ -6582,6 +6037,7 @@ function forceStep2OpenFitToAddressesSoon(triesLeft = 200) {
 
 function loadSavedMapSnapshotIntoEditingState(snapshot, archiveDisplayName = "") {
   if (!snapshot) return;
+  cancelStep1AddressAsyncWork();
 
   // Track which saved map is being edited so re-saving updates in place.
   try {
@@ -6644,6 +6100,7 @@ function loadSavedMapSnapshotIntoEditingState(snapshot, archiveDisplayName = "")
 
 function openSavedMapSnapshotFinishedFromArchive(snapshot, archiveDisplayName = "") {
   if (!snapshot) return;
+  rememberReviewMapForRefresh(snapshot, archiveDisplayName);
   resetStep1AfterCreateSaveArmed = false;
   resetStep1AfterCreateSavePending = false;
   loadSavedMapSnapshotIntoEditingState(snapshot, archiveDisplayName);
@@ -6658,7 +6115,7 @@ function openSavedMapSnapshotFinishedFromArchive(snapshot, archiveDisplayName = 
   step1DashboardGrown = true;
   updateStep1Scale();
   _step1SkipEmotionRebuildOnce = true;
-  showPage("step1", { scroll: "step1", behavior: "auto" });
+  showPage("map", { scroll: "step1", behavior: "auto" });
   updateStep1TopProgress();
   updateStep1HomesList();
   updateStep1RingReading();
@@ -6719,6 +6176,70 @@ let allMapsPendingRestoreView = null;
 let allMapsListVisible = false;
 
 let allMapsSearchQuery = "";
+
+let allMapsYearSelectorEnabled = false;
+let allMapsSelectedYear = null;
+
+function getAllMapsAddressStartYear(addr) {
+  const year = Math.floor(Number(getHomeStartYearValue(addr)));
+  return Number.isFinite(year) && year > 0 ? year : NaN;
+}
+
+function getAllMapsYearRange(items) {
+  const years = [];
+  for (const snap of Array.isArray(items) ? items : []) {
+    const addrs = Array.isArray(snap?.addresses) ? snap.addresses : [];
+    for (const addr of addrs) {
+      const year = Math.floor(Number(getHomeStartYearValue(addr)));
+      if (Number.isFinite(year) && year > 0) years.push(year);
+    }
+  }
+  if (!years.length) return null;
+  return { min: Math.min(...years), max: Math.max(...years) };
+}
+
+function updateAllMapsYearSlider(items) {
+  if (!elAllMapsYearSlider || !elAllMapsYearSliderValue) return null;
+  if (elAllMapsYearControls) {
+    elAllMapsYearControls.classList.toggle("hidden", !allMapsYearSelectorEnabled);
+    elAllMapsYearControls.setAttribute("aria-hidden", allMapsYearSelectorEnabled ? "false" : "true");
+  }
+  if (elAllMapsYearToggleBtn) elAllMapsYearToggleBtn.setAttribute("aria-pressed", allMapsYearSelectorEnabled ? "true" : "false");
+
+  const range = getAllMapsYearRange(items);
+  if (!range) {
+    allMapsSelectedYear = null;
+    elAllMapsYearSlider.disabled = true;
+    elAllMapsYearSlider.min = "0";
+    elAllMapsYearSlider.max = "0";
+    elAllMapsYearSlider.value = "0";
+    elAllMapsYearSliderValue.textContent = "";
+    return null;
+  }
+
+  if (allMapsSelectedYear === null || !Number.isFinite(Number(allMapsSelectedYear))) allMapsSelectedYear = range.max;
+  allMapsSelectedYear = Math.max(range.min, Math.min(range.max, Math.floor(Number(allMapsSelectedYear))));
+
+  elAllMapsYearSlider.disabled = range.min === range.max;
+  elAllMapsYearSlider.min = String(range.min);
+  elAllMapsYearSlider.max = String(range.max);
+  elAllMapsYearSlider.value = String(allMapsSelectedYear);
+  elAllMapsYearSliderValue.textContent = String(allMapsSelectedYear);
+  return allMapsYearSelectorEnabled ? allMapsSelectedYear : null;
+}
+
+function allMapsAddressIsActiveInYear(addrs, index, selectedYear) {
+  if (selectedYear === null || !Number.isFinite(Number(selectedYear))) return true;
+  const items = Array.isArray(addrs) ? addrs : [];
+  const startYear = getAllMapsAddressStartYear(items[index]);
+  if (!Number.isFinite(startYear) || Number(selectedYear) < startYear) return false;
+
+  for (let i = index + 1; i < items.length; i++) {
+    const nextYear = getAllMapsAddressStartYear(items[i]);
+    if (Number.isFinite(nextYear) && nextYear > startYear) return Number(selectedYear) < nextYear;
+  }
+  return true;
+}
 
 function normalizeAllMapsSearchText(text) {
   return String(text || "")
@@ -6784,8 +6305,21 @@ let step1FocusMarker = null;
 /** @type {(Address & { lat: number, lon: number }) | null} */
 let step1PendingPreviewAddress = null;
 let _step1EditingIdx = -1;
+let _step1AddressAsyncGeneration = 0;
 const STEP1_SHOW_GEO_CIRCLES = true;
 const STEP1_SHOW_FOCUS_CIRCLE = true;
+
+function cancelStep1AddressAsyncWork() {
+  _step1AddressAsyncGeneration++;
+  verifyAddressRequestSeq++;
+  if (verifyAddressDebounceId) {
+    window.clearTimeout(verifyAddressDebounceId);
+    verifyAddressDebounceId = 0;
+  }
+  _step1NextAfterVerify = false;
+  currentAddressVerified = false;
+  step1PendingPreviewAddress = null;
+}
 
 function getStep1DisplayAddresses() {
   const base = Array.isArray(addresses) ? addresses.slice() : [];
@@ -6888,29 +6422,37 @@ let step1MapPreEntry = true;
 let _addressCoordsRefreshDone = false;
 async function refreshAddressCoords() {
   if (_addressCoordsRefreshDone) return;
+  if (isStep1ArchiveLoadedView()) return;
   _addressCoordsRefreshDone = true;
+  const refreshGeneration = _step1AddressAsyncGeneration;
   let changed = false;
   for (let i = 0; i < addresses.length; i++) {
+    if (refreshGeneration !== _step1AddressAsyncGeneration || isStep1ArchiveLoadedView()) return;
     const addr = addresses[i];
     if (!addr || addr.valid === false || !String(addr.street || "").trim()) continue;
     const key = canonicalKey(addr);
+    const originalId = String(addr.id || "");
     const wasCached = Boolean(geocodeCache[key]);
     let geo;
     try {
       geo = await geocodeAddress(addr);
     } catch { continue; }
+    if (refreshGeneration !== _step1AddressAsyncGeneration || isStep1ArchiveLoadedView()) return;
     if (!wasCached) {
       // Fresh Nominatim request was made — rate-limit to respect usage policy.
       await new Promise(r => setTimeout(r, 1100));
     }
+    if (refreshGeneration !== _step1AddressAsyncGeneration || isStep1ArchiveLoadedView()) return;
+    const currentAddr = addresses[i];
+    if (!currentAddr || String(currentAddr.id || "") !== originalId || canonicalKey(currentAddr) !== key) continue;
     if (!geo || !isFinite(geo.lat) || !isFinite(geo.lon)) continue;
     if (geo.matchLevel === "place") continue; // no improvement over city-level
-    const oldLat = Number(addr.lat);
-    const oldLon = Number(addr.lon);
+    const oldLat = Number(currentAddr.lat);
+    const oldLon = Number(currentAddr.lon);
     const moved = !isFinite(oldLat) || !isFinite(oldLon) ||
       Math.abs(geo.lat - oldLat) > 0.002 || Math.abs(geo.lon - oldLon) > 0.002;
     if (!moved) continue;
-    addresses[i] = { ...addresses[i], lat: geo.lat, lon: geo.lon, displayName: geo.displayName || addresses[i].displayName };
+    addresses[i] = { ...currentAddr, lat: geo.lat, lon: geo.lon, displayName: geo.displayName || currentAddr.displayName };
     changed = true;
   }
   if (changed) {
@@ -6925,6 +6467,7 @@ function isStep1ArchiveLoadedView() {
 }
 
 function getStep1GeoMarkerColor() {
+  if (document.body.classList.contains("printOption1Mode") || document.body.classList.contains("printOption1ManyAddresses")) return "#000000";
   // step1SummaryPhaseActive stays true for the rest of the session once a
   // map is finished, including while re-editing it afterward -- forcing
   // black here was never actually exercised in the normal finished view
@@ -6938,6 +6481,7 @@ function getStep1GeoMarkerColor() {
 }
 
 function getStep1GeoRouteColor() {
+  if (document.body.classList.contains("printOption1Mode") || document.body.classList.contains("printOption1ManyAddresses")) return "#000000";
   return isDarkBasemap(basemapStyleId) ? "#f3f1e6" : "#000000";
 }
 
@@ -7029,6 +6573,10 @@ function renderStep1GeoMapDots() {
   });
 }
 
+function clearStep1GeoMapDots() {
+  if (step1GeoMarkerLayer) step1GeoMarkerLayer.clearLayers();
+}
+
 function updateStep1GeoRouteLine() {
   if (!step1GeoMap) return;
   if (step1GeoRouteLine) {
@@ -7089,10 +6637,14 @@ function clearStep1GeoMapState() {
   }
 }
 
+let _step1GeoViewSeq = 0;
+let _step1GeoDotsPendingSeq = 0;
+
 function fitStep1GeoMapToIsraelBoundaries(options) {
   const opts = options && typeof options === "object" ? options : {};
   ensureStep1GeoMap();
   if (!step1GeoMap) return;
+  const viewSeq = ++_step1GeoViewSeq;
 
   const israelPts = getStep1GeoRouteLatLngs().filter((ll) => ISRAEL_BOUNDS.contains(ll));
   const bounds = israelPts.length > 1 ? L.latLngBounds(israelPts) : ISRAEL_BOUNDS;
@@ -7103,6 +6655,7 @@ function fitStep1GeoMapToIsraelBoundaries(options) {
   if (elPageStep1) elPageStep1.classList.remove("map-colors-dark");
 
   const applyFit = () => {
+    if (viewSeq !== _step1GeoViewSeq) return;
     if (!step1GeoMap) return;
     step1GeoMap.invalidateSize(true);
     if (israelPts.length === 1) {
@@ -7116,9 +6669,13 @@ function fitStep1GeoMapToIsraelBoundaries(options) {
     });
   };
 
-  if (opts.animate) {
+  const mapSize = typeof step1GeoMap.getSize === "function" ? step1GeoMap.getSize() : null;
+  const canAnimate = Boolean(opts.animate && mapSize && mapSize.x > 0 && mapSize.y > 0);
+  if (canAnimate) {
+    try { step1GeoMap.stop(); } catch { /* ignore */ }
     step1GeoMap.invalidateSize(true);
     requestAnimationFrame(() => {
+      if (viewSeq !== _step1GeoViewSeq) return;
       if (!step1GeoMap) return;
       step1GeoMap.invalidateSize(true);
       if (israelPts.length === 1) {
@@ -7134,6 +6691,7 @@ function fitStep1GeoMapToIsraelBoundaries(options) {
       }
     });
     setTimeout(() => {
+      if (viewSeq !== _step1GeoViewSeq) return;
       if (step1GeoMap) step1GeoMap.invalidateSize(true);
     }, 120);
     return;
@@ -7151,16 +6709,18 @@ function focusStep1GeoMapAt(lat, lon, zoom, options) {
   const latNum = Number(lat);
   const lonNum = Number(lon);
   if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return;
-  if (step1EditModeAfterFinishActive || isStep1ArchiveLoadedView()) {
+  if ((step1EditModeAfterFinishActive && !isStep1EditModeActive()) || isStep1ArchiveLoadedView()) {
     fitStep1GeoMapToIsraelBoundaries({ animate: Boolean(opts.animate) });
     return;
   }
   ensureStep1GeoMap();
   if (!step1GeoMap) return;
+  const viewSeq = ++_step1GeoViewSeq;
 
   const maxZoom = Number(step1GeoMap.getMaxZoom && step1GeoMap.getMaxZoom());
   const targetZoom = Math.min(Number.isFinite(maxZoom) ? maxZoom : 18, Math.max(1, Number(zoom) || 12));
   const applyFocus = () => {
+    if (viewSeq !== _step1GeoViewSeq) return;
     if (!step1GeoMap) return;
     step1GeoMap.invalidateSize(true);
     step1GeoMap.setView([latNum, lonNum], targetZoom, { animate: false });
@@ -7170,16 +6730,50 @@ function focusStep1GeoMapAt(lat, lon, zoom, options) {
   if (elStep1GeoMap) elStep1GeoMap.classList.remove("map-pre-entry");
   if (elPageStep1) elPageStep1.classList.remove("map-colors-dark");
 
-  if (opts.animate) {
+  const mapSize = typeof step1GeoMap.getSize === "function" ? step1GeoMap.getSize() : null;
+  const canAnimate = Boolean(opts.animate && mapSize && mapSize.x > 0 && mapSize.y > 0);
+  if (canAnimate) {
+    try { step1GeoMap.stop(); } catch { /* ignore */ }
     step1GeoMap.invalidateSize(true);
+    clearStep1GeoMapDots();
+    _step1GeoDotsPendingSeq = viewSeq;
+    if (elStep1GeoMap) elStep1GeoMap.classList.add("step1-geo-dots-pending");
+    const revealDotsAfter = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now()) + 480;
+    let didRenderSettledDots = false;
+    const renderSettledDots = () => {
+      if (didRenderSettledDots) return;
+      if (viewSeq !== _step1GeoViewSeq) {
+        if (_step1GeoDotsPendingSeq === viewSeq && elStep1GeoMap) elStep1GeoMap.classList.remove("step1-geo-dots-pending");
+        return;
+      }
+      const now = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+      if (now < revealDotsAfter) {
+        setTimeout(renderSettledDots, Math.max(0, revealDotsAfter - now));
+        return;
+      }
+      didRenderSettledDots = true;
+      if (step1GeoMap) {
+        step1GeoMap.invalidateSize(true);
+        renderStep1GeoMapDots();
+      }
+      if (_step1GeoDotsPendingSeq === viewSeq && elStep1GeoMap) elStep1GeoMap.classList.remove("step1-geo-dots-pending");
+    };
+    step1GeoMap.once("moveend", renderSettledDots);
+    step1GeoMap.once("zoomend", renderSettledDots);
     requestAnimationFrame(() => {
+      if (viewSeq !== _step1GeoViewSeq) return;
       if (!step1GeoMap) return;
       step1GeoMap.invalidateSize(true);
-      step1GeoMap.flyTo([latNum, lonNum], targetZoom, { animate: true, duration: 1.05 });
+      step1GeoMap.flyTo([latNum, lonNum], targetZoom, { animate: true, duration: 0.45 });
     });
     setTimeout(() => {
+      if (viewSeq !== _step1GeoViewSeq) return;
       if (step1GeoMap) step1GeoMap.invalidateSize(true);
     }, 120);
+    setTimeout(() => {
+      applyFocus();
+      renderSettledDots();
+    }, 520);
     return;
   }
 
@@ -7265,6 +6859,11 @@ function getStep1RoutePreviewLines() {
   return Array.from(elStep1RoutePreview.querySelectorAll("path[data-step1-route-line='1'], line[data-step1-route-line='1']"));
 }
 
+function getStep1RoutePreviewLineCanvases() {
+  if (!elStep1RoutePreview) return [];
+  return Array.from(elStep1RoutePreview.querySelectorAll("canvas[data-step1-route-line-canvas='1']"));
+}
+
 function ensureStep1RoutePreviewTooltipEl() {
   if (_step1RoutePreviewTooltipEl) return _step1RoutePreviewTooltipEl;
   try {
@@ -7312,6 +6911,9 @@ function setStep1RoutePreviewHover(targetDot) {
   for (const line of getStep1RoutePreviewLines()) {
     line.setAttribute("stroke", targetDot ? "#c3c1b7" : "#000000");
   }
+  for (const canvas of getStep1RoutePreviewLineCanvases()) {
+    canvas.style.opacity = targetDot ? "0.32" : "1";
+  }
   for (const dot of getStep1RoutePreviewDots()) {
     dot.setAttribute("stroke", dot === targetDot ? "#000000" : (targetDot ? "#c3c1b7" : "#000000"));
   }
@@ -7322,6 +6924,9 @@ function setStep1RoutePreviewEditFocus(idx = _step1EditingIdx) {
   const hasFocus = isStep1EditModeActive() && idx >= 0 && dots.some((dot) => Number(dot.dataset.addressIndex) === idx);
   for (const line of getStep1RoutePreviewLines()) {
     line.setAttribute("stroke", hasFocus ? "#c3c1b7" : "#000000");
+  }
+  for (const canvas of getStep1RoutePreviewLineCanvases()) {
+    canvas.style.opacity = hasFocus ? "0.32" : "1";
   }
   dots.forEach((dot, dotIdx) => {
     const addressIdx = Number(dot.dataset.addressIndex);
@@ -7450,10 +7055,14 @@ function updateStep1RoutePreview() {
   const MAX_STROKE_WIDTH = routePreviewStrokeWeightPx(MAX_BELONGING_RATE);
   const MAX_OUTER_RADIUS = ROUTE_PREVIEW_DOT_INNER_RADIUS * screenToSvgSize + MAX_STROKE_WIDTH;
   const BORDER_INSET = 5;
+  const isPrintOption1RoutePreview = document.documentElement.classList.contains("printOption1Mode")
+    || document.documentElement.classList.contains("printOption1PreviewMode")
+    || Boolean(elStep1RoutePreview.closest(".printOption1PreviewStage"));
+  const BOTTOM_BORDER_INSET = isPrintOption1RoutePreview ? BORDER_INSET : BORDER_INSET * 4;
   const minCenterX = BORDER_INSET + MAX_OUTER_RADIUS;
   const maxCenterX = svgW - BORDER_INSET - MAX_OUTER_RADIUS;
   const minCenterY = BORDER_INSET + MAX_OUTER_RADIUS;
-  const maxCenterY = svgH - BORDER_INSET - MAX_OUTER_RADIUS;
+  const maxCenterY = svgH - BOTTOM_BORDER_INSET - MAX_OUTER_RADIUS;
   const innerW = Math.max(1, maxCenterX - minCenterX);
   const innerH = Math.max(1, maxCenterY - minCenterY);
 
@@ -7491,7 +7100,12 @@ function updateStep1RoutePreview() {
     };
   });
 
-  if (coords.length > 0) {
+  if (coords.length === 1) {
+    const routePreviewScaleX = panelRect.width / Math.max(1, elStep1RoutePreview.offsetWidth || panelRect.width);
+    const routePreviewSvgTranslateX = 5 * routePreviewScaleX;
+    coords[0].x = svgW / 2 - routePreviewSvgTranslateX;
+    coords[0].y = svgH / 2;
+  } else if (coords.length > 1) {
     const fitCoords = coords.filter((c) => viewAddressIndexes.has(c.addressIndex));
     const zoomCoords = fitCoords.length > 0 ? fitCoords : coords;
     let minX = Infinity;
@@ -7539,6 +7153,47 @@ function updateStep1RoutePreview() {
   svg.setAttribute("height", String(svgH));
   svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
   svg.setAttribute("preserveAspectRatio", "none");
+  svg.style.position = "relative";
+  svg.style.zIndex = "1";
+
+  const drawSupersampledRouteLines = (segments) => {
+    if (!segments || segments.length === 0) return;
+    const scale = ROUTE_PREVIEW_LINE_SUPERSAMPLE;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.ceil(svgW * scale));
+    canvas.height = Math.max(1, Math.ceil(svgH * scale));
+    canvas.dataset.step1RouteLineCanvas = "1";
+    canvas.style.position = "absolute";
+    canvas.style.left = "0";
+    canvas.style.top = "0";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.transformOrigin = "0 0";
+    canvas.style.transform = "translate(5px, 0)";
+    canvas.style.pointerEvents = "none";
+    canvas.style.zIndex = "0";
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.scale(scale, scale);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    const drawLayer = (lineWidth, alpha) => {
+      ctx.beginPath();
+      for (const segment of segments) {
+        ctx.moveTo(segment[0].x, segment[0].y);
+        ctx.lineTo(segment[1].x, segment[1].y);
+      }
+      ctx.strokeStyle = `rgba(0, 0, 0, ${alpha})`;
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+    };
+
+    drawLayer(ROUTE_PREVIEW_LINE_SOFT_STROKE_WIDTH, ROUTE_PREVIEW_LINE_SOFT_OPACITY);
+    drawLayer(ROUTE_PREVIEW_LINE_STROKE_WIDTH, ROUTE_PREVIEW_LINE_OPACITY);
+    elStep1RoutePreview.appendChild(canvas);
+  };
 
   const clipRouteSegmentToPanel = (a, b) => {
     const canReachPanelFrame = !a.inIsrael || !b.inIsrael;
@@ -7578,38 +7233,45 @@ function updateStep1RoutePreview() {
 
   // Draw lines for all but the last segment (already completed).
   if (coords.length >= 2) {
-    let pathD = "";
+    const routeSegments = [];
     const lineEnd = isNewPoint ? coords.length - 1 : coords.length;
     for (let i = 1; i < lineEnd; i++) {
       const clipped = clipRouteSegmentToPanel(coords[i - 1], coords[i]);
       if (!clipped) continue;
-      pathD += `M${clipped[0].x},${clipped[0].y}L${clipped[1].x},${clipped[1].y}`;
+      routeSegments.push(clipped);
     }
-    const path = document.createElementNS(NS, "path");
-    path.setAttribute("d", pathD);
-    path.setAttribute("fill", "none");
-    path.setAttribute("stroke", "#000000");
-    path.setAttribute("stroke-width", "0.6");
-    path.setAttribute("stroke-linecap", "round");
-    path.setAttribute("stroke-linejoin", "round");
-    path.setAttribute("data-step1-route-line", "1");
-    svg.appendChild(path);
+    drawSupersampledRouteLines(routeSegments);
 
     // Animate the last segment if a new point was added.
     if (isNewPoint) {
       const prev = coords[coords.length - 2];
       const last = coords[coords.length - 1];
       const clippedAnimationSegment = clipRouteSegmentToPanel(prev, last);
+      const softAnimLine = document.createElementNS(NS, "line");
       const animLine = document.createElementNS(NS, "line");
       const animFrom = clippedAnimationSegment ? clippedAnimationSegment[0] : prev;
       const animTo = clippedAnimationSegment ? clippedAnimationSegment[1] : prev;
+      softAnimLine.setAttribute("x1", String(animFrom.x));
+      softAnimLine.setAttribute("y1", String(animFrom.y));
+      softAnimLine.setAttribute("x2", String(animFrom.x));
+      softAnimLine.setAttribute("y2", String(animFrom.y));
+      softAnimLine.setAttribute("stroke", "#000000");
+      softAnimLine.setAttribute("stroke-width", String(ROUTE_PREVIEW_LINE_SOFT_STROKE_WIDTH));
+      softAnimLine.setAttribute("stroke-opacity", String(ROUTE_PREVIEW_LINE_SOFT_OPACITY));
+      softAnimLine.setAttribute("stroke-linecap", "round");
+      softAnimLine.setAttribute("shape-rendering", "geometricPrecision");
+      softAnimLine.setAttribute("data-step1-route-line", "1");
+      svg.appendChild(softAnimLine);
+
       animLine.setAttribute("x1", String(animFrom.x));
       animLine.setAttribute("y1", String(animFrom.y));
       animLine.setAttribute("x2", String(animFrom.x));
       animLine.setAttribute("y2", String(animFrom.y));
       animLine.setAttribute("stroke", "#000000");
-      animLine.setAttribute("stroke-width", "0.6");
+      animLine.setAttribute("stroke-width", String(ROUTE_PREVIEW_LINE_STROKE_WIDTH));
+      animLine.setAttribute("stroke-opacity", String(ROUTE_PREVIEW_LINE_OPACITY));
       animLine.setAttribute("stroke-linecap", "round");
+      animLine.setAttribute("shape-rendering", "geometricPrecision");
       animLine.setAttribute("data-step1-route-line", "1");
       svg.appendChild(animLine);
 
@@ -7619,6 +7281,8 @@ function updateStep1RoutePreview() {
       const growLine = (now) => {
         const t = Math.min(1, (now - start) / duration);
         const ease = 1 - Math.pow(1 - t, 3);
+        softAnimLine.setAttribute("x2", String(animFrom.x + (animTo.x - animFrom.x) * ease));
+        softAnimLine.setAttribute("y2", String(animFrom.y + (animTo.y - animFrom.y) * ease));
         animLine.setAttribute("x2", String(animFrom.x + (animTo.x - animFrom.x) * ease));
         animLine.setAttribute("y2", String(animFrom.y + (animTo.y - animFrom.y) * ease));
         if (t < 1) {
@@ -7721,9 +7385,9 @@ function updateStep1JourneyTimeline() {
   const endYear = 2026;
   const firstYear = withYears[0].year;
   const span = Math.max(1, endYear - firstYear);
-  // Matches .step1JourneyTimeline's CSS width — keep these two in sync.
-  const vbW = 950;
-  const labelGap = 10;
+  const hostWidth = Number.parseFloat(getComputedStyle(svgHost).width);
+  const vbW = Number.isFinite(hostWidth) && hostWidth > 0 ? hostWidth : 950;
+  const labelGap = 14;
   const lineY = 12;
 
   const svg = document.createElementNS(NS, "svg");
@@ -7759,13 +7423,23 @@ function updateStep1JourneyTimeline() {
   let endLabelWidth = 0;
   try { firstLabelWidth = firstYearLabel.getComputedTextLength() || 0; } catch { /* ignore */ }
   try { endLabelWidth = endYearLabel.getComputedTextLength() || 0; } catch { /* ignore */ }
+  const estimateYearLabelWidth = (labelEl) => {
+    const fontSize = Number.parseFloat(getComputedStyle(labelEl).fontSize) || 15;
+    return String(labelEl.textContent || "").length * fontSize * 0.52;
+  };
+  if (firstLabelWidth <= 0) firstLabelWidth = estimateYearLabelWidth(firstYearLabel);
+  if (endLabelWidth <= 0) endLabelWidth = estimateYearLabelWidth(endYearLabel);
 
-  // Extra 10px inset beyond the label clearance above -- shortens the line
-  // (and, so dots stay sitting exactly on it, the year-to-x mapping too)
-  // without moving the year labels themselves, which stay flush at 0/vbW.
-  const lineInset = 30;
+  // Keep year labels close to the endpoint circles: the line/dot range is
+  // inset only by the measured label widths plus a small readable gap, then
+  // the labels are anchored just outside the first/last endpoint.
+  const lineInset = 0;
   const xStart = firstLabelWidth + labelGap + lineInset;
   const xEnd = vbW - endLabelWidth - labelGap - lineInset;
+  firstYearLabel.setAttribute("x", "0");
+  firstYearLabel.setAttribute("text-anchor", "start");
+  endYearLabel.setAttribute("x", String(vbW));
+  endYearLabel.setAttribute("text-anchor", "end");
   const yearToX = (year) => xStart + ((year - firstYear) / span) * (xEnd - xStart);
 
   const line = document.createElementNS(NS, "line");
@@ -7846,7 +7520,7 @@ function updateStep1PanelStats() {
   }
 }
 
-// --- Time & Belonging line chart ---
+// --- Belonging over time line chart ---
 
 const elStep1TimeBelongingChart = document.getElementById("step1TimeBelongingChart");
 
@@ -8081,15 +7755,19 @@ function updateStep1TimeBelonging() {
   if (!elStep1TimeBelongingChart) return;
 
   const validAddrs = getStep1DisplayValidAddresses();
+  const isPrintOption1Layout = document.body.classList.contains("printOption1Mode")
+    || document.body.classList.contains("printOption1ManyAddresses")
+    || Boolean(elStep1TimeBelongingChart.closest("#printOption1PreviewStage"));
 
   const NS = "http://www.w3.org/2000/svg";
   const maxRate = 10;
   const chartW = Math.max(320, Math.round(elStep1TimeBelongingChart.getBoundingClientRect().width || 400));
-  const padX = Math.max(26, Math.round(chartW * 0.1));
+  const padLeft = Math.max(26, Math.round(chartW * 0.1));
+  const padRight = padLeft;
   const chartH = Math.max(120, Math.round(elStep1TimeBelongingChart.getBoundingClientRect().height || 180));
   const padTop = Math.max(12, Math.round(chartH * 0.06));
   const padBottom = Math.max(10, Math.round(chartH * 0.04));
-  const plotW = chartW - padX * 2;
+  const plotW = chartW - padLeft - padRight;
   const plotH = chartH - padTop - padBottom;
 
   if (validAddrs.length === 0) {
@@ -8116,13 +7794,17 @@ function updateStep1TimeBelonging() {
   }
 
   const totalExpected = Math.max(validAddrs.length, parseInt(String(elHomesCount?.value || ""), 10) || 1);
-  const slotW = plotW / totalExpected;
+  const slotW = isPrintOption1Layout && totalExpected > 1 ? plotW / (totalExpected - 1) : plotW / totalExpected;
+  const pointX = (index) => {
+    if (isPrintOption1Layout && totalExpected > 1) return padLeft + slotW * index;
+    return padLeft + slotW * index + slotW / 2;
+  };
 
   const belongingRates = [];
   const newPoints = validAddrs.map((addr, i) => {
     const rate = normalizeBelongingRate(addr.belonging_rate, stableBelongingRateFromId(addr.id));
     belongingRates.push(rate);
-    const x = padX + slotW * i + slotW / 2;
+    const x = pointX(i);
     const y = padTop + plotH - (rate / maxRate) * plotH;
     return { x, y };
   });
@@ -8136,7 +7818,7 @@ function updateStep1TimeBelonging() {
   for (let i = 0; i < validAddrs.length; i++) {
     if (durations[i] === null) continue;
     const capped = Math.min(durations[i], maxDurScale);
-    const x = padX + slotW * i + slotW / 2;
+    const x = pointX(i);
     const y = padTop + plotH - (capped / maxDurScale) * plotH;
     durPoints.push({ x, y, durYears: durations[i] });
   }
@@ -8186,8 +7868,16 @@ function updateStep1TimeBelonging() {
     return;
   }
 
-  // Incremental: a new point was added
   const svg = _tbSvg;
+
+  if (newPoints.length === _tbPoints.length) {
+    _tbDrawDurationCurve(svg, NS, durPoints, newPoints, durations, belongingRates, true);
+    _tbPoints = newPoints;
+    _tbDurPoints = durPoints;
+    return;
+  }
+
+  // Incremental: a new point was added
   const lastNew = newPoints[newPoints.length - 1];
 
   // Animate new belonging line segment
@@ -8307,6 +7997,7 @@ function hideStep1RingReadingTooltip() {
 }
 
 function showStep1RingReadingTooltip(path, clientX, clientY) {
+  if (document.body.classList.contains("printOption1ManyAddresses") || document.body.classList.contains("printOption1Mode")) return;
   const tooltip = ensureStep1RingReadingTooltipEl();
   if (!tooltip || !path) return;
   const label = String(path.getAttribute("data-home-label") || "").trim();
@@ -8544,9 +8235,13 @@ function updateStep1RingReading() {
 
   const validAddrs = (Array.isArray(addresses) ? addresses : [])
     .filter((a) => a && a.valid !== false);
+  const isPrintOption1RingLayout = document.body.classList.contains("printOption1Mode")
+    || document.body.classList.contains("printOption1ManyAddresses")
+    || Boolean(elStep1RingReadingContent.closest("#printOption1PreviewStage"));
+  const printRingSizeScale = isPrintOption1RingLayout ? 1.18 : 1;
   const renderKey = validAddrs
     .map((addr) => [addr.id, addr.lat, addr.lon, addr.belonging_rate, addr.startYear].join("|"))
-    .join(";");
+    .join(";") + `|print-ring-scale:${printRingSizeScale}`;
 
   if (validAddrs.length === 0) {
     elStep1RingReadingContent.innerHTML = "";
@@ -8569,8 +8264,16 @@ function updateStep1RingReading() {
 
   const NS = "http://www.w3.org/2000/svg";
 
+  const emotionPaths = elStep1EmotionSvg
+    ? Array.from(elStep1EmotionSvg.querySelectorAll("[data-emotion-ring='1']"))
+    : [];
+  const emotionLayout = _step1EmotionLastLayoutSnapshot && _step1EmotionLastLayoutSnapshot.n === validAddrs.length
+    ? _step1EmotionLastLayoutSnapshot
+    : null;
+
   // Match the emotion map's placeholder sizing exactly.
-  const emotionMaxR = 290;
+  const mapSizeScale = totalCount <= 5 ? 0.8 : (totalCount >= 11 ? 1.1 : 1);
+  const emotionMaxR = (Math.min(500, 310) - 20) * mapSizeScale;
   const gap = emotionMaxR / (totalCount + 1);
 
   // Use the emotion map's exact viewBox (1000x620) so rings are at identical scale.
@@ -8578,18 +8281,20 @@ function updateStep1RingReading() {
   const emotionVbH = 620;
 
   for (let i = firstIndex; i < validAddrs.length; i++) {
-    const emotionR = gap * (i + 1);
-
     // Crop a square around this ring in emotion map coordinates.
     const addr = validAddrs[i];
-    const rateForMargin = normalizeBelongingRate(addr.belonging_rate, stableBelongingRateFromId(addr.id));
-    const swForMargin = emotionRingStrokeWeight(rateForMargin);
-    const ampForMargin = Math.abs(distortionAmplitudeFromBelonging(rateForMargin, emotionR) * 0.9);
+    const emotionPath = emotionPaths[i] || null;
+    const rateForMargin = Number(emotionLayout?.baseStrokeRates?.[i]) || normalizeBelongingRate(addr.belonging_rate, stableBelongingRateFromId(addr.id));
+    const emotionR = Number(emotionLayout?.targetRadii?.[i]) || gap * (i + 1);
+    const swForMargin = Number(emotionPath?.getAttribute("stroke-width")) || Number(emotionLayout?.finalStrokes?.[i]) || step1PreviewEmotionStrokeWidthFromRate(rateForMargin);
+    const wobbleFitScale = Number(emotionLayout?.wobbleFitScale) || 1;
+    const ampForMargin = Math.abs(distortionAmplitudeFromBelonging(rateForMargin, emotionR) * 0.9 * wobbleFitScale);
+    const groupScale = Number(emotionLayout?.groupScale) || 1;
     // Margin includes stroke width, distortion amplitude, and breathing room.
     const margin = Math.max(emotionR * 0.3 + 10, swForMargin + ampForMargin + 8);
     const cropSize = (emotionR + margin) * 2;
     const emotionScale = 460 / emotionVbW;
-    const displaySize = Math.round(emotionR * 2 * emotionScale) + 8;
+    const displaySize = Math.round((emotionR * 2 * groupScale * emotionScale + swForMargin) * printRingSizeScale) + 8;
 
     const cx = emotionVbW / 2;
     const cy = emotionVbH / 2;
@@ -8606,20 +8311,21 @@ function updateStep1RingReading() {
 
     const rate = rateForMargin;
     const sw = swForMargin;
-    const phi = addr && isFinite(addr.lat) && isFinite(addr.lon)
-      ? step1EmotionAngleForAddress(addr, i, validAddrs) : 0;
-    const ringGapRR = emotionMaxR / (totalCount + 1);
-    const maxAmpRR = ringGapRR * 0.4;
-    const rawAmpRR = distortionAmplitudeFromBelonging(rate, emotionR) * 0.7;
-    const amp = Math.max(-maxAmpRR, Math.min(maxAmpRR, rawAmpRR));
+    const phi = Number(emotionLayout?.phis?.[i]) || (addr && isFinite(addr.lat) && isFinite(addr.lon)
+      ? step1EmotionAngleForAddress(addr, i, validAddrs) : 0);
+    const rawAmp = distortionAmplitudeFromBelonging(rate, emotionR) * 0.9 * wobbleFitScale;
+    const amp = rate >= 9.5 ? rawAmp * STEP1_MAIN_RATE10_DISTORTION_MULT : rawAmp;
     const opts = ringDistortionOptsForAmp(amp, i * 7.1);
-    const d = buildDistortedRingPath(cxR, cyR, emotionR, phi, amp, opts);
+    const d = emotionPath?.getAttribute("d") || buildDistortedRingPath(cxR, cyR, emotionR, phi, amp, opts);
 
     const path = document.createElementNS(NS, "path");
     path.setAttribute("d", d);
     path.setAttribute("fill", "none");
     path.setAttribute("stroke", "#000000");
     path.setAttribute("stroke-width", String(sw));
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("vector-effect", "non-scaling-stroke");
     path.setAttribute("data-step1-ring-reading-path", "1");
     path.setAttribute("data-home-label", `home ${String(i + 1).padStart(2, "0")}`);
     path.setAttribute("data-step1-ring-phi", String(phi));
@@ -8634,6 +8340,9 @@ function updateStep1RingReading() {
     hitPath.setAttribute("fill", "none");
     hitPath.setAttribute("stroke", "#000000");
     hitPath.setAttribute("stroke-width", String(Math.max(sw + 10, 14)));
+    hitPath.setAttribute("stroke-linecap", "round");
+    hitPath.setAttribute("stroke-linejoin", "round");
+    hitPath.setAttribute("vector-effect", "non-scaling-stroke");
     hitPath.setAttribute("opacity", "0.001");
     hitPath.setAttribute("pointer-events", "stroke");
     hitPath.setAttribute("data-step1-ring-reading-hit", "1");
@@ -8675,15 +8384,21 @@ function updateStep1RingReading() {
     const rateRounded = Math.max(1, Math.min(10, Math.round(rate)));
     const belongingAmpFactor = EMOTION_BREATH_RATE_AMP_TABLE[rateRounded] ?? 0.5;
     const belongingSpeedFactor = Math.max(0.5, Math.min(2, EMOTION_BREATH_RATE_SPEED_TABLE[rateRounded] ?? 1));
-    const breathAmpUnits = Math.max(0, Number(EMOTION_BREATH_AMPLITUDE_PX) || 0) * indexProfile * belongingAmpFactor;
+    const breathScale = 1.5 * wobbleFitScale;
+    const breathAmpUnits = Math.max(0, Number(EMOTION_BREATH_AMPLITUDE_PX) || 0) * indexProfile * belongingAmpFactor * breathScale;
     const period = Math.max(600, Number(EMOTION_BREATH_PERIOD_MS) || 4200);
 
-    const breathData = { phi, amp, baseR: emotionR, cx: cxR, cy: cyR, idx: i, breathAmpUnits, belongingSpeedFactor };
-    const t0 = performance.now();
+    const breathData = { phi, amp, baseR: emotionR, cx: cxR, cy: cyR, idx: i, breathAmpUnits, belongingSpeedFactor, groupScale };
+    const localT0 = performance.now();
     const breathe = (now) => {
-      const elapsed = now - t0;
-      const phase = (elapsed / period) * Math.PI * 2 * breathData.belongingSpeedFactor;
-      const curR = breathData.baseR + breathData.breathAmpUnits * Math.sin(phase);
+      const sharedT0 = _emotionBreathStartTime || localT0;
+      const elapsed = now - sharedT0;
+      const delay = (totalForProfile - 1 - i) * EMOTION_BREATH_STAGGER_MS;
+      const rampT = Math.max(0, Math.min(1, (elapsed - delay) / Math.max(1, Number(EMOTION_BREATH_RAMP_MS) || 1)));
+      const ramp = rampT * rampT * rampT * (rampT * (rampT * 6 - 15) + 10);
+      const phase = ((elapsed - delay) / period) * Math.PI * 2 * breathData.belongingSpeedFactor;
+      const delta = ramp * breathData.breathAmpUnits * Math.sin(phase);
+      const curR = breathData.baseR + delta / Math.max(0.2, Number(breathData.groupScale) || 1);
       const d = buildDistortedRingPath(breathData.cx, breathData.cy, curR, breathData.phi, breathData.amp, ringDistortionOptsForAmp(breathData.amp, breathData.idx * 7.1));
       path.setAttribute("d", d);
       hitPath.setAttribute("d", d);
@@ -8810,7 +8525,7 @@ if (elStep1RouteFullscreenBtn) {
     requestStep2OpenFitToAddresses();
     step2HoldFitAfterNextDraw = true;
     setStep2CloseReturnPage("step1");
-    showPage("step2");
+    showPage("movementExpand");
     const mapWrap = document.querySelector("#pageStep2 .mapWrap");
     if (mapWrap) flipGrowElement(mapWrap, fromRect, null);
   });
@@ -10361,7 +10076,7 @@ if (elStep1EmotionFullscreenBtn) {
     // getBBox(), which returns all-zero for anything under a display:none
     // ancestor -- so calling populate while this page is still hidden
     // silently no-ops every overlap check it does.
-    showPage("step1EmotionFullscreen");
+    showPage("emotionExpand");
     populateStep1EmotionFullscreenSvg();
     fitStep1EmotionFullscreenInnerRing();
     // Map + reading panel treated as one unit and centered together (their
@@ -10406,7 +10121,7 @@ if (elStep1EmotionFullscreenBackBtn) {
     // showPage() itself already set _step1SkipEmotionRebuildOnce when this
     // page was entered from Step 1 (see its own comment), so the rebuild
     // below is skipped automatically.
-    showPage("step1", { scroll: "step1", behavior: "auto" });
+    showPage("map", { scroll: "step1", behavior: "auto" });
   });
 }
 
@@ -10443,8 +10158,7 @@ function step1HomesListRevealText(key, fullText) {
     state = { text, startTs: now };
     _step1HomesListReveal.set(key, state);
   }
-
-  const MS_PER_CHAR = 26;
+  const MS_PER_CHAR = 18;
   const MIN_DURATION_MS = 260;
   const MAX_DURATION_MS = 1000;
   const duration = Math.min(MAX_DURATION_MS, Math.max(MIN_DURATION_MS, text.length * MS_PER_CHAR));
@@ -10453,6 +10167,13 @@ function step1HomesListRevealText(key, fullText) {
 
   if (revealedCount < text.length) step1ScheduleHomesListRevealTick();
   return text.slice(0, revealedCount);
+}
+
+function getHomeStartYearValue(addr) {
+  if (!addr) return "";
+  const raw = addr.startYear ?? addr.start_year ?? addr.year ?? addr.fromYear ?? addr.from_year ?? "";
+  const year = Math.floor(Number(String(raw).trim()));
+  return Number.isFinite(year) && year > 0 ? String(year) : "";
 }
 
 function updateStep1HomesList() {
@@ -10520,25 +10241,25 @@ function updateStep1HomesList() {
     item.appendChild(addressLine);
 
     // Line 2: years
-    const yearsLine = document.createElement("div");
-    yearsLine.className = "homesListDetail homesListYears";
     if (displayAddr) {
-      const startY = String(displayAddr.startYear || "").trim();
+      const startY = getHomeStartYearValue(displayAddr);
       const nextIsCommitted = (i + 1) !== previewOverlayIdx;
       const nextAddr = nextIsCommitted ? (validAddrs[i + 1] || null) : null;
-      const isLast = i === totalExpected - 1;
-      const endY = nextAddr ? String(nextAddr.startYear || "").trim() : (isLast ? "2026" : "");
+      const nextY = getHomeStartYearValue(nextAddr);
+      const endY = nextAddr ? nextY : String(new Date().getFullYear());
       let yearsText = "";
       if (startY && endY) {
-        yearsText = `${startY} – ${endY}`;
-      } else if (startY) {
-        yearsText = `${startY} –`;
+        yearsText = `${startY}-${endY}`;
       }
-      yearsLine.textContent = step1HomesListRevealText(`${i}:years`, yearsText);
-    } else {
       _step1HomesListReveal.delete(`${i}:years`);
+      if (yearsText) {
+        const yearsLine = document.createElement("div");
+        yearsLine.className = "homesListDetail homesListYears";
+        yearsLine.textContent = yearsText;
+        item.appendChild(yearsLine);
+      }
     }
-    item.appendChild(yearsLine);
+    if (!displayAddr) _step1HomesListReveal.delete(`${i}:years`);
 
     // Line 3: belonging rate
     const belongLine = document.createElement("div");
@@ -11231,6 +10952,7 @@ function renderAllMapsCombinedMap() {
 
   const list = getSavedMaps();
   const items = Array.isArray(list) ? list.filter(Boolean) : [];
+  const selectedYear = updateAllMapsYearSlider(items);
   const sortedItems = items.slice().sort((a, b) => {
     const aName = normalizeAllMapsSearchText(String(a?.fullName || a?.label || ""));
     const bName = normalizeAllMapsSearchText(String(b?.fullName || b?.label || ""));
@@ -11317,9 +11039,13 @@ function renderAllMapsCombinedMap() {
 
   /** @type {L.LatLng[]} */
   const allLatLngs = [];
+  /** @type {L.CircleMarker[]} */
+  const allMapsActiveYearDots = [];
 
   for (const snap of renderOrder) {
     const addrs = Array.isArray(snap?.addresses) ? snap.addresses : [];
+    const yearMode = selectedYear !== null && Number.isFinite(Number(selectedYear));
+    if (yearMode && !addrs.some((addr) => Number.isFinite(getAllMapsAddressStartYear(addr)))) continue;
 
     const snapKey = String(getSavedMapKey(snap) || "");
     const snapLabel = String(snap?.label || "");
@@ -11328,6 +11054,8 @@ function renderAllMapsCombinedMap() {
     const someHighlighted = Boolean(allMapsHighlightedKey);
     const highlightColor = getAllMapsHighlightColor();
     const dimmedColor = getAllMapsDimmedRouteColor();
+    const yearActiveColor = "#000000";
+    const yearInactiveColor = "#b6b4aa";
 
     /** @type {L.CircleMarker[]} */
     const highlightedDots = [];
@@ -11339,7 +11067,8 @@ function renderAllMapsCombinedMap() {
     /** @type {L.LatLng[]} */
     let current = [];
 
-    for (const a of addrs) {
+    for (let addrIndex = 0; addrIndex < addrs.length; addrIndex++) {
+      const a = addrs[addrIndex];
       const ok = a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon);
       if (!ok) {
         if (current.length >= 2) segments.push(current);
@@ -11357,7 +11086,10 @@ function renderAllMapsCombinedMap() {
       const innerRadius = 4;
       const radius = innerRadius + rate / 2;
       const baseColor = getAllMapsOverlayStrokeColor();
-      const overlayColor = isHighlighted ? highlightColor : (someHighlighted ? dimmedColor : baseColor);
+      const isActiveYearAddress = yearMode && allMapsAddressIsActiveInYear(addrs, addrIndex, selectedYear);
+      const overlayColor = yearMode
+        ? (isActiveYearAddress ? yearActiveColor : yearInactiveColor)
+        : (isHighlighted ? highlightColor : (someHighlighted ? dimmedColor : baseColor));
       const dot = L.circleMarker([lat, lon], {
         radius,
         weight: belongingCircleStrokeWeight(rate),
@@ -11367,6 +11099,7 @@ function renderAllMapsCombinedMap() {
         lifepathAllMapsKey: effectiveKey,
       });
       allMapsVectorLayer.addLayer(dot);
+      if (isActiveYearAddress && typeof dot.bringToFront === "function") allMapsActiveYearDots.push(dot);
       if (isHighlighted && typeof dot.bringToFront === "function") highlightedDots.push(dot);
     }
 
@@ -11374,7 +11107,7 @@ function renderAllMapsCombinedMap() {
 
     if (segments.length) {
       const baseColor = getAllMapsOverlayStrokeColor();
-      const overlayColor = isHighlighted ? highlightColor : (someHighlighted ? dimmedColor : baseColor);
+      const overlayColor = yearMode ? yearInactiveColor : (isHighlighted ? highlightColor : (someHighlighted ? dimmedColor : baseColor));
       const line = L.polyline(segments, {
         weight: 1,
         opacity: 1,
@@ -11420,6 +11153,9 @@ function renderAllMapsCombinedMap() {
         if (key === allMapsHighlightedKey) layer.bringToFront();
       });
       for (const l of highlightedLayers) l.bringToFront();
+    }
+    if (allMapsActiveYearDots.length) {
+      for (const dot of allMapsActiveYearDots) dot.bringToFront();
     }
   } catch {
     // ignore
@@ -11484,6 +11220,20 @@ if (elAllMapsHideMapBtn) {
   elAllMapsHideMapBtn.addEventListener("click", () => {
     ensureAllMapsMap();
     toggleAllMapsTiles();
+  });
+}
+
+if (elAllMapsYearToggleBtn) {
+  elAllMapsYearToggleBtn.addEventListener("click", () => {
+    allMapsYearSelectorEnabled = !allMapsYearSelectorEnabled;
+    renderAllMapsCombinedMap();
+  });
+}
+
+if (elAllMapsYearSlider) {
+  elAllMapsYearSlider.addEventListener("input", () => {
+    allMapsSelectedYear = Math.floor(Number(elAllMapsYearSlider.value));
+    renderAllMapsCombinedMap();
   });
 }
 
@@ -11919,7 +11669,7 @@ function getStep1EmotionMapLayoutSnapshotForSave() {
 }
 
 // Set right before returning from the solo page so the next
-// renderStep1EmotionMap() call (always triggered by showPage("step1"))
+// renderStep1EmotionMap() call (always triggered by showPage("map"))
 // skips rebuilding the sound session — it should just keep playing.
 let _step1SkipSoundRebuildOnce = false;
 
@@ -11928,7 +11678,7 @@ let _step1SkipSoundRebuildOnce = false;
 // home, "start over", loading a different saved snapshot) already calls
 // renderStep1EmotionMap() directly on its own, so nothing about the address
 // data can have changed while Step 1 sat hidden behind some other page.
-// Whatever page comes next, the showPage("step1") rebuild below on the way
+// Whatever page comes next, the showPage("map") rebuild below on the way
 // back is pure redundant work -- and worse, a visible flash
 // (renderStep1EmotionMap() wipes and redraws every ring from scratch),
 // making the small preview look like it "changed" even though the end
@@ -11936,6 +11686,7 @@ let _step1SkipSoundRebuildOnce = false;
 let _step1SkipEmotionRebuildOnce = false;
 
 let _emotionBreathRaf = 0;
+let _emotionBreathStartTime = 0;
 
 /** @type {any | null} */
 let _emotionBreathArmedOpts = null;
@@ -12024,6 +11775,7 @@ function startEmotionBreathing(opts) {
   };
 
   const t0 = performance.now();
+  _emotionBreathStartTime = t0;
   let lastNow = t0;
   let prevRadii = baseRadii.slice(0, n);
   const twoPi = Math.PI * 2;
@@ -13481,11 +13233,11 @@ function animateEmotionBackToMap(start) {
   stopEmotionBreathing();
   stopEmotionSound();
   if (!elEmotionSvg) {
-    showPage("step2");
+    showPage("movementExpand");
     return;
   }
   if (!start || !Array.isArray(start.points) || start.points.length <= 0) {
-    showPage("step2");
+    showPage("movementExpand");
     return;
   }
 
@@ -13622,7 +13374,7 @@ function animateEmotionBackToMap(start) {
     if (t < 1) {
       requestAnimationFrame(frame);
     } else {
-      showPage("step2");
+      showPage("movementExpand");
     }
   }
 
@@ -15929,14 +15681,31 @@ function exitPrintModeForPostcard() {
   setTimeout(invalidateMapForPrint, 50);
 }
 
-window.addEventListener("beforeprint", enterPrintModeForPostcard);
-window.addEventListener("afterprint", exitPrintModeForPostcard);
+window.addEventListener("beforeprint", () => {
+  if (!document.body.classList.contains("printOption1Mode") && !document.body.classList.contains("printMapOptionMode")) {
+    enterPrintModeForPostcard();
+  }
+});
+window.addEventListener("afterprint", () => {
+  if (document.body.classList.contains("printMapOptionMode")) {
+    cleanupPrintMapOptionMode();
+    return;
+  }
+  if (document.body.classList.contains("printOption1Mode") || printOption1InProgress) {
+    cleanupPrintOption1Mode();
+    return;
+  }
+  exitPrintModeForPostcard();
+});
 
 try {
   const mq = window.matchMedia ? window.matchMedia("print") : null;
   if (mq) {
     const onChange = (e) => {
-      if (e && e.matches) enterPrintModeForPostcard();
+      if (e && e.matches) {
+        if (!document.body.classList.contains("printOption1Mode") && !document.body.classList.contains("printMapOptionMode")) enterPrintModeForPostcard();
+      }
+      else if (document.body.classList.contains("printMapOptionMode")) cleanupPrintMapOptionMode();
       else exitPrintModeForPostcard();
     };
     if (typeof mq.addEventListener === "function") mq.addEventListener("change", onChange);
@@ -16097,50 +15866,9 @@ updateBelongingValueLabel();
 // viewport-scaled elements are correctly sized from the very first paint.
 updateStep1Scale();
 
-// Default to the home page (logo, tagline, start).
-showPage("welcome");
-
-// Postcard preview + print (10x15cm)
-if (elPrintPostcardBtn) {
-  elPrintPostcardBtn.addEventListener("click", () => {
-    printPostcardImmediatelyFromStep2();
-  });
-}
-
-if (elPostcardPreviewCloseBtn) {
-  elPostcardPreviewCloseBtn.addEventListener("click", () => {
-    closePostcardPreview();
-  });
-}
-
-if (elPostcardPreviewPrintBtn) {
-  elPostcardPreviewPrintBtn.addEventListener("click", () => {
-    downloadPngFromPostcardPreview();
-  });
-}
-
-if (elPostcardPreviewNativePrintBtn) {
-  elPostcardPreviewNativePrintBtn.addEventListener("click", () => {
-    printPostcardFromPreview();
-  });
-}
-
-if (elPostcardRotateBtn) {
-  elPostcardRotateBtn.addEventListener("click", () => {
-    postcardRotate90 = !postcardRotate90;
-    syncPostcardRotateUi();
-    applyPostcardRotationLayout();
-  });
-}
-
-if (elPostcardPreviewOverlay) {
-  elPostcardPreviewOverlay.addEventListener("click", (e) => {
-    // Only close when clicking the backdrop area, not the toolbar buttons.
-    const t = e.target;
-    if (t && t.classList && t.classList.contains("postcardPreviewBackdrop")) {
-      closePostcardPreview();
-    }
-  });
+// Restore a review map across refresh; otherwise default to the home page.
+if (!restoreReviewMapAfterRefresh()) {
+  showPage("welcome");
 }
 
 function wireHomeLogoNavigation() {
@@ -16974,7 +16702,7 @@ if (elStep1NextBtn) {
     // itself -- navigate there first, then transition straight into the
     // address-entry phase (Step 1's own name/count intro screen no longer
     // exists, since these two fields are answered here instead).
-    showPage("step1");
+    showPage("map");
     step1TransitionPhase(null, "step1-address-phase", () => {
       // The map container was hidden during intro — recalculate size and fit Israel.
       setTimeout(() => {
@@ -17579,7 +17307,7 @@ if (elSaveMapBtn) {
 
 if (elBackToStep1Btn) {
   elBackToStep1Btn.addEventListener("click", () => {
-    showPage("step1", { scroll: "step1", behavior: "auto" });
+    showPage("map", { scroll: "step1", behavior: "auto" });
     setAddressStatus("");
     currentAddressVerified = false;
     updateStep1Headers();
@@ -17609,28 +17337,28 @@ if (elEmotionSoloBackBtn) {
     if (_emotionSoloReturnToStep1FullscreenSpread) {
       _emotionSoloReturnToStep1FullscreenSpread = false;
       _step1SkipSoundRebuildOnce = true;
-      showPage("step1EmotionFullscreen");
+      showPage("emotionExpand");
       populateStep1EmotionFullscreenSvg();
       fitStep1EmotionFullscreenInnerRing();
       enterStep1EmotionFullscreenRingSpread(null);
       return;
     }
 
-    // Came here from the route/movement map (Step 2) -- return there instead
-    // of Step 1. showPage("step2") already fully re-renders the map/dots/
+    // Came here from the route/movement map (movementExpand) -- return there instead
+    // of Step 1. showPage("movementExpand") already fully re-renders the map/dots/
     // reading panel on every entry, so no extra rebuild is needed here.
     if (_emotionSoloReturnToStep2) {
       _emotionSoloReturnToStep2 = false;
-      showPage("step2");
+      showPage("movementExpand");
       return;
     }
 
-    // showPage("step1") below always triggers renderStep1EmotionMap(), which
+    // showPage("map") below always triggers renderStep1EmotionMap(), which
     // would otherwise tear down and rebuild the sound session — this flag
     // tells it to leave sound alone this one time, so what
     // resumeStep1EntrySoundFromSolo() just resumed simply keeps playing.
     _step1SkipSoundRebuildOnce = true;
-    showPage("step1", { scroll: "step1", behavior: "auto" });
+    showPage("map", { scroll: "step1", behavior: "auto" });
   });
 }
 
@@ -17641,6 +17369,46 @@ if (elEmotionSaveBtn) {
 }
 
 let _step1NextAfterVerify = false;
+
+let verifyCityRequestSeq = 0;
+
+function hasStep1CountryAndCityInput() {
+  return Boolean(String(elCountry?.value || "").trim() && String(elCity?.value || "").trim());
+}
+
+function hasStep1FullAddressInput() {
+  syncStreetAndNumberFields();
+  return Boolean(
+    String(elCountry?.value || "").trim()
+    && String(elCity?.value || "").trim()
+    && String(elStreet?.value || "").trim()
+    && String(elNumber?.value || "").trim()
+  );
+}
+
+async function verifyCurrentCity() {
+  syncStreetAndNumberFields();
+  const country = String(elCountry?.value || "").trim();
+  const city = String(elCity?.value || "").trim();
+  if (!country || !city) return null;
+
+  const requestSeq = ++verifyCityRequestSeq;
+  const address = { country, city, state: getValue("state"), street: "", number: "" };
+  const items = await fetchGoogleGeocodeItemsForAddress(address, { includeNumber: false }).catch(() => []);
+  if (requestSeq !== verifyCityRequestSeq) return null;
+
+  const found = items.find((candidate) =>
+    isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
+    && nominatimItemMatchesCountryExactly(candidate, country)
+    && nominatimItemMatchesCityExactly(candidate, city));
+  if (found) {
+    if (elCity) elCity.classList.remove("address-error");
+    return found;
+  }
+
+  markAddressFieldError("City");
+  return null;
+}
 
 function verifyCurrentAddress() {
   syncStreetAndNumberFields();
@@ -17670,80 +17438,12 @@ function verifyCurrentAddress() {
 
 let verifyAddressRequestSeq = 0;
 
-async function nominatimSearchExistsStructured({ country, city, streetLine }) {
-  const ctry = tidyToken(country);
-  const cty = tidyToken(city);
-  const street = tidyToken(streetLine);
-
-  const tryFetch = async (params) => {
-    const url = new URL("https://nominatim.openstreetmap.org/search");
-    url.searchParams.set("format", "json");
-    url.searchParams.set("limit", "1");
-    url.searchParams.set("accept-language", "en");
-    url.searchParams.set("addressdetails", "0");
-    url.searchParams.set("namedetails", "0");
-    url.searchParams.set("extratags", "0");
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 6000);
-    try {
-      const res = await fetch(url.toString(), {
-        signal: ctrl.signal,
-        headers: { "Accept": "application/json", "Accept-Language": "en" },
-      });
-      if (!res.ok) return false;
-      const data = await res.json();
-      return Array.isArray(data) && data.length > 0;
-    } catch {
-      return false;
-    } finally {
-      clearTimeout(tid);
-    }
-  };
-
-  // Try structured first.
-  const structuredParams = {};
-  if (street) structuredParams.street = street;
-  if (cty) structuredParams.city = cty;
-  if (ctry) structuredParams.country = ctry;
-  if (await tryFetch(structuredParams)) return true;
-
-  // Fall back to freeform (handles Hebrew city/country names in non-Israeli contexts).
-  const freeformQ = [street, cty, ctry].filter(Boolean).join(", ");
-  if (freeformQ) return tryFetch({ q: freeformQ });
-  return false;
-}
-
-async function diagnoseAddressNotFound(address) {
-  const country = tidyToken(address.country);
-  const city = tidyToken(address.city);
-  const street = tidyToken(address.street);
-
-  // 1) If the country itself can't be found, likely the country.
-  const countryOk = await nominatimSearchExistsStructured({ country, city: "", streetLine: "" });
-  if (!countryOk) return "Country";
-
-  // 2) If the city itself can't be found in this country, likely the city.
-  const cityOk = await nominatimSearchExistsStructured({ country, city, streetLine: "" });
-  if (!cityOk) return "City";
-
-  // 3) If the street can't be found in this city/country, likely the street.
-  const streetOk = await nominatimSearchExistsStructured({ country, city, streetLine: street });
-  if (!streetOk) return "Street";
-
-  // 4) City+street exist, but full address failed — likely the home number.
-  return "Home number";
-}
-
 function verifyCurrentAddressWithDiagnosis(address) {
   const requestSeq = ++verifyAddressRequestSeq;
   geocodeStep1FullAddressInOrder(address)
     .then((geo) => {
       if (requestSeq !== verifyAddressRequestSeq) return;
-      setStep1PreviewAddressFromGeo(address, geo);
-      step1MapPreEntry = false;
-      if (elStep1GeoMap) elStep1GeoMap.classList.remove("map-pre-entry");
-      if (elPageStep1) elPageStep1.classList.remove("map-colors-dark");
+      setStep1PreviewAddressFromGeo(address, geo, { renderMarkers: false });
       if (_step1NextAfterVerify) {
         _step1NextAfterVerify = false;
         setTimeout(() => { if (elStep1AddrNextBtn) elStep1AddrNextBtn.click(); }, 0);
@@ -17757,18 +17457,7 @@ function verifyCurrentAddressWithDiagnosis(address) {
       clearAddressFieldErrors();
       updateAddButtonState();
       updateStep1AddrNextBtnState();
-      diagnoseAddressNotFound(address)
-        .then((field) => {
-          // Stale by the time the diagnosis round-trip finishes (user typed
-          // again, or a newer verify superseded this one) -- don't paint an
-          // error over whatever they're now looking at.
-          if (requestSeq !== verifyAddressRequestSeq) return;
-          markAddressFieldError(field);
-        })
-        .catch(() => {
-          // Diagnosis itself failed (e.g. network) -- leave no field marked
-          // rather than guessing.
-        });
+      markAddressFieldError("Street");
     });
 }
 
@@ -17805,25 +17494,32 @@ function markAddressFieldError(field) {
 }
 
 function handleAddressFieldInput() {
+  verifyCityRequestSeq += 1;
+  if (verifyAddressDebounceId) window.clearTimeout(verifyAddressDebounceId);
+  verifyAddressDebounceId = 0;
+  if (_streetFocusDebounceId) window.clearTimeout(_streetFocusDebounceId);
+  _streetFocusDebounceId = 0;
+  const hadPreview = Boolean(currentAddressVerified || step1PendingPreviewAddress);
   currentAddressVerified = false;
   step1PendingPreviewAddress = null;
   const activeCityKey = [String(elCountry?.value || "").trim(), String(elCity?.value || "").trim()].join("|");
   if (step1ResolvedCityFocus?.key && step1ResolvedCityFocus.key !== activeCityKey) step1ResolvedCityFocus = null;
   clearAddressFieldErrors();
   updateAddButtonState();
-  updateStep1GeoMapMarkers();
-  scheduleStep1AddressMapSync();
-  scheduleVerifyCurrentAddress(140);
+  if (hadPreview) updateStep1GeoMapMarkers();
+  else clearStep1FocusMarker();
 }
 
 function handleAddressFieldKeydown(e) {
   if (e.key === "Enter") {
-    verifyCurrentAddress();
+    if (hasStep1FullAddressInput()) verifyCurrentAddress();
+    else if (hasStep1CountryAndCityInput()) verifyCurrentCity();
   }
 }
 
 function handleAddressFieldBlur() {
-  verifyCurrentAddress();
+  if (hasStep1FullAddressInput()) verifyCurrentAddress();
+  else if (hasStep1CountryAndCityInput()) verifyCurrentCity();
 }
 
 function clearStep1FocusMarker() {
@@ -17863,6 +17559,7 @@ function drawStep1FocusCircleAfterFocus(lat, lon, seq) {
     const rate = getCurrentStep1BelongingRate();
     step1FocusMarker = L.circleMarker([latNum, lonNum], {
       renderer: step1GeoVectorRenderer,
+      className: "lifepathStep1FocusDot",
       radius: addressDotRadius(rate),
       color: getStep1GeoMarkerColor(),
       weight: belongingCircleStrokeWeight(rate),
@@ -17870,7 +17567,7 @@ function drawStep1FocusCircleAfterFocus(lat, lon, seq) {
     }).addTo(step1GeoMap);
   };
   try { step1GeoMap.once("moveend", draw); } catch { /* ignore */ }
-  setTimeout(draw, 1200);
+  setTimeout(draw, 620);
 }
 
 let _cityFocusDebounceId = 0;
@@ -17921,6 +17618,111 @@ function getNominatimItemCityTokens(item) {
     .filter(Boolean);
 }
 
+function getNominatimItemCountryTokens(item) {
+  const address = item?.address || {};
+  const namedetails = item?.namedetails || {};
+  return [address.country, namedetails["name:country"], item?.display_name]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+}
+
+function getNominatimItemStreetTokens(item) {
+  const address = item?.address || {};
+  const namedetails = item?.namedetails || {};
+  return [
+    address.road,
+    address.pedestrian,
+    address.footway,
+    address.path,
+    address.residential,
+    namedetails.name,
+    namedetails["name:he"],
+    namedetails["name:en"],
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+}
+
+const EXACT_GEOCODE_MATCH_ALIASES = {
+  "ישראל": ["israel"],
+  "yshral": ["israel"],
+  "telavivyafo": ["telaviv"],
+  "תלאביביפו": ["תלאביב"],
+};
+
+const EXACT_GEOCODE_STREET_TYPE_SUFFIXES = [
+  "street", "st", "st.", "road", "rd", "rd.", "avenue", "ave", "ave.", "boulevard", "blvd", "blvd.",
+  "drive", "dr", "dr.", "lane", "ln", "ln.", "way", "place", "pl", "pl.", "court", "ct", "ct.",
+];
+
+function withoutGenericStreetTypeWords(value) {
+  let text = String(value || "").trim();
+  if (!text) return "";
+  for (const suffix of EXACT_GEOCODE_STREET_TYPE_SUFFIXES) {
+    const pattern = new RegExp(`\\s+${suffix.replace(/\./g, "\\.")}$`, "i");
+    text = text.replace(pattern, "").trim();
+  }
+  return text;
+}
+
+function normalizedExactMatchValues(value) {
+  const values = new Set();
+  const raw = normalizeTextForMatch(value);
+  const latin = normalizeTextForMatch(toEnglishLike(value));
+  const withoutStreetType = normalizeTextForMatch(withoutGenericStreetTypeWords(value));
+  const latinWithoutStreetType = normalizeTextForMatch(withoutGenericStreetTypeWords(toEnglishLike(value)));
+  if (raw) values.add(raw);
+  if (latin) values.add(latin);
+  if (withoutStreetType) values.add(withoutStreetType);
+  if (latinWithoutStreetType) values.add(latinWithoutStreetType);
+  for (const value of [raw, withoutStreetType]) {
+    const hebrewSpellingVariant = String(value || "").replace(/שיחרור/g, "שחרור");
+    if (hebrewSpellingVariant && hebrewSpellingVariant !== value) values.add(hebrewSpellingVariant);
+    if (/^[\u0590-\u05FF]+$/.test(String(value || ""))) {
+      if (value.startsWith("ה") && value.length > 1) values.add(value.slice(1));
+      else values.add(`ה${value}`);
+    }
+  }
+  for (const key of [raw, latin]) {
+    const aliases = EXACT_GEOCODE_MATCH_ALIASES[key];
+    if (Array.isArray(aliases)) aliases.forEach((alias) => {
+      const normalizedAlias = normalizeTextForMatch(alias);
+      if (normalizedAlias) values.add(normalizedAlias);
+    });
+  }
+  return values;
+}
+
+function anyTokenExactlyMatches(tokens, wantedValue) {
+  const wantedValues = normalizedExactMatchValues(wantedValue);
+  if (!wantedValues.size) return true;
+  return tokens.some((token) => {
+    const tokenValues = normalizedExactMatchValues(token);
+    for (const value of tokenValues) {
+      if (wantedValues.has(value)) return true;
+    }
+    return false;
+  });
+}
+
+function nominatimItemMatchesCountryExactly(item, wantedCountry = "") {
+  return anyTokenExactlyMatches(getNominatimItemCountryTokens(item), wantedCountry);
+}
+
+function nominatimItemMatchesCityExactly(item, wantedCity = "") {
+  return anyTokenExactlyMatches(getNominatimItemCityTokens(item), wantedCity);
+}
+
+function nominatimItemMatchesStreetExactly(item, wantedStreet = "") {
+  return anyTokenExactlyMatches(getNominatimItemStreetTokens(item), wantedStreet);
+}
+
+function nominatimItemMatchesAddressFieldsExactly(item, addr) {
+  return nominatimItemMatchesCountryExactly(item, addr?.country)
+    && nominatimItemMatchesCityExactly(item, addr?.city)
+    && nominatimItemMatchesStreetExactly(item, addr?.street);
+}
+
 function nominatimItemMatchesCity(item, wantedCity = "", cityFocus = step1ResolvedCityFocus) {
   const city = normalizeTextForMatch(wantedCity);
   if (!city) return true;
@@ -17956,14 +17758,7 @@ function nominatimItemMatchesCity(item, wantedCity = "", cityFocus = step1Resolv
 }
 
 // Resolves (and caches in step1ResolvedCityFocus) a coarse lat/lon anchor
-// for the currently-typed country+city, with no side effect on the map view
-// -- used both by focusCityOnGeoMap() (which does pan the map) and by
-// geocodeStep1FullAddressInOrder() (which needs a *reliable geographic*
-// reference for nominatimItemMatchesCity() to check candidates against;
-// comparing transliterated Hebrew text against Nominatim's English place
-// names is unreliable enough to reject genuinely correct results -- see
-// transliterateHebrewToLatin(), a crude per-letter mapper, not a real
-// transliteration of how Hebrew place names are actually spelled in Latin).
+// for the currently-typed country+city, with no side effect on the map view.
 async function resolveStep1CityFocus() {
   const seq = ++_cityFocusSeq;
   const country = String(elCountry?.value || "").trim();
@@ -17973,60 +17768,21 @@ async function resolveStep1CityFocus() {
   if (step1ResolvedCityFocus?.key === cityKey) return step1ResolvedCityFocus;
 
   try {
-    const q = [city, country].filter(Boolean).join(", ");
-    const params = {
-      format: "json",
-      limit: "1",
-      addressdetails: "1",
-      namedetails: "1",
-      extratags: "1",
-      "accept-language": "en",
-      q,
-    };
-    const res = await fetch("/api/nominatim", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ params }),
-    });
+    const items = await fetchGoogleGeocodeItemsForAddress({ country, city, state: getValue("state"), street: "", number: "" }, { includeNumber: false });
     if (seq !== _cityFocusSeq) return step1ResolvedCityFocus;
-    if (!res.ok) { console.warn("[cityFocus] geocoder", res.status, q); } else {
-      const payload = await res.json();
-      const data = payload?.ok && Array.isArray(payload.data) ? payload.data : [];
-      if (seq !== _cityFocusSeq) return step1ResolvedCityFocus;
-      if (Array.isArray(data) && data.length) {
-        const lat = parseFloat(data[0].lat);
-        const lon = parseFloat(data[0].lon);
-        if (isFinite(lat) && isFinite(lon)) {
-          step1ResolvedCityFocus = {
-            key: cityKey,
-            city,
-            country,
-            lat,
-            lon,
-            boundingBox: parseNominatimBoundingBox(data[0]),
-            displayName: String(data[0].display_name || q),
-          };
-          return step1ResolvedCityFocus;
-        }
-      } else {
-        console.warn("[cityFocus] no result for", q);
-      }
-    }
-  } catch {
-    // Fall back to the shared geocoder below.
-  }
-
-  try {
-    const geo = await geocodeAddress({ country, city, state: getValue("state"), street: "", number: "" });
-    if (seq !== _cityFocusSeq) return step1ResolvedCityFocus;
+    const item = items.find((candidate) =>
+      isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
+      && nominatimItemMatchesCountryExactly(candidate, country)
+      && nominatimItemMatchesCityExactly(candidate, city));
+    if (!item) return null;
     step1ResolvedCityFocus = {
       key: cityKey,
       city,
       country,
-      lat: geo.lat,
-      lon: geo.lon,
+      lat: Number(item.lat),
+      lon: Number(item.lon),
       boundingBox: null,
-      displayName: String(geo.displayName || [city, country].filter(Boolean).join(", ")),
+      displayName: String(item.display_name || [city, country].filter(Boolean).join(", ")),
     };
     return step1ResolvedCityFocus;
   } catch (e) {
@@ -18038,6 +17794,29 @@ async function resolveStep1CityFocus() {
 async function focusCityOnGeoMap() {
   const focus = await resolveStep1CityFocus();
   if (focus) focusStep1GeoMapAt(focus.lat, focus.lon, 12, { animate: true });
+}
+
+async function resolveStep1StreetFocus(address) {
+  const country = tidyToken(address?.country);
+  const city = tidyToken(address?.city);
+  const street = tidyToken(address?.street);
+  if (!country || !city || !street) return null;
+
+  const googleItems = await fetchGoogleGeocodeItemsForAddress(address, { includeNumber: false }).catch(() => []);
+  const googleFound = googleItems.find((candidate) =>
+    isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
+    && nominatimItemMatchesAddressFieldsExactly(candidate, address));
+  if (googleFound) {
+    return {
+      lat: Number(googleFound.lat),
+      lon: Number(googleFound.lon),
+      displayName: String(googleFound.display_name || [street, city, country].filter(Boolean).join(", ")),
+      matchLevel: "street",
+      source: "google",
+    };
+  }
+
+  return null;
 }
 
 function scheduleCityMapFocus() {
@@ -18061,7 +17840,8 @@ function scheduleStep1AddressMapSync() {
   }
 }
 
-function setStep1PreviewAddressFromGeo(address, geo) {
+function setStep1PreviewAddressFromGeo(address, geo, options) {
+  const opts = options && typeof options === "object" ? options : {};
   if (!geo || !isFinite(geo.lat) || !isFinite(geo.lon)) return;
   currentAddressVerified = true;
   const existing = isStep1EditModeActive() ? (addresses[_step1EditingIdx] || {}) : {};
@@ -18083,7 +17863,7 @@ function setStep1PreviewAddressFromGeo(address, geo) {
   clearAddressFieldErrors();
   updateAddButtonState();
   if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
-  updateStep1GeoMapMarkers();
+  if (opts.renderMarkers !== false) updateStep1GeoMapMarkers();
   updateAllEmotionRingAngles();
 }
 
@@ -18175,6 +17955,37 @@ function hebrewDefiniteArticleStreetVariants(streetText) {
 // along on the first's promise instead of doubling every request.
 const _step1GeocodeInFlight = new Map();
 
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 4500) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function fetchGoogleGeocodeItemsForAddress(address, options = {}) {
+  const includeNumber = options.includeNumber !== false;
+  const streetLine = tidyToken(includeNumber
+    ? (address?._origStreetAndNumber || [address?.street, address?.number].filter(Boolean).join(" "))
+    : address?.street);
+  const params = {
+    q: [streetLine, address?.city, address?.state, address?.country].filter(Boolean).join(", "),
+  };
+  if (!params.q) return [];
+  const payload = await fetchJsonWithTimeout("/api/google_geocode", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ params }),
+  }, 4500);
+  return payload?.ok && Array.isArray(payload.data) ? payload.data : [];
+}
+
 async function geocodeStep1FullAddressInOrder(address) {
   const country = tidyToken(address.country);
   const city = tidyToken(address.city);
@@ -18212,95 +18023,25 @@ async function geocodeStep1FullAddressInOrder(address) {
 
   const run = (async () => {
     const streetLine = tidyToken(address._origStreetAndNumber || [street, number].filter(Boolean).join(" "));
-    const baseParams = {
-      format: "json",
-      limit: "10",
-      addressdetails: "1",
-      namedetails: "1",
-      extratags: "1",
-      "accept-language": "en",
-    };
-    const searches = [
-      { ...baseParams, country, city, street: streetLine },
-      { ...baseParams, q: [streetLine, city, country].filter(Boolean).join(", ") },
-    ];
-    for (const streetVariant of hebrewDefiniteArticleStreetVariants(street)) {
-      const streetLineVariant = tidyToken([streetVariant, number].filter(Boolean).join(" "));
-      searches.push(
-        { ...baseParams, country, city, street: streetLineVariant },
-        { ...baseParams, q: [streetLineVariant, city, country].filter(Boolean).join(", ") },
-      );
-    }
-
-    // Every search variant, plus the city-anchor lookup (see
-    // resolveStep1CityFocus()'s own comment), all fire in parallel instead
-    // of one-at-a-time -- wall-clock time then depends on the slowest
-    // single request, not their sum. Priority (structured/first-variant
-    // over a later one) is preserved by picking the first non-empty result
-    // in original search order once everything has settled, not by which
-    // happened to respond first.
-    const [cityFocus, itemsPerSearch] = await Promise.all([
-      resolveStep1CityFocus(),
-      Promise.all(searches.map(async (params) => {
-        try {
-          const res = await fetch("/api/nominatim", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Accept": "application/json" },
-            body: JSON.stringify({ params }),
-          });
-          if (!res.ok) return [];
-          const payload = await res.json();
-          return payload?.ok && Array.isArray(payload.data) ? payload.data : [];
-        } catch {
-          return [];
-        }
-      })),
-    ]);
-
-    // The freeform (q:) search especially can drop an unrecognized street
-    // token and still return *some* result -- often in a different city
-    // entirely, since it matches whatever it *can* parse. Require the
-    // candidate to actually be in the requested city so an unrecognized
-    // street can't silently relocate the map to the wrong place. Only
-    // enforced when cityFocus resolved (a reliable geographic check) --
-    // without it, nominatimItemMatchesCity() would fall back to comparing
-    // transliterated text, which is unreliable enough (especially for
-    // Hebrew) to reject genuinely correct results, so skip rather than risk
-    // that false rejection.
-    let item = null;
-    for (const items of itemsPerSearch) {
-      const found = items.find((candidate) =>
-        isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
-        && (!cityFocus || nominatimItemMatchesCity(candidate, address.city, cityFocus)));
-      if (found) { item = found; break; }
-    }
-
-    if (item) {
-      let lat = Number(item.lat);
-      let lon = Number(item.lon);
-      let matchLevel = item?.address?.house_number ? "address" : "street";
-      if (isKiryatYamGioraYoseftalAddress(address) && !houseNumberMatches(item?.address?.house_number, number)) {
-        const estimatedHouse = estimateKiryatYamGioraYoseftalByNumber(address);
-        if (estimatedHouse && isFinite(estimatedHouse.lat) && isFinite(estimatedHouse.lon)) {
-          lat = Number(estimatedHouse.lat);
-          lon = Number(estimatedHouse.lon);
-          matchLevel = "address";
-        }
-      }
-      const displayName = String(item.display_name || [streetLine, city, country].filter(Boolean).join(", "));
+    const googleItems = await fetchGoogleGeocodeItemsForAddress(address, { includeNumber: true }).catch(() => []);
+    const googleItem = googleItems.find((candidate) =>
+      isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
+      && nominatimItemMatchesAddressFieldsExactly(candidate, address)
+      && houseNumberMatches(candidate?.address?.house_number, number));
+    if (googleItem) {
       const record = {
-        lat,
-        lon,
-        displayName,
+        lat: Number(googleItem.lat),
+        lon: Number(googleItem.lon),
+        displayName: String(googleItem.display_name || [streetLine, city, country].filter(Boolean).join(", ")),
         normalized: { country, city, street, number },
-        matchLevel,
+        matchLevel: "address",
+        source: "google",
         ts: Date.now(),
       };
       geocodeCache[cacheKey] = record;
       saveJson(GEOCODE_CACHE_KEY, geocodeCache);
       return record;
     }
-
     if (isKiryatYamGioraYoseftalAddress(address)) {
       const estimatedHouse = estimateKiryatYamGioraYoseftalByNumber(address);
       if (estimatedHouse && isFinite(estimatedHouse.lat) && isFinite(estimatedHouse.lon)) {
@@ -18344,10 +18085,11 @@ async function focusStreetOnGeoMap() {
   const address = { country, city, state: getValue("state"), street, number, _origStreetAndNumber: parsedStreetAndNumber.raw };
   try {
     const geo = await geocodeStep1FullAddressInOrder(address);
+    if (!geo) throw new Error("No street result");
     if (seq !== _streetFocusSeq) return;
-    setStep1PreviewAddressFromGeo(address, geo);
-    focusStep1GeoMapAt(geo.lat, geo.lon, 15.5, { animate: true });
-    drawStep1FocusCircleAfterFocus(geo.lat, geo.lon, seq);
+    if (number) setStep1PreviewAddressFromGeo(address, geo, { renderMarkers: false });
+    clearStep1FocusMarker();
+    focusStep1GeoMapAt(geo.lat, geo.lon, number ? 17 : 15, { animate: true });
   } catch (e) {
     console.warn("[streetFocus] error", e);
     if (seq !== _streetFocusSeq) return;
@@ -18381,17 +18123,12 @@ if (elCity) {
   elCity.addEventListener("blur", handleAddressFieldBlur);
 }
 if (elStreet) {
-  elStreet.addEventListener("input", () => { handleAddressFieldInput(); scheduleStreetMapFocus(); });
+  elStreet.addEventListener("input", handleAddressFieldInput);
   elStreet.addEventListener("keydown", handleAddressFieldKeydown);
   elStreet.addEventListener("blur", () => { handleAddressFieldBlur(); scheduleStreetMapFocus(); });
 }
 if (elNumber) {
-  elNumber.addEventListener("input", () => {
-    handleAddressFieldInput();
-    // Auto-verify shortly after the home number is entered (no extra click needed).
-    scheduleVerifyCurrentAddress();
-    scheduleStreetMapFocus();
-  });
+  elNumber.addEventListener("input", handleAddressFieldInput);
   elNumber.addEventListener("keydown", handleAddressFieldKeydown);
   elNumber.addEventListener("blur", () => { handleAddressFieldBlur(); scheduleStreetMapFocus(); });
 }
@@ -18498,6 +18235,7 @@ if (elAddHomeBtn) {
 // Split combined "street and number" field into hidden street/number fields.
 // Parse "street number" from the street+number field into hidden fields.
 const elStreetAndNumber = document.getElementById("streetAndNumber");
+
 function parseStreetAndNumber(value) {
   const raw = String(value || "").replace(/\s+/g, " ").trim();
   if (!raw) return { raw: "", street: "", number: "" };
@@ -18535,16 +18273,10 @@ if (elStreetAndNumber) {
     syncStreetAndNumberFields();
     handleAddressFieldInput();
     updateStep1AddrNextBtnState();
-    scheduleStreetMapFocus();
-    // Auto-verify when street is entered.
-    if (elStreet && elStreet.value.trim()) {
-      scheduleVerifyCurrentAddress();
-    }
   });
-  elStreetAndNumber.addEventListener("blur", (evt) => {
+  elStreetAndNumber.addEventListener("blur", () => {
     syncStreetAndNumberFields();
     handleAddressFieldBlur();
-    if (evt?.relatedTarget === elStartYear) return;
     scheduleStreetMapFocus();
   });
   elStreetAndNumber.addEventListener("keydown", handleAddressFieldKeydown);
@@ -18715,7 +18447,7 @@ if (elCreateLifePathBtn) {
       requestStep2OpenFitToAddresses();
       step2HoldFitAfterNextDraw = true;
       setStep2CloseReturnPage("step1");
-      showPage("step2");
+      showPage("movementExpand");
 
       // Reuse existing draw handler, but only after we have snapped to 100%.
       autoSaveAfterStep2OpenAt100 = true;
@@ -19855,185 +19587,10 @@ function normalizeTextForMatch(value) {
     .replace(/[\s\-_/\\.,#'״"׳]/g, "");
 }
 
-function nominatimItemHasStreet(item, wantedStreet = "") {
-  const address = item?.address || {};
-  if (address.road || address.pedestrian || address.footway || address.path || address.residential) return true;
-  const displayName = normalizeTextForMatch(item?.display_name);
-  const street = normalizeTextForMatch(wantedStreet);
-  return Boolean(displayName && street && displayName.includes(street));
-}
-
-function pickBestNominatimItem(items, addr) {
-  if (!Array.isArray(items) || !items.length) return null;
-  const cityMatches = items.filter((item) => nominatimItemMatchesCity(item, addr?.city));
-  const scopedItems = cityMatches.length ? cityMatches : (step1ResolvedCityFocus?.key ? [] : items);
-  if (!scopedItems.length && addr?.city) return null;
-  const wantedNumber = normalizeHouseNumberForMatch(addr?.number);
-  if (!wantedNumber) return scopedItems[0] || items[0];
-
-  const exactHouse = scopedItems.find((item) => houseNumberMatches(item?.address?.house_number, wantedNumber));
-  if (exactHouse) return exactHouse;
-
-  const displayMatch = scopedItems.find((item) => {
-    const displayName = normalizeHouseNumberForMatch(item?.display_name);
-    return Boolean(displayName && displayName.includes(wantedNumber));
-  });
-  if (displayMatch) return displayMatch;
-
-  const streetMatch = scopedItems.find((item) => nominatimItemHasStreet(item, addr?.street));
-  if (streetMatch) return streetMatch;
-
-  return scopedItems[0] || null;
-}
-
 function parseHouseNumberValue(value) {
   const match = String(value || "").match(/\d+(?:[\.,]\d+)?/);
   if (!match) return NaN;
   return Number(match[0].replace(",", "."));
-}
-
-function escapeOverpassRegex(value) {
-  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function getOverpassElementLatLon(element) {
-  const lat = Number(element?.lat ?? element?.center?.lat);
-  const lon = Number(element?.lon ?? element?.center?.lon);
-  if (!isFinite(lat) || !isFinite(lon)) return null;
-  return { lat, lon };
-}
-
-function getNominatimStreetNames(item, fallbackStreet = "") {
-  const address = item?.address || {};
-  const names = [
-    fallbackStreet,
-    address.road,
-    address.pedestrian,
-    address.footway,
-    address.path,
-    address.residential,
-    item?.namedetails?.name,
-    item?.namedetails?.["name:he"],
-    item?.namedetails?.["name:en"],
-  ]
-    .map((name) => String(name || "").trim())
-    .filter(Boolean);
-  return names.filter((name, index, arr) => arr.findIndex((other) => normalizeTextForMatch(other) === normalizeTextForMatch(name)) === index);
-}
-
-function overpassStreetFilterForNames(streetNames) {
-  const parts = streetNames
-    .map((name) => escapeOverpassRegex(name))
-    .filter(Boolean);
-  if (!parts.length) return null;
-  return parts.join("|");
-}
-
-function overpassHouseNumberElements(data, streetNames) {
-  const normalizedNames = streetNames.map((name) => normalizeTextForMatch(name)).filter(Boolean);
-  return (Array.isArray(data?.elements) ? data.elements : [])
-    .filter((element) => {
-      const elementStreet = normalizeTextForMatch(element?.tags?.["addr:street"] || "");
-      if (!normalizedNames.length || !elementStreet) return true;
-      return normalizedNames.some((name) => elementStreet.includes(name) || name.includes(elementStreet));
-    });
-}
-
-async function estimateHouseNumberLocation(addr, anchorItem) {
-  const wantedNumber = parseHouseNumberValue(addr?.number);
-  const street = String(addr?.street || "").trim();
-  const anchorLat = Number(anchorItem?.lat);
-  const anchorLon = Number(anchorItem?.lon);
-  if (!isFinite(wantedNumber) || !street || !isFinite(anchorLat) || !isFinite(anchorLon)) return null;
-
-  const streetNames = getNominatimStreetNames(anchorItem, street);
-  const streetRegex = overpassStreetFilterForNames(streetNames);
-  if (!streetRegex) return null;
-  const query = `
-[out:json][timeout:10];
-(
-  node(around:8000,${anchorLat},${anchorLon})["addr:street"~"${streetRegex}",i]["addr:housenumber"];
-  way(around:8000,${anchorLat},${anchorLon})["addr:street"~"${streetRegex}",i]["addr:housenumber"];
-  relation(around:8000,${anchorLat},${anchorLon})["addr:street"~"${streetRegex}",i]["addr:housenumber"];
-);
-out center tags 100;
-`;
-
-  let data = null;
-  try {
-    const proxyRes = await fetch("/api/overpass", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ query }),
-    });
-    if (proxyRes.ok) {
-      const payload = await proxyRes.json();
-      if (payload?.ok && payload?.data) data = payload.data;
-    }
-  } catch {
-    data = null;
-  }
-
-  if (!data) {
-    const url = new URL("https://overpass-api.de/api/interpreter");
-    url.searchParams.set("data", query);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    let res;
-    try {
-      res = await fetch(url.toString(), { signal: controller.signal, headers: { "Accept": "application/json" } });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-    if (!res.ok) return null;
-    data = await res.json();
-  }
-
-  const points = overpassHouseNumberElements(data, streetNames)
-    .map((element) => {
-      const pos = getOverpassElementLatLon(element);
-      const rawNumber = element?.tags?.["addr:housenumber"];
-      const num = parseHouseNumberValue(rawNumber);
-      if (!pos || !isFinite(num)) return null;
-      return { ...pos, num, rawNumber };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.num - b.num);
-
-  if (!points.length) return null;
-
-  const exact = points.find((point) => houseNumberMatches(point.rawNumber, addr.number));
-  if (exact) return { lat: exact.lat, lon: exact.lon, estimated: false };
-
-  if (points.length === 1) return { lat: points[0].lat, lon: points[0].lon, estimated: true };
-
-  let lower = null;
-  let upper = null;
-  for (const point of points) {
-    if (point.num < wantedNumber) lower = point;
-    if (point.num > wantedNumber) { upper = point; break; }
-  }
-
-  let a = lower;
-  let b = upper;
-  if (!a || !b) {
-    const nearest = points
-      .slice()
-      .sort((p1, p2) => Math.abs(p1.num - wantedNumber) - Math.abs(p2.num - wantedNumber))
-      .slice(0, 2)
-      .sort((p1, p2) => p1.num - p2.num);
-    a = nearest[0];
-    b = nearest[1];
-  }
-  if (!a || !b || a.num === b.num) return { lat: a?.lat ?? anchorLat, lon: a?.lon ?? anchorLon, estimated: true };
-
-  const rawT = (wantedNumber - a.num) / (b.num - a.num);
-  const t = Math.max(-0.25, Math.min(1.25, rawT));
-  return {
-    lat: a.lat + (b.lat - a.lat) * t,
-    lon: a.lon + (b.lon - a.lon) * t,
-    estimated: true,
-  };
 }
 
 async function geocodeAddress(addr, options = {}) {
@@ -20070,127 +19627,25 @@ async function geocodeAddress(addr, options = {}) {
   }
 
   const queryOriginal = buildQuery(addr);
-  const queryLatin = buildQueryLatin(addr);
-
-  const fetchNominatim = async (query) => {
-    const params = {
-      format: "json",
-      limit: "20",
-      dedupe: "0",
-      "accept-language": "en",
-      addressdetails: "1",
-      namedetails: "1",
-      extratags: "1",
-      q: query,
-    };
-    let data = null;
-    try {
-      const proxyRes = await fetch("/api/nominatim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify({ params }),
-      });
-      if (proxyRes.ok) {
-        const proxyPayload = await proxyRes.json();
-        if (proxyPayload && proxyPayload.ok && Array.isArray(proxyPayload.data)) data = proxyPayload.data;
-      }
-    } catch {
-      data = null;
-    }
-
-    if (!data) {
-      const url = new URL("https://nominatim.openstreetmap.org/search");
-      for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-      let res;
-      try {
-        res = await fetch(url.toString(), {
-          signal: controller.signal,
-          headers: { "Accept": "application/json", "Accept-Language": "en" },
-        });
-      } finally {
-        clearTimeout(timeoutId);
-      }
-      if (!res.ok) throw new Error(`Geocoding failed (${res.status})`);
-      data = await res.json();
-    }
-
-    if (!Array.isArray(data) || data.length === 0) return null;
-    return pickBestNominatimItem(data, addr);
-  };
-
-  const fetchNominatimStreetAnchor = async () => {
-    const streetQuery = [addr.street, addr.city, addr.state, addr.country]
-      .map((part) => String(part || "").trim())
-      .filter(Boolean)
-      .join(", ");
-    if (!streetQuery) return null;
-    return fetchNominatim(streetQuery);
-  };
-
-  const streetAndNumber = String(addr._origStreetAndNumber || [addr.street, addr.number].filter(Boolean).join(" ")).trim();
-  const numberAndStreet = [addr.number, addr.street].filter(Boolean).join(" ").trim();
-  const streetFirst = [addr.street, addr.number].filter(Boolean).join(" ").trim();
-  const rawQueries = [
-    [streetAndNumber, addr.city, addr.state, addr.country],
-    [numberAndStreet, addr.city, addr.state, addr.country],
-    [streetFirst, addr.city, addr.state, addr.country],
-    [addr.street, addr.city, addr.state, addr.country],
-    [queryOriginal],
-    [queryLatin],
-    ...(wantsExactAddress ? [] : [[addr.city, addr.state, addr.country]]),
-  ];
-  const queries = rawQueries
-    .map((parts) => parts.map((part) => String(part || "").trim()).filter(Boolean).join(", "))
-    .filter((query, index, arr) => query && arr.indexOf(query) === index);
-
-  let item = null;
-  let usedQuery = queryOriginal;
-  let fallbackItem = null;
-  let fallbackQuery = queryOriginal;
-  for (const query of queries) {
-    const candidate = await fetchNominatim(query);
-    if (!candidate) continue;
-
-    if (!fallbackItem) {
-      fallbackItem = candidate;
-      fallbackQuery = query;
-    }
-
-    if (!wantsExactAddress || houseNumberMatches(candidate.address?.house_number, addr.number)) {
-      item = candidate;
-      usedQuery = query;
-      break;
-    }
-  }
-
-  if (!item && fallbackItem) {
-    item = fallbackItem;
-    usedQuery = fallbackQuery;
-  }
+  const items = await fetchGoogleGeocodeItemsForAddress(addr, { includeNumber: wantsExactAddress });
+  const item = items.find((candidate) => {
+    if (!isFinite(Number(candidate?.lat)) || !isFinite(Number(candidate?.lon))) return false;
+    if (!nominatimItemMatchesAddressFieldsExactly(candidate, addr)) return false;
+    if (!wantsExactAddress) return true;
+    return houseNumberMatches(candidate?.address?.house_number, addr.number);
+  });
 
   if (!item) {
     throw new Error(`No results for: ${queryOriginal}`);
   }
 
-  let houseEstimate = null;
-  if (wantsExactAddress && !houseNumberMatches(item.address?.house_number, addr.number)) {
-    houseEstimate = await estimateHouseNumberLocation(addr, item).catch(() => null);
-    if (!houseEstimate && !nominatimItemHasStreet(item, addr.street)) {
-      const streetAnchor = await fetchNominatimStreetAnchor().catch(() => null);
-      if (streetAnchor) houseEstimate = await estimateHouseNumberLocation(addr, streetAnchor).catch(() => null);
-    }
-  }
-
-  const lat = Number(houseEstimate?.lat ?? item.lat);
-  const lon = Number(houseEstimate?.lon ?? item.lon);
+  const lat = Number(item.lat);
+  const lon = Number(item.lon);
   if (!isFinite(lat) || !isFinite(lon)) {
-    throw new Error(`Invalid coordinates for: ${usedQuery}`);
+    throw new Error(`Invalid coordinates for: ${queryOriginal}`);
   }
 
-  const displayFromNominatim = String(item.display_name || "").trim();
-  let displayName = displayFromNominatim;
+  const displayFromGoogle = String(item.display_name || "").trim();
 
   // Normalize to the requested 4 fields (country, city, street, number).
   const addressDetails = item.address || {};
@@ -20204,27 +19659,10 @@ async function geocodeAddress(addr, options = {}) {
     city: toEnglishLike(normCity),
     country: toEnglishLike(normCountry),
   };
-
-  if (!displayName || containsHebrew(displayName)) {
-    const a = item.address || {};
-    const road = a.road || a.pedestrian || a.footway || a.path || "";
-    const houseNumber = a.house_number || "";
-    const city = a.city || a.town || a.village || a.municipality || "";
-    const country = a.country || "";
-
-    const line1 = [road, houseNumber].filter(Boolean).join(" ").trim();
-    const parts = [line1, city, country].filter(Boolean);
-    displayName = parts.join(", ") || displayFromNominatim || usedQuery;
-  }
-
-  displayName = formatStandardAddress(normalized) || toEnglishLike(displayName || usedQuery);
+  const displayName = formatStandardAddress(normalized) || toEnglishLike(displayFromGoogle || queryOriginal);
   const matchLevel = wantsExactAddress
-    ? (houseNumberMatches(item.address?.house_number, addr.number) || houseEstimate ? "address" : (nominatimItemHasStreet(item, addr.street) ? "street" : "place"))
+    ? "address"
     : (item.address?.house_number ? "address" : "place");
-
-  if (wantsExactAddress && matchLevel === "place") {
-    throw new Error(`No address or street-level result for: ${queryOriginal}`);
-  }
 
   const record = {
     lat,
@@ -20244,14 +19682,6 @@ function buildQuery(a) {
   // Requested: only country, city, street, number (no province/region/state).
   const parts = [a.number, a.street, a.city, a.country]
     .map((p) => String(p || "").trim())
-    .filter(Boolean);
-  return parts.join(", ");
-}
-
-function buildQueryLatin(a) {
-  // Requested: only country, city, street, number (no province/region/state).
-  const parts = [a.number, a.street, a.city, a.country]
-    .map((p) => toEnglishLike(String(p || "").trim()))
     .filter(Boolean);
   return parts.join(", ");
 }
@@ -20474,11 +19904,17 @@ function migrateAddresses(input) {
         city: String(a.city || "").trim(),
         street: String(a.street || "").trim(),
         number: String(a.number || "").trim(),
+        startYear: String(a.startYear ?? a.start_year ?? a.year ?? a.fromYear ?? a.from_year ?? "").trim(),
         belonging_rate: undefined,
         valid: typeof a.valid === "boolean" ? a.valid : undefined,
         lat: isFinite(a.lat) ? Number(a.lat) : undefined,
         lon: isFinite(a.lon) ? Number(a.lon) : undefined,
         displayName: typeof a.displayName === "string" ? a.displayName : undefined,
+        _origCountry: typeof a._origCountry === "string" ? a._origCountry : undefined,
+        _origCity: typeof a._origCity === "string" ? a._origCity : undefined,
+        _origStreet: typeof a._origStreet === "string" ? a._origStreet : undefined,
+        _origNumber: typeof a._origNumber === "string" ? a._origNumber : undefined,
+        _origStreetAndNumber: typeof a._origStreetAndNumber === "string" ? a._origStreetAndNumber : undefined,
       };
 
       // Back-compat: if `belonging_rate` is missing (older data), assign a stable

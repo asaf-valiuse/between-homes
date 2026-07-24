@@ -435,6 +435,12 @@ body {
   text-transform: lowercase;
 }
 
+.homePageTopActions .homeTextActionBtn {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  line-height: 1;
+}
+
 #pageWelcome .homePageTopActions button:hover,
 #pageAbout .homePageTopActions button:hover {
   color: #8e3300;
@@ -1736,6 +1742,7 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   aspect-ratio: 1 / 1;
   border: none;
   outline: none;
+  background: transparent;
   position: relative;
   display: grid;
   grid-template-rows: 1fr;
@@ -1745,6 +1752,15 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
      thumbnail and buttons all scale down together. transform (not a size
      change) so it doesn't reopen the grid/margin alignment tuned above. */
   transform: scale(0.94);
+}
+
+#pageArchive .archiveItem:hover {
+  background: #eeeeee !important;
+}
+
+#pageArchive .archiveItem:hover .archivePreview,
+#pageArchive .archiveItem:hover .archiveThumb {
+  background: #eeeeee !important;
 }
 
 #pageArchive .archivePreview {
@@ -1830,16 +1846,7 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 }
 
 #pageArchive .archiveThumb {
-  cursor: grab;
-  touch-action: none;
-}
-
-#pageArchive .archiveThumb.isZoomed {
-  cursor: grab;
-}
-
-#pageArchive .archiveThumb.isDragging {
-  cursor: grabbing;
+  cursor: pointer;
 }
 
 #pageArchive .archiveLabel {
@@ -1997,6 +2004,87 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 
 /* Print: 10x15cm portrait postcard */
 @media print {
+  @page print-map-option {
+    size: 10cm 15cm;
+    margin: 0;
+  }
+
+  html.printMapOptionMode,
+  html.printMapOptionMode body {
+    width: 10cm !important;
+    height: 15cm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html.printMapOptionMode body {
+    page: print-map-option;
+    background: transparent !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html.printMapOptionMode,
+  html.printMapOptionMode body,
+  html.printMapOptionMode .app {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
+  html.printMapOptionMode .page,
+  html.printMapOptionMode .toast,
+  html.printMapOptionMode #createLifePathTransition,
+  html.printMapOptionMode .postcardPreviewOverlay,
+  html.printMapOptionMode .printModalBackdrop,
+  html.printMapOptionMode .printModalCloseBtn,
+  html.printMapOptionMode .printModalOptions,
+  html.printMapOptionMode .printOption1Preview,
+  html.printMapOptionMode .printMapOptionPreviewActions {
+    display: none !important;
+  }
+
+  html.printMapOptionMode .printModalOverlay,
+  html.printMapOptionMode .printModalPanel,
+  html.printMapOptionMode .printMapOptionPreview,
+  html.printMapOptionMode .printMapOptionPreviewViewport,
+  html.printMapOptionMode .printMapOptionPreviewStageWrap,
+  html.printMapOptionMode .printMapOptionPreviewStage {
+    display: block !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 10cm !important;
+    height: 15cm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    border: 0 !important;
+    outline: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html.printMapOptionMode .printMapOptionCard {
+    width: 1027px !important;
+    height: 1540px !important;
+    transform: scale(0.368015);
+    transform-origin: top left;
+  }
+
+  html.printMapOptionMode::before {
+    content: "";
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 10cm;
+    height: 15cm;
+    border: 1px solid #000000;
+    box-sizing: border-box;
+    z-index: 999999;
+    pointer-events: none;
+  }
 
   /* Print-only: postcard logo should be black */
   body.postcardPrintMode .postcardCardLogo {
@@ -2137,6 +2225,125 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 
 }
 
+/* Print option 1: review canvas only, matching the red-frame content area. */
+@media print {
+  @page print-option-1 {
+    size: 15cm 10cm;
+    margin: 0;
+  }
+
+  html.printOption1Mode,
+  html.printOption1Mode body {
+    width: 15cm !important;
+    height: 10cm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html.printOption1Mode body {
+    page: print-option-1;
+    background: transparent !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html.printOption1Mode,
+  html.printOption1Mode body,
+  html.printOption1Mode .app,
+  html.printOption1Mode #pageStep1,
+  html.printOption1Mode #pageStep1 .frame {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
+  html.printOption1Mode .app {
+    width: 15cm !important;
+    height: 10cm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html.printOption1Mode .page,
+  html.printOption1Mode .toast,
+  html.printOption1Mode #createLifePathTransition,
+  html.printOption1Mode .printModalOverlay,
+  html.printOption1Mode .postcardPreviewOverlay {
+    display: none !important;
+  }
+
+  html.printOption1Mode #pageStep1 {
+    --step1-dashboard-top: 230.1px;
+    --step1-dashboard-top-section: 518.94px;
+    --step1-dashboard-bottom-section: 345.96px;
+    --step1-dashboard-height: 864.9px;
+    display: block !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 1540px !important;
+    height: 1027px !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: transparent !important;
+    transform: translate(15.12px, 15.12px) scale(0.33856) !important;
+    transform-origin: top left !important;
+  }
+
+  html.printOption1Mode #pageStep1::after {
+    content: "";
+    position: fixed;
+    left: 0;
+    top: 36px;
+    width: 150px;
+    height: 66px;
+    background: url("logo.png") left top / contain no-repeat;
+    z-index: 999999;
+    pointer-events: none;
+  }
+
+  html.printOption1Mode #pageStep1::before {
+    content: none;
+    position: fixed;
+    left: 0;
+    top: 110px;
+    width: 180px;
+    font-family: "NarkissBlock-Light-TRIAL", sans-serif;
+    font-size: 22px;
+    line-height: 1.1;
+    color: #000000;
+    text-transform: none;
+    z-index: 999999;
+    pointer-events: none;
+    white-space: normal;
+  }
+
+  html.printOption1Mode #pageStep1 .frame {
+    width: 1920px !important;
+    height: 1080px !important;
+    transform: translate(0, -79px) scale(1) !important;
+    transform-origin: top left !important;
+  }
+
+  html.printOption1Mode #pageStep1 .life-path,
+  html.printOption1Mode #pageStep1 .step1TopActions,
+  html.printOption1Mode #pageStep1 .step1TopProgress,
+  html.printOption1Mode #pageStep1 .step1MapCompleteTitle,
+  html.printOption1Mode #pageStep1 .step1EditModeTitle,
+  html.printOption1Mode #pageStep1 .createYourMapTitle,
+  html.printOption1Mode #pageStep1 .step1LogoIntro,
+  html.printOption1Mode #pageStep1 .step1-right,
+  html.printOption1Mode #pageStep1 .step1FullscreenBtn,
+  html.printOption1Mode #pageStep1 .step1HomesListTitle,
+  html.printOption1Mode #pageStep1 .step1HomesList,
+  html.printOption1Mode #pageStep1 .step1HomesListTitle::before {
+    display: none !important;
+  }
+}
+
 /* Screen preview: 10x15cm postcard overlay (mirrors print layout) */
 .postcardPreviewOverlay {
   position: fixed;
@@ -2164,6 +2371,704 @@ body.postcardPreviewSilent .postcardPreviewToolbar {
 
 .postcardPreviewOverlay.hidden {
   display: none;
+}
+
+.printModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3900;
+  display: none;
+}
+
+body.printModalOpen .printModalOverlay {
+  display: block;
+}
+
+.printModalOverlay.hidden {
+  display: none;
+}
+
+.printModalBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.printModalPanel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(760px, calc(100vw - 56px));
+  height: min(520px, calc(100vh - 56px));
+  transform: translate(-50%, -50%);
+  background: #f4f2ea;
+  border: 1px solid #000000;
+  box-sizing: border-box;
+}
+
+.printModalOverlay.printModalShowingPreview .printModalPanel {
+  width: min(1180px, calc(100vw - 64px));
+  height: min(820px, calc(100vh - 64px));
+}
+
+.printModalCloseBtn {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #000000;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-size: 16px;
+  line-height: 1;
+  text-transform: lowercase;
+  cursor: pointer;
+}
+
+.printModalOptions {
+  position: absolute;
+  left: 50%;
+  top: 72px;
+  width: min(640px, calc(100% - 64px));
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+  align-items: start;
+}
+
+.printModalOptionBtn {
+  border: 0;
+  background: transparent;
+  color: #000000;
+  padding: 0;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-size: 18px;
+  line-height: 1;
+  text-transform: lowercase;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.printModalOptionBtn:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.printModalOptionThumb {
+  position: relative;
+  width: min(150px, 100%);
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: transparent;
+  border: 1px solid #000000;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+
+.printModalOptionThumbStage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.printModalOptionThumb .printMapOptionThumbStage {
+  width: 1027px;
+  height: 1540px;
+  transform: scale(0.146057);
+  transform-origin: top left;
+}
+
+.printModalOptionThumb .printOption1ThumbStage {
+  left: 150px;
+  width: 1540px;
+  height: 1027px;
+  transform: rotate(90deg) scale(0.146057);
+  transform-origin: top left;
+}
+
+.printModalOptionLabel {
+  display: block;
+  text-align: center;
+}
+
+.printModalOverlay.printModalShowingPreview .printModalOptions {
+  display: none;
+}
+
+.printOption1Preview.hidden,
+.printMapOptionPreview.hidden {
+  display: none;
+}
+
+.printOption1Preview,
+.printMapOptionPreview {
+  position: absolute;
+  inset: 54px 28px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.printOption1PreviewActions,
+.printMapOptionPreviewActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.printModalTextBtn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #000000;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-size: 16px;
+  line-height: 1;
+  text-transform: lowercase;
+  cursor: pointer;
+}
+
+.printOption1PreviewViewport,
+.printMapOptionPreviewViewport {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+}
+
+.printOption1PreviewStageWrap,
+.printMapOptionPreviewStageWrap {
+  position: relative;
+  flex: 0 0 auto;
+  outline: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.printMapOptionPreviewStage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1027px;
+  height: 1540px;
+  overflow: hidden;
+  background: transparent;
+  transform: scale(var(--print-map-option-preview-scale, 0.45));
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.printMapOptionCard {
+  position: relative;
+  width: 1027px;
+  height: 1540px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.printMapOptionLogo {
+  position: absolute;
+  left: 0;
+  top: 36px;
+  width: 150px;
+  height: 66px;
+  object-fit: contain;
+  object-position: left top;
+  z-index: 3;
+}
+
+.printMapOptionName {
+  position: absolute;
+  left: 0;
+  bottom: 36px;
+  width: 260px;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
+  font-size: 44px;
+  line-height: 1.15;
+  color: #000000;
+  text-transform: none;
+  z-index: 3;
+}
+
+.printMapOptionMapHost {
+  position: absolute;
+  left: 96px;
+  right: 96px;
+  top: 180px;
+  bottom: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.printMapOptionMapHost svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: visible;
+}
+
+.printMapOptionCard.printMapOptionMovement .printMapOptionMapHost {
+  left: 54px;
+  right: 54px;
+  top: 110px;
+  bottom: 105px;
+}
+
+.printOption1PreviewStage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1540px;
+  height: 1027px;
+  overflow: hidden;
+  background: transparent;
+  transform: scale(var(--print-option1-preview-scale, 0.5));
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.printOption1PreviewStage::after {
+  content: "";
+  position: absolute;
+  left: 36px;
+  top: 36px;
+  width: 150px;
+  height: 66px;
+  background: url("logo.png") left top / contain no-repeat;
+  z-index: 999999;
+  pointer-events: none;
+}
+
+.printOption1PreviewStage #pageStep1::before {
+  content: none;
+  position: absolute;
+  left: 36px;
+  top: 110px;
+  width: 180px;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
+  font-size: 22px;
+  line-height: 1.1;
+  color: #000000;
+  text-transform: none;
+  z-index: 999999;
+  pointer-events: none;
+  white-space: normal;
+}
+
+.printOption1PreviewStage .printOption1PreviewPage {
+  --step1-dashboard-top: 230.1px;
+  --step1-dashboard-top-section: 518.94px;
+  --step1-dashboard-bottom-section: 345.96px;
+  --step1-dashboard-height: 864.9px;
+  display: block !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 1540px !important;
+  height: 1027px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+.printOption1PreviewStage .printOption1PreviewPage .printOption1PreviewFrame {
+  width: 1920px !important;
+  height: 1080px !important;
+  transform: translate(0, -79px) scale(1) !important;
+  transform-origin: top left !important;
+}
+
+.printOption1PreviewStage .life-path,
+.printOption1PreviewStage .step1TopActions,
+.printOption1PreviewStage .step1TopProgress,
+.printOption1PreviewStage .step1MapCompleteTitle,
+.printOption1PreviewStage .step1EditModeTitle,
+.printOption1PreviewStage .createYourMapTitle,
+.printOption1PreviewStage .step1LogoIntro,
+.printOption1PreviewStage .step1-right,
+.printOption1PreviewStage .step1FullscreenBtn,
+.printOption1PreviewStage .step1HomesList,
+.printOption1PreviewStage .step1HomesListTitle::before {
+  display: none !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1-right,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1-right {
+  height: var(--step1-dashboard-top-section, 486px) !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1GeoMap,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1GeoMap {
+  height: calc(100% - 30px) !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1GeoMap .leaflet-tile-pane,
+html.printOption1Mode #pageStep1 .step1GeoMap .leaflet-tile-pane {
+  filter: grayscale(1) contrast(0.72) brightness(1.08) !important;
+  opacity: 0.25 !important;
+  mix-blend-mode: normal !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1RingReading,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1RingReading {
+  left: 0 !important;
+  top: calc(var(--step1-dashboard-top, 285px) + var(--step1-dashboard-top-section, 486px) + 30px) !important;
+  width: 1020px !important;
+  height: calc(var(--step1-dashboard-bottom-section, 324px) - 30px) !important;
+  padding-left: 0 !important;
+  padding-right: 30px !important;
+  overflow: visible !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1RingReading::before,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1RingReading::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -30px;
+  width: 560px;
+  height: 0.1px;
+  background: #000000;
+  opacity: 0.65;
+  pointer-events: none;
+  z-index: 5;
+}
+
+html.printOption1SingleAddressColumn .printOption1PreviewStage #pageStep1 .step1RingReading::before,
+html.printOption1SingleAddressColumn.printOption1Mode #pageStep1 .step1RingReading::before {
+  width: 280px;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1EmotionMap::before,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1EmotionMap::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 40px;
+  width: 0.1px;
+  height: calc(100% - 40px);
+  background: #000000;
+  opacity: 0.65;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.printOption1PreviewStage #pageStep1 .step1RoutePreview::before,
+html.printOption1Mode #pageStep1 .step1RoutePreview::before {
+  top: 40px !important;
+  height: calc(100% - 40px) !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1RoutePreview svg,
+html.printOption1Mode #pageStep1 .step1RoutePreview svg {
+  preserve-aspect-ratio: xMidYMid meet;
+}
+
+.printOption1PreviewStage #pageStep1 .step1RoutePreview svg line[data-print-route-line="1"],
+html.printOption1Mode #pageStep1 .step1RoutePreview svg line[data-print-route-line="1"] {
+  display: block;
+}
+
+.printOption1PreviewStage #pageStep1 .step1RoutePreview canvas[data-step1-route-line-canvas="1"],
+html.printOption1Mode #pageStep1 .step1RoutePreview canvas[data-step1-route-line-canvas="1"] {
+  display: none !important;
+}
+
+html.printOption1SingleAddressColumn .printOption1PreviewStage #pageStep1 .step1EmotionMap,
+html.printOption1SingleAddressColumn.printOption1Mode #pageStep1 .step1EmotionMap {
+  left: 280px !important;
+  width: 740px !important;
+}
+
+html.printOption1SingleAddressColumn .printOption1PreviewStage #pageStep1 .step1EmotionMapTitle,
+html.printOption1SingleAddressColumn.printOption1Mode #pageStep1 .step1EmotionMapTitle {
+  left: 280px !important;
+  width: 740px !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1HomesListTitle,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1HomesListTitle {
+  display: block !important;
+  left: 0 !important;
+  top: calc(var(--step1-dashboard-top, 285px) + 40px) !important;
+  width: 560px !important;
+  padding-left: 0 !important;
+  z-index: 6 !important;
+}
+
+html.printOption1SingleAddressColumn .printOption1PreviewStage #pageStep1 .step1HomesListTitle,
+html.printOption1SingleAddressColumn.printOption1Mode #pageStep1 .step1HomesListTitle {
+  width: 280px !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1MoveFrequencyLabel,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1MoveFrequencyLabel {
+  top: 165px !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1EmotionMapTitle,
+.printOption1PreviewStage #pageStep1 .step1MovementMapTitleCenter,
+.printOption1PreviewStage #pageStep1 .step1RingReadingTitle,
+.printOption1PreviewStage #pageStep1 .step1TimeBelongingTitle,
+.printOption1PreviewStage #pageStep1 .step1HomeCountLabel,
+.printOption1PreviewStage #pageStep1 .step1MoveFrequencyLabel,
+html.printOption1Mode #pageStep1 .step1EmotionMapTitle,
+html.printOption1Mode #pageStep1 .step1MovementMapTitleCenter,
+html.printOption1Mode #pageStep1 .step1RingReadingTitle,
+html.printOption1Mode #pageStep1 .step1TimeBelongingTitle,
+html.printOption1Mode #pageStep1 .step1HomeCountLabel,
+html.printOption1Mode #pageStep1 .step1MoveFrequencyLabel {
+  font-size: calc(22.5px / var(--step1-scale, 1)) !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1HomeCountLabel,
+html.printOption1Mode #pageStep1 .step1HomeCountLabel {
+  display: none !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1JourneyTimeline,
+html.printOption1Mode #pageStep1 .step1JourneyTimeline {
+  left: var(--print-option1-timeline-left, 206px) !important;
+  top: calc(177px + (11.25px / var(--step1-scale, 1))) !important;
+  width: calc(1540px - var(--print-option1-timeline-left, 206px)) !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1MoveFrequencyLabel,
+html.printOption1Mode #pageStep1 .step1MoveFrequencyLabel {
+  display: none !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1JourneyTimeline text,
+html.printOption1Mode #pageStep1 .step1JourneyTimeline text {
+  font-size: calc(22.5px / var(--step1-scale, 1)) !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1RingReadingContent,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1RingReadingContent {
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  padding-bottom: 0 !important;
+  gap: 10px !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1RingReadingContent::-webkit-scrollbar,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1RingReadingContent::-webkit-scrollbar {
+  display: none !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1RingReadingContent svg,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1RingReadingContent svg {
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+  max-height: 100% !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1TimeBelonging,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1TimeBelonging {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  padding: 0 30px !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1TimeBelonging::before,
+html.printOption1Mode #pageStep1 .step1TimeBelonging::before {
+  display: block !important;
+  top: -30px !important;
+  height: calc(100% + 30px) !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1RoutePreview::after,
+html.printOption1Mode #pageStep1 .step1RoutePreview::after {
+  right: 0 !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1TimeBelongingTitle,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1TimeBelongingTitle {
+  flex: 0 0 auto !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1TimeBelongingChart,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1TimeBelongingChart {
+  flex: 0 0 calc(100% - 44px) !important;
+  width: 100% !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1HomesList,
+html.printOption1Mode #pageStep1 .step1HomesList {
+  display: none !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: calc(var(--step1-dashboard-top, 285px) + 96px) !important;
+  width: 560px !important;
+  height: calc(var(--step1-dashboard-top-section, 486px) - 116px) !important;
+  padding: 0 8px 0 0 !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  column-count: 1;
+  column-gap: 24px;
+}
+
+.printOption1PreviewStage #pageStep1 .step1HomesListTitle,
+html.printOption1Mode #pageStep1 .step1HomesListTitle {
+  display: none !important;
+}
+
+.printOption1PreviewStage #pageStep1,
+html.printOption1Mode #pageStep1 {
+  --print-option1-panel-width: 513.333333px;
+  --print-option1-panel-2-left: 513.333333px;
+  --print-option1-panel-3-left: 1026.666667px;
+  --print-option1-two-panel-width: 1026.666667px;
+  --print-option1-stats-value-left: 242px;
+  --print-option1-timeline-left: 206px;
+}
+
+.printOption1PreviewStage #pageStep1 .step1EmotionMap,
+.printOption1PreviewStage #pageStep1 .step1EmotionMapTitle,
+html.printOption1Mode #pageStep1 .step1EmotionMap,
+html.printOption1Mode #pageStep1 .step1EmotionMapTitle {
+  left: var(--print-option1-panel-2-left) !important;
+  width: var(--print-option1-panel-width) !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1RoutePreview,
+.printOption1PreviewStage #pageStep1 .step1MovementMapTitleCenter,
+html.printOption1Mode #pageStep1 .step1RoutePreview,
+html.printOption1Mode #pageStep1 .step1MovementMapTitleCenter {
+  left: var(--print-option1-panel-3-left) !important;
+  width: var(--print-option1-panel-width) !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1RingReading,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1RingReading {
+  width: var(--print-option1-two-panel-width) !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1RingReading::before,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1RingReading::before {
+  width: var(--print-option1-panel-width) !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1TimeBelonging,
+html.printOption1Mode #pageStep1 .step1TimeBelonging {
+  left: var(--print-option1-panel-3-left) !important;
+  width: var(--print-option1-panel-width) !important;
+}
+
+.printOption1PreviewStage #pageStep1 .printOption1Stats,
+html.printOption1Mode #pageStep1 .printOption1Stats {
+  display: grid !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: calc(var(--step1-dashboard-top, 285px) + 40px) !important;
+  width: var(--print-option1-panel-width) !important;
+  height: calc(var(--step1-dashboard-top-section, 486px) - 60px) !important;
+  grid-template-columns: calc(var(--print-option1-stats-value-left, 242px) - 18px) max-content !important;
+  align-content: start !important;
+  column-gap: 18px !important;
+  row-gap: 10px !important;
+  padding: 0 18px 0 0 !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
+  font-size: 24px !important;
+  line-height: 1.05 !important;
+  color: #000000;
+  text-transform: none;
+  z-index: 10;
+}
+
+.printOption1PreviewStage #pageStep1 .printOption1StatsRow,
+html.printOption1Mode #pageStep1 .printOption1StatsRow {
+  display: contents !important;
+}
+
+.printOption1PreviewStage #pageStep1 .printOption1StatsNameRow,
+html.printOption1Mode #pageStep1 .printOption1StatsNameRow {
+  display: contents !important;
+}
+
+.printOption1PreviewStage #pageStep1 .printOption1StatsNameRow .printOption1StatsValue,
+html.printOption1Mode #pageStep1 .printOption1StatsNameRow .printOption1StatsValue {
+  display: block !important;
+  grid-column: 1 / -1 !important;
+  text-align: left !important;
+  font-family: "NarkissBlock-Bold-TRIAL", sans-serif !important;
+  font-weight: 400 !important;
+}
+
+.printOption1PreviewStage #pageStep1 .printOption1StatsLabel,
+.printOption1PreviewStage #pageStep1 .printOption1StatsValue,
+html.printOption1Mode #pageStep1 .printOption1StatsLabel,
+html.printOption1Mode #pageStep1 .printOption1StatsValue {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.printOption1PreviewStage #pageStep1 .printOption1StatsValue,
+html.printOption1Mode #pageStep1 .printOption1StatsValue {
+  text-align: left !important;
+}
+
+html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1HomesList,
+html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1HomesList {
+  column-count: 2;
+}
+
+html.printOption1SingleAddressColumn .printOption1PreviewStage #pageStep1 .step1HomesList,
+html.printOption1SingleAddressColumn.printOption1Mode #pageStep1 .step1HomesList {
+  width: 280px !important;
+  column-count: 1 !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1HomesList .homesListItem,
+html.printOption1Mode #pageStep1 .step1HomesList .homesListItem {
+  display: block !important;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  padding-left: 0 !important;
+  text-align: left !important;
+  margin-bottom: 10px !important;
+  font-size: 16px !important;
+  line-height: 1.22 !important;
+}
+
+html.printOption1ManyAddresses:not(.printOption1SingleAddressColumn) .printOption1PreviewStage #pageStep1 .step1HomesList .homesListItem:nth-child(8),
+html.printOption1ManyAddresses.printOption1Mode:not(.printOption1SingleAddressColumn) #pageStep1 .step1HomesList .homesListItem:nth-child(8) {
+  break-before: column !important;
+  -webkit-column-break-before: always !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1HomesList .homesListNum,
+.printOption1PreviewStage #pageStep1 .step1HomesList .homesListDetail,
+html.printOption1Mode #pageStep1 .step1HomesList .homesListNum,
+html.printOption1Mode #pageStep1 .step1HomesList .homesListDetail {
+  font-size: 16px !important;
+  line-height: 1.22 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  text-align: left !important;
+  unicode-bidi: plaintext;
+}
+
+.printOption1PreviewStage #pageStep1 .step1HomesList .homesListBelonging,
+html.printOption1Mode #pageStep1 .step1HomesList .homesListBelonging {
+  display: none !important;
 }
 
 .postcardPreviewBackdrop {
@@ -2601,6 +3506,136 @@ img.postcardCardLogo {
   font-family: "80-kb-SharpBold", "80kb Sharp", Helvetica, sans-serif;
   font-weight: 700;
   font-size: var(--lifepath-map-button-font-size);
+}
+
+#pageAllMaps .allMapsInfoPanel {
+  position: fixed;
+  left: 16px;
+  bottom: 23px;
+  z-index: 2050;
+  width: min(393px, calc(100vw - 32px));
+  height: 59px;
+  box-sizing: border-box;
+  border: 1px solid #b6b4aa;
+  border-radius: 6px;
+  background: rgba(244, 242, 234, 0.88);
+  padding: 7px 12px 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+#pageAllMaps .allMapsYearToggleBtn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px solid #b6b4aa;
+  border-radius: 50%;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+#pageAllMaps .allMapsYearToggleBtn[aria-pressed="true"] {
+  border-color: #000000;
+}
+
+#pageAllMaps .allMapsYearToggleIcon {
+  position: relative;
+  display: block;
+  width: 17px;
+  height: 13px;
+  border-top: 2px solid #000000;
+  border-bottom: 2px solid #000000;
+}
+
+#pageAllMaps .allMapsYearToggleIcon::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: -5px;
+  width: 3px;
+  height: 19px;
+  border-radius: 999px;
+  background: #000000;
+}
+
+#pageAllMaps .allMapsYearControls {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+#pageAllMaps .allMapsYearControls.hidden {
+  display: none !important;
+}
+
+#pageAllMaps .allMapsYearSliderHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  color: #000000;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-size: 13px;
+  line-height: 1;
+  text-transform: lowercase;
+}
+
+#pageAllMaps .allMapsYearSliderValue {
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
+}
+
+#pageAllMaps .allMapsYearSlider {
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+#pageAllMaps .allMapsYearSlider:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+#pageAllMaps .allMapsYearSlider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: #b6b4aa;
+  border-radius: 999px;
+}
+
+#pageAllMaps .allMapsYearSlider::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -5px;
+  border: 1px solid #77756d;
+  border-radius: 50%;
+  background: #f4f2ea;
+}
+
+#pageAllMaps .allMapsYearSlider::-moz-range-track {
+  height: 2px;
+  background: #b6b4aa;
+  border-radius: 999px;
+}
+
+#pageAllMaps .allMapsYearSlider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #77756d;
+  border-radius: 50%;
+  background: #f4f2ea;
 }
 
 /* All Maps: visible maps count label matches Step 2 signature placement */
@@ -4199,7 +5234,7 @@ input[type="reset"]:hover:not(:disabled) {
   top: calc(var(--step1-dashboard-top, 285px) + 30px);
   width: 490px;
   height: calc(var(--step1-dashboard-top-section, 486px) - 30px);
-  outline: 1px solid #ff0000;
+  outline: 1px solid transparent;
   border-left: none;
   z-index: 3;
   pointer-events: auto;
@@ -4217,6 +5252,10 @@ input[type="reset"]:hover:not(:disabled) {
      that box, not this svg) is completely untouched by this transform. */
   transform-origin: 0 0;
   transform: translate(5px, 0);
+}
+
+#pageStep1 .step1RoutePreview svg line[data-print-route-line="1"] {
+  display: none;
 }
 
 #pageStep1 .step1RoutePreview::before {
@@ -4611,7 +5650,7 @@ input[type="reset"]:hover:not(:disabled) {
   transition: stroke 180ms ease-out;
 }
 
-/* Time & Belonging section — below the movement map horizontal line */
+/* Belonging over time section — below the movement map horizontal line */
 #pageStep1 .step1TimeBelonging {
   position: absolute;
   left: 1050px;
@@ -4840,9 +5879,14 @@ input[type="reset"]:hover:not(:disabled) {
   line-height: 1.5;
   text-transform: lowercase;
   padding-left: 30px;
-  height: 120px;
+  height: auto;
+  margin-bottom: 1.4em;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
+}
+
+#pageStep1 .step1HomesList .homesListItem:last-child {
+  margin-bottom: 0;
 }
 
 #pageStep1 .step1HomesList .homesListItem[data-home-idx] .homesListNum {
@@ -4885,7 +5929,7 @@ input[type="reset"]:hover:not(:disabled) {
 }
 
 #pageStep1 .step1HomesList .homesListBelonging {
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 /* Still hidden regardless of phase */
@@ -5864,6 +6908,11 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageStep1 .step1GeoMap .lifepathStep2Dot {
   transition: stroke-width 0.3s ease, r 0.3s ease;
+}
+
+#pageStep1 .step1GeoMap.step1-geo-dots-pending .lifepathStep1GeoDot {
+  opacity: 0 !important;
+  visibility: hidden;
 }
 
 #pageStep1 .step1GeoMap .leaflet-control-container,

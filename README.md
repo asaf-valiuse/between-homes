@@ -6,6 +6,10 @@ A tiny static web app to collect a timeline of home addresses and draw a connect
 
 From this folder:
 
+- Optional: add Google geocoding support by setting `GOOGLE_MAPS_API_KEY` in `.env`.
+  - Example: `GOOGLE_MAPS_API_KEY=your-google-key`
+  - Leave it blank to use the built-in Nominatim/Photon fallback only.
+
 - Kiosk mode (recommended for student presentations):
   - `python server.py`
   - open http://localhost:5173
