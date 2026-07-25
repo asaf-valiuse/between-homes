@@ -5845,9 +5845,9 @@ function showPage(which, opts) {
   }
 
   if (pageKey === "archive") {
-    setTimeout(async () => {
-      await refreshServerMapsCache();
+    setTimeout(() => {
       renderArchiveGrid();
+      void refreshServerMapsCache();
     }, 0);
   }
 
