@@ -113,15 +113,24 @@ function formatPrintStatNumber(value, digits = 1) {
   return Number.isInteger(n) ? String(n) : n.toFixed(digits);
 }
 
+// Number("") is 0, not NaN -- a home with no year typed in would otherwise
+// silently count as "started in year 0", producing a ~2000-year duration
+// once subtracted from the current year. Missing/blank years are excluded
+// from the average instead of poisoning it.
+function parsePrintOption1StartYear(raw) {
+  if (raw === undefined || raw === null || raw === "") return NaN;
+  return Math.floor(Number(raw));
+}
+
 function getPrintOption1AddressDurations(items) {
   const list = Array.isArray(items) ? items : [];
   const currentYear = new Date().getFullYear();
   const durations = [];
   for (let i = 0; i < list.length; i++) {
-    const startYear = Math.floor(Number(list[i]?.startYear));
-    const nextStartYear = Math.floor(Number(list[i + 1]?.startYear));
+    const startYear = parsePrintOption1StartYear(list[i]?.startYear);
+    const nextStartYear = parsePrintOption1StartYear(list[i + 1]?.startYear);
+    if (!Number.isFinite(startYear)) continue;
     const endYear = Number.isFinite(nextStartYear) && nextStartYear > startYear ? nextStartYear : currentYear;
-    if (!Number.isFinite(startYear) || !Number.isFinite(endYear)) continue;
     durations.push(Math.max(0, endYear - startYear));
   }
   return durations;
@@ -154,7 +163,7 @@ function getPrintOption1Statistics() {
     { label: "", value: mapName, name: true },
     { label: "Count of homes", value: String(count) },
     { label: "Avarag belonging", value: formatPrintStatNumber(averageBelonging) },
-    { label: "Avarage years in address", value: formatPrintStatNumber(averageYears) },
+    { label: "Avarage years in home", value: formatPrintStatNumber(averageYears) },
     { label: "weighted avarage", value: formatPrintStatNumber(weightedAverage) },
     { label: "total distance", value: typeof formatCumulativeDistanceForAddresses === "function" ? formatCumulativeDistanceForAddresses(items) : "--" },
   ];
@@ -210,24 +219,55 @@ function alignPrintOption1TimelineToStats(root) {
   }
 }
 
+// Grows just the ring artwork itself 20 (design-space) pixels taller,
+// anchored at the rings' own top edge -- .step1EmotionMap (the bordered
+// frame/divider around it) and .step1EmotionMapTitle are untouched, only
+// the rings extend further down past the frame (.step1EmotionSvg already
+// has overflow:visible for exactly this). A CSS transform on the <svg> box
+// itself (screen-px space, not the internal viewBox's own units) keeps the
+// math simple: scale = (ringHeight + 20*scale) / ringHeight, with
+// transform-origin pinned to the ring group's current top-center so growth
+// reads as "downward" instead of expanding symmetrically from the middle.
+// The *scale multiplier on 20 converts the requested 20 *design*-space
+// pixels into however many real screen/print pixels that is at the current
+// --step1-scale, matching every other size in this print layout.
+// Also nudges the rings (only -- same frame/divider exemption) 25 design-
+// space px further down: translateY is listed *before* scale in the
+// transform, so it moves by a flat amount in the parent's own pixel space,
+// unaffected by the scale factor that follows it.
 function setPrintOption1EmotionScale(root, enabled) {
   const scope = root || document;
-  const groups = scope.matches && scope.matches('[data-layer="step1-emotion-rings"]')
+  const svgs = scope.matches && scope.matches(".step1EmotionSvg")
     ? [scope]
-    : Array.from(scope.querySelectorAll('[data-layer="step1-emotion-rings"]'));
-  for (const group of groups) {
-    if (!group) continue;
+    : Array.from(scope.querySelectorAll(".step1EmotionSvg"));
+  for (const svg of svgs) {
+    if (!svg) continue;
     if (enabled) {
-      if (!group.dataset.printOption1OriginalTransform) {
-        group.dataset.printOption1OriginalTransform = group.getAttribute("transform") || "";
+      const group = svg.querySelector('[data-layer="step1-emotion-rings"]');
+      if (!group) continue;
+      const svgRect = svg.getBoundingClientRect();
+      const groupRect = group.getBoundingClientRect();
+      if (!(groupRect.height > 0)) continue;
+      let stepScale = 1;
+      try {
+        stepScale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--step1-scale")) || 1;
+      } catch {
+        stepScale = 1;
       }
-      const original = group.dataset.printOption1OriginalTransform || "";
-      group.setAttribute("transform", `translate(500 310) scale(1.3) translate(-500 -310) ${original}`.trim());
-    } else if (Object.prototype.hasOwnProperty.call(group.dataset, "printOption1OriginalTransform")) {
-      const original = group.dataset.printOption1OriginalTransform || "";
-      if (original) group.setAttribute("transform", original);
-      else group.removeAttribute("transform");
-      delete group.dataset.printOption1OriginalTransform;
+      const scale = ((groupRect.height + 20 * stepScale) / groupRect.height) * 1.1;
+      const originX = groupRect.left - svgRect.left + groupRect.width / 2;
+      const originY = groupRect.top - svgRect.top;
+      if (!svg.dataset.printOption1EmotionOriginalTransform) {
+        svg.dataset.printOption1EmotionOriginalTransform = svg.style.transform || "";
+        svg.dataset.printOption1EmotionOriginalOrigin = svg.style.transformOrigin || "";
+      }
+      svg.style.transformOrigin = `${originX}px ${originY}px`;
+      svg.style.transform = `translateY(${25 * stepScale}px) scale(${scale})`;
+    } else if (Object.prototype.hasOwnProperty.call(svg.dataset, "printOption1EmotionOriginalTransform")) {
+      svg.style.transform = svg.dataset.printOption1EmotionOriginalTransform || "";
+      svg.style.transformOrigin = svg.dataset.printOption1EmotionOriginalOrigin || "";
+      delete svg.dataset.printOption1EmotionOriginalTransform;
+      delete svg.dataset.printOption1EmotionOriginalOrigin;
     }
   }
 }

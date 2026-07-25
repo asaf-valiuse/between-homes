@@ -372,20 +372,26 @@ let _emotionSoloOriginStrokeWidthPx = null;
 // approximating it as a circle.
 let _emotionSoloOriginPathD = null;
 let _emotionSoloOriginViewBox = null;
+// Stroke width in the *same* local/viewBox units as _emotionSoloOriginViewBox
+// above (not screen px like _emotionSoloOriginStrokeWidthPx) -- this is what
+// the fly overlay's own path actually needs, since its stroke scales with the
+// viewBox-to-viewport ratio rather than staying a fixed screen size. Reusing
+// _emotionSoloOriginStrokeWidthPx there would mix screen-px and local-unit
+// magnitudes (which aren't the same scale), rendering the stroke far too
+// thin throughout the flight and popping to the right width only once the
+// real ring takes over.
+let _emotionSoloOriginLocalStrokeWidth = null;
 
 // Solo alignment anchor: derived fraction of the emotion SVG width.
 // This keeps the focused ring's right-edge alignment consistent across maps/layouts.
 let _emotionSoloRightEdgeTargetFrac = null;
 
-// Set right before entering solo from the fullscreen emotion map's ring
-// spread, so the solo page's "back" button can return there (re-entering
-// spread) instead of always landing on Step 1 -- see
-// elEmotionSoloBackBtn's click handler.
+// Previously set right before entering solo from the fullscreen emotion
+// map's ring spread / the route map, so the solo page's (now-removed) back
+// button could return to the right place instead of always landing on
+// Step 1. No longer read anywhere since that button was removed, but left
+// in place since other code still writes to them.
 let _emotionSoloReturnToStep1FullscreenSpread = false;
-
-// Same idea as _emotionSoloReturnToStep1FullscreenSpread, but for entering
-// solo by clicking a point on the route/movement map (Step 2) -- see
-// renderStep2AddressDots()'s click handler.
 let _emotionSoloReturnToStep2 = false;
 
 // Builds an _emotionSoloOriginRect-shaped origin (+ shape params) directly
@@ -404,13 +410,29 @@ function buildEmotionSoloOriginFromRingEl(ring, idx) {
     const amp = Number(ring.getAttribute("data-emotion-amp")) || 0;
     const ringSize = Math.max(rect.width, rect.height);
 
+    // ring renders with vector-effect="non-scaling-stroke", so strokeWidthPx
+    // (the raw attribute) already *is* its true, constant on-screen pixel
+    // width -- but that's a screen-px quantity, not a value in the ring's own
+    // local/viewBox coordinate space (whatever `d`/getBBox() use). Converting
+    // via this SVG's own viewBox-to-render-size ratio gives the stroke width
+    // expressed in *that* local space, which is what both the padding below
+    // and the fly overlay's own (non-scaling-stroke-free) path need to render
+    // proportionally throughout the flight instead of far too thin.
+    const ringSvg = ring.ownerSVGElement;
+    const ringSvgRect = ringSvg && typeof ringSvg.getBoundingClientRect === "function" ? ringSvg.getBoundingClientRect() : null;
+    const ringSvgVb = ringSvg ? parseSvgViewBox(ringSvg.getAttribute("viewBox")) : null;
+    const ringUnitsPerPx = ringSvgRect && ringSvgVb && Number(ringSvgRect.width) > 0
+      ? Math.max(1e-6, Number(ringSvgVb.w) || 1) / Math.max(1e-6, Number(ringSvgRect.width) || 1)
+      : 1;
+    const localStrokeWidth = strokeWidthPx * ringUnitsPerPx;
+
     let pathD = null;
     let viewBox = null;
     try {
       const d = ring.getAttribute("d");
       const bbox = typeof ring.getBBox === "function" ? ring.getBBox() : null;
       if (d && bbox && bbox.width > 0 && bbox.height > 0) {
-        const pad = strokeWidthPx / 2;
+        const pad = localStrokeWidth / 2;
         pathD = d;
         viewBox = `${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`;
       }
@@ -422,6 +444,7 @@ function buildEmotionSoloOriginFromRingEl(ring, idx) {
       rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
       color: ring.getAttribute("stroke") || "#111827",
       strokeWidthPx,
+      localStrokeWidth,
       pathD,
       viewBox,
       targetRingSizePx: ringSize > 0 ? ringSize * 1.5 : null,
@@ -464,9 +487,10 @@ function getEmotionRingsStateFromSvg() {
 // ring-reading path used — inside a small SVG sized to that path's own
 // bounding box, with preserveAspectRatio="xMidYMid meet" so the shape scales
 // uniformly and never distorts into a circle or an ellipse as the container
-// resizes. The stroke uses vector-effect="non-scaling-stroke" so its on-screen
-// width stays fixed regardless of how much the overlay grows/shrinks — only
-// the overall size animates, never the shape or the stroke thickness.
+// resizes. The stroke has no vector-effect="non-scaling-stroke", so its
+// on-screen width scales right along with the viewBox-to-viewport ratio as
+// the wrapper's CSS width/height animate — the stroke grows/shrinks in
+// proportion to the ring itself, not just the overall size.
 function createEmotionRingFlyOverlay(rect, opts) {
   try {
     if (!rect || !(rect.width > 0) || !(rect.height > 0)) return null;
@@ -498,8 +522,22 @@ function createEmotionRingFlyOverlay(rect, opts) {
       path.setAttribute("d", o.pathD);
       path.setAttribute("fill", "none");
       path.setAttribute("stroke", o.color || "#111827");
-      path.setAttribute("stroke-width", String(Math.max(0.5, Number(o.strokeWidth) || 2)));
-      path.setAttribute("vector-effect", "non-scaling-stroke");
+      // This overlay's path has no non-scaling-stroke (see comment above), so
+      // its stroke scales with the viewBox-to-viewport ratio -- stroke-width
+      // here must be expressed in the *same* local/viewBox units as
+      // `d`/viewBox (o.localStrokeWidth, computed from the same source
+      // element's own attributes the viewBox's padding was), not o.strokeWidth
+      // (a screen-px value from a *different* coordinate system -- the source
+      // SVG's own render scale, unrelated to this cropped viewBox's scale).
+      // Using the screen-px value here rendered the stroke far too thin
+      // throughout the whole flight, only jumping to the correct width once
+      // the real ring (scaled independently in applyEmotionRingFocusVisuals)
+      // took over at the end. Falls back to o.strokeWidth as-is only if a
+      // caller doesn't provide the local value.
+      const localStrokeWidth = Number.isFinite(Number(o.localStrokeWidth)) && Number(o.localStrokeWidth) > 0
+        ? Number(o.localStrokeWidth)
+        : Math.max(0.5, Number(o.strokeWidth) || 2);
+      path.setAttribute("stroke-width", String(Math.max(0.01, localStrokeWidth)));
       svg.appendChild(path);
       wrap.appendChild(svg);
     } else {
@@ -527,7 +565,10 @@ function flyEmotionRingOverlayTo(overlay, toRect, durationMs) {
       void overlay.offsetWidth; // Force layout so the start rect is registered before animating.
       requestAnimationFrame(() => {
         try {
-          // Deliberately no "border"/stroke-width here — stroke thickness stays constant.
+          // No separate stroke-width animation needed here — the inner
+          // path's stroke (no non-scaling-stroke, see createEmotionRingFlyOverlay)
+          // scales automatically as this wrapper's width/height transition
+          // changes the SVG's viewBox-to-viewport ratio.
           overlay.style.transition = [
             `left ${durationMs}ms cubic-bezier(0.22, 1, 0.36, 1)`,
             `top ${durationMs}ms cubic-bezier(0.22, 1, 0.36, 1)`,
@@ -821,20 +862,12 @@ function applyEmotionRingFocusVisuals(focusIdx, options) {
     }
   };
 
-  const enforceSoloBaseStrokeWidth = (ringEl, hitEl) => {
-    try {
-      const baseSw = Number(ringEl && ringEl.__lpSoloBaseStrokeWidth);
-      if (Number.isFinite(baseSw) && baseSw > 0) ringEl.setAttribute("stroke-width", String(baseSw));
-    } catch {
-      // ignore
-    }
-    try {
-      const baseHitSw = Number(hitEl && hitEl.__lpSoloBaseStrokeWidth);
-      if (Number.isFinite(baseHitSw) && baseHitSw > 0) hitEl.setAttribute("stroke-width", String(baseHitSw));
-    } catch {
-      // ignore
-    }
-  };
+  // No longer pins stroke-width to a fixed value while focused -- see
+  // applySoloVisualScaleMetadata's comment just below: the ring's stroke now
+  // scales proportionally with its own solo scale() transform instead, so
+  // there's nothing left to re-enforce here. Kept as a no-op (rather than
+  // removing its call sites) since it's called from a few places below.
+  const enforceSoloBaseStrokeWidth = () => {};
 
   const snapFocusedRingToTarget = (ringEl, hitEl, scale) => {
     try {
@@ -873,27 +906,31 @@ function applyEmotionRingFocusVisuals(focusIdx, options) {
   let focusDx = null;
   const focusScale = soloScaleForRing(rings[idx]);
 
+  // Rings normally render with vector-effect="non-scaling-stroke" so their
+  // stroke stays a fixed on-screen width regardless of ambient container
+  // scaling elsewhere in the app. The solo-focused ring is the one exception:
+  // it's meant to visibly grow/shrink via its own scale() transform below, and
+  // its stroke should grow/shrink right along with it -- so this removes
+  // non-scaling-stroke just for this ring while focused, letting the
+  // transform's scale factor proportionally scale the rendered stroke width
+  // the same way it scales the ring's geometry. (Still records
+  // __lpSoloBaseStrokeWidth/__lpSoloVisualScale -- the breathing loop and
+  // amplitude compensation elsewhere still read these.)
   const applySoloVisualScaleMetadata = (ringEl, hitEl, scale) => {
     const s = Math.max(0.2, Number(scale) || 1);
     if (!(s > 0)) return;
     try {
       const baseSw = Number(ringEl.__lpSoloBaseStrokeWidth || ringEl.getAttribute("stroke-width"));
-      if (Number.isFinite(baseSw) && baseSw > 0) {
-        ringEl.__lpSoloBaseStrokeWidth = baseSw;
-        ringEl.setAttribute("stroke-width", String(baseSw));
-      }
-      ringEl.setAttribute("vector-effect", "non-scaling-stroke");
+      if (Number.isFinite(baseSw) && baseSw > 0) ringEl.__lpSoloBaseStrokeWidth = baseSw;
+      ringEl.removeAttribute("vector-effect");
       ringEl.__lpSoloVisualScale = s;
     } catch {
       // ignore
     }
     try {
       const baseHitSw = Number(hitEl.__lpSoloBaseStrokeWidth || hitEl.getAttribute("stroke-width"));
-      if (Number.isFinite(baseHitSw) && baseHitSw > 0) {
-        hitEl.__lpSoloBaseStrokeWidth = baseHitSw;
-        hitEl.setAttribute("stroke-width", String(baseHitSw));
-      }
-      hitEl.setAttribute("vector-effect", "non-scaling-stroke");
+      if (Number.isFinite(baseHitSw) && baseHitSw > 0) hitEl.__lpSoloBaseStrokeWidth = baseHitSw;
+      hitEl.removeAttribute("vector-effect");
       hitEl.__lpSoloVisualScale = s;
     } catch {
       // ignore
@@ -1155,6 +1192,7 @@ function applyPendingEmotionSoloFocus() {
         const overlay = createEmotionRingFlyOverlay(originRect, {
           color: _emotionSoloOriginColor,
           strokeWidth: _emotionSoloOriginStrokeWidthPx,
+          localStrokeWidth: _emotionSoloOriginLocalStrokeWidth,
           pathD: _emotionSoloOriginPathD,
           viewBox: _emotionSoloOriginViewBox,
         });
@@ -3267,21 +3305,18 @@ function prepareAllMapsFocusForCurrentMap() {
 // Product pages:
 // - welcome: Home + scroll-down map name entry
 // - map: Map editor/viewer (physical container: #pageStep1)
-// - archive, allmaps, about: top-level pages
+// - archive, allmaps: top-level pages
 // - emotionExpand / movementExpand: child detail views opened from the map page
 const elPageWelcome = document.getElementById("pageWelcome");
-const elPageAbout = document.getElementById("pageAbout");
 const elPageStep1 = document.getElementById("pageStep1");
 const elPageStep2 = document.getElementById("pageStep2");
 const elPageEmotion = document.getElementById("pageEmotion");
 const elPageStep1EmotionFullscreen = document.getElementById("pageStep1EmotionFullscreen");
 const elPageAllMaps = document.getElementById("pageAllMaps");
 const elPageArchive = document.getElementById("pageArchive");
-const elArchiveBackBtn = document.getElementById("archiveBackBtn");
 const elBackToWelcomeBtn = document.getElementById("backToWelcomeBtn");
 const elCreateLifePathBtn = document.getElementById("createLifePathBtn");
 const elBackToStep1Btn = document.getElementById("backToStep1Btn");
-const elEmotionSoloBackBtn = document.getElementById("emotionSoloBackBtn");
 const elEmotionSaveBtn = document.getElementById("emotionSaveBtn");
 const elStudentName = document.getElementById("studentName");
 const elHomeNumberTitle = document.getElementById("homeNumberTitle");
@@ -4864,13 +4899,8 @@ function resetStep1HouseList() {
   }
 }
 
-// Top-right page actions (back / edit / share / print) — edit/share/print
-// visibility toggles purely on step1-finished-state via CSS; see
-// .step1FinishedOnlyBtn in styles.css. "back" has no such restriction —
-// it's always visible, replacing what used to be two separate buttons
-// ("go back", pre-finish only, and "start over", always visible but
-// destructive) with one that's always available and never discards data.
-const elStep1GoBackBtn = document.getElementById("step1GoBackBtn");
+// Top-right page actions (edit / share / print) — visibility toggles purely
+// on step1-finished-state via CSS; see .step1FinishedOnlyBtn in styles.css.
 const elStep1EditFinishedBtn = document.getElementById("step1EditFinishedBtn");
 const elStep1ShareBtn = document.getElementById("step1ShareBtn");
 const elStep1PrintBtn = document.getElementById("step1PrintBtn");
@@ -4880,32 +4910,6 @@ const elStep1TopAllMapsBtn = document.getElementById("step1TopAllMapsBtn");
 // wherever Step 1 currently is (any phase, finished or not) without
 // touching any already-entered address data, mirroring how the per-phase
 // BACK buttons elsewhere only ever change phase/page, never data.
-function step1GoBackToIntro() {
-  if (!elPageStep1) return;
-  // The emotion map's ambient rings sound/breathing is otherwise a standing
-  // session deliberately left running across ordinary Step1<->Emotion
-  // navigation (see showPage()'s comment) -- showPage("welcome") below
-  // already tears that down since "welcome" isn't part of that shared
-  // session, but the finished-map ring-entry loop is a separate sound that
-  // isn't part of that teardown, so it needs its own explicit stop here
-  // (same reasoning the old "start over" button used to apply).
-  try {
-    stopStep1EntrySound();
-  } catch {
-    // ignore
-  }
-  // Step 1's own "no phase" intro screen no longer has the name/homes-count
-  // form (moved to the home page) -- return there (screen 2) instead of
-  // un-toggling phases to show what's now an empty gap. Still strip the
-  // phase classes so a later re-entry via step1NextBtn (which only *adds*
-  // step1-address-phase, never removes the others) doesn't land with a
-  // stale step1-belonging-phase/step1-summary-phase left over from this
-  // session.
-  elPageStep1.classList.remove("step1-address-phase", "step1-belonging-phase", "step1-summary-phase");
-  step1SummaryPhaseActive = false;
-  showPage("welcome", { welcomeScroll: "screen2" });
-}
-
 // "edit" (shown only once finished): re-arms the exact ring/address
 // hover-to-edit interactivity that was available before finishing — clicking
 // a ring or a home in the list re-opens openStep1HomeEditMode() for it,
@@ -4943,16 +4947,6 @@ function step1ExitEditAfterFinish() {
   updateStep1TopProgress();
   clearStep1HomesListFocus();
   updateStep1Headers();
-}
-
-if (elStep1GoBackBtn) {
-  elStep1GoBackBtn.addEventListener("click", () => {
-    if (step1EditModeAfterFinishActive) {
-      step1ExitEditAfterFinish();
-      return;
-    }
-    step1GoBackToIntro();
-  });
 }
 
 if (elStep1EditFinishedBtn) {
@@ -5109,8 +5103,8 @@ function updateCreateLifePathButtonState() {
 // submit) so the finished-state dashboard grows by 30%; false otherwise
 // (including while the address/belonging phases are still in progress).
 // Persists across resizes -- see updateStep1Scale() -- and is reset back to
-// false whenever the finished map is left (step1GoBackToIntro() / the
-// state-reset helper near stopStep1EntrySound()).
+// false whenever the finished map is left (the state-reset helper near
+// stopStep1EntrySound()).
 let step1DashboardGrown = false;
 
 function updateStep1Scale() {
@@ -5169,8 +5163,11 @@ function updateStep1Scale() {
     // scaling desiredGrowth.
     const grownHeightFull = dashboardHeightBase + rawCompression;
     const grownHeightTarget = grownHeightFull * 0.9;
-    const compression = Math.max(0, grownHeightTarget - dashboardHeightBase);
-    const t = headerSlack > 0 ? compression / headerSlack : 0;
+    // Final applied growth bumped 30% bigger than the computed target above,
+    // then a further 10% on top of that (the label/timeline positions below
+    // derive from this same `compression`, via `t`, so they rise to match).
+    const compression = Math.max(0, grownHeightTarget - dashboardHeightBase) * 1.3 * 1.1;
+    const t = headerSlack > 0 ? Math.min(1, compression / headerSlack) : 0;
     const newGapToLabel = gapToLabel - (gapToLabel - MIN_GAP_LABEL) * t;
     const newGapToTimeline = gapToTimeline - (gapToTimeline - MIN_GAP_TIMELINE) * t;
     headerLabelTop = HEADER_ZONE_TOP + newGapToLabel;
@@ -5226,6 +5223,12 @@ function growStep1DashboardAnimated() {
     // it once the 0.75s height transition has actually finished so the tiles
     // fill the new size instead of staying pinned to the old one.
     if (step1GeoMap) step1GeoMap.invalidateSize(true);
+    // Same idea for the movement map: its SVG stretches to fill .step1RoutePreview's
+    // new (taller) CSS height immediately, but the route's own drawn layout
+    // (zoom-to-fit + centering) was computed against the box's *old* size and
+    // never gets recomputed on its own -- without this it stays visually
+    // off-center once the panel grows.
+    scheduleStep1RoutePreviewLayoutUpdate();
   }, 850);
 }
 
@@ -5240,6 +5243,7 @@ function shrinkStep1DashboardAnimated() {
   window.setTimeout(() => {
     if (elPageStep1) elPageStep1.classList.remove("step1-dashboard-animating");
     if (step1GeoMap) step1GeoMap.invalidateSize(true);
+    scheduleStep1RoutePreviewLayoutUpdate();
   }, 850);
 }
 
@@ -5649,7 +5653,6 @@ function showPage(which, opts) {
 
   const pages = [
     { key: "welcome", el: elPageWelcome },
-    { key: "about", el: elPageAbout },
     { key: "step1", el: elPageStep1 },
     { key: "step2", el: elPageStep2 },
     { key: "emotion", el: elPageEmotion },
@@ -5666,7 +5669,48 @@ function showPage(which, opts) {
     _step1SkipEmotionRebuildOnce = true;
   }
 
+  // Leaving the solo ring page: its own dedicated sound (started by
+  // startEmotionSoundForSoloRing()) never gets stopped on its own -- nothing
+  // else called stopEmotionSoundForSoloRing() on the way out -- and Step 1's
+  // own per-ring loops, paused by pauseStep1EntrySoundForSolo() when solo was
+  // entered, never resumed, since returning to Step 1 (or its fullscreen
+  // mirror) deliberately skips rebuilding the emotion map/sound session (see
+  // the comment above the teardown block below). Landing specifically back
+  // on Step 1 or its fullscreen map restores the full multi-ring ambient
+  // sound; any other destination still stops the solo ring's own sound, but
+  // leaves the loops paused (they'll only ever be heard again from Step 1).
+  if (pageKey !== "emotion" && elPageEmotion && !elPageEmotion.classList.contains("hidden")) {
+    stopEmotionSoundForSoloRing();
+    if (pageKey === "step1" || pageKey === "step1EmotionFullscreen") {
+      resumeStep1EntrySoundFromSolo();
+    }
+  }
+
   document.body.classList.toggle("homeFlow", isHomeFlow);
+
+  // Ring-reading/hover overlay elements (ring reading, home no., address,
+  // attachment, temporal, movement, belonging shift, etc.) are position:fixed
+  // singletons appended straight to document.body — independent of which
+  // page is showing — so they must be hidden the instant we leave the
+  // emotion/solo page, regardless of destination, or they visibly bleed into
+  // whatever comes next. There's no in-app "close solo" button (the only way
+  // out of solo is the browser Back button, i.e. popstate -> showPage()),
+  // and this used to be skipped entirely whenever the destination was
+  // step1/step1EmotionFullscreen (see the breathing/sound block right below),
+  // which is exactly the path browser-back always takes — leaving these
+  // overlays stuck on screen over Step 1 after every solo round-trip.
+  if (pageKey !== "emotion") {
+    try {
+      _emotionRingFocusIndex = null;
+      hideEmotionRingSoloTextOverlays();
+      disarmEmotionHomeHoverTooltips();
+      if (elPageEmotion) elPageEmotion.classList.remove("emotionSoloActive");
+      pendingEmotionSoloTargetRingSizePx = null;
+      pendingEmotionSoloShapeParams = null;
+    } catch {
+      // ignore
+    }
+  }
 
   // If we leave the Emotion page, stop/disarm any running or armed motion.
   // Step 1, its fullscreen map, and the solo ring page all share one
@@ -5677,15 +5721,9 @@ function showPage(which, opts) {
   // (Step 2, All Maps, Archive, Welcome) tears it down.
   if (pageKey !== "emotion" && pageKey !== "step1EmotionFullscreen" && pageKey !== "step1") {
     try {
-      _emotionRingFocusIndex = null;
-      hideEmotionRingSoloTextOverlays();
-      disarmEmotionHomeHoverTooltips();
       disarmEmotionBreathing();
       stopEmotionBreathing();
       stopEmotionSound();
-      if (elPageEmotion) elPageEmotion.classList.remove("emotionSoloActive");
-      pendingEmotionSoloTargetRingSizePx = null;
-      pendingEmotionSoloShapeParams = null;
     } catch {
       // ignore
     }
@@ -5746,7 +5784,7 @@ function showPage(which, opts) {
 
   // Leaflet needs a size recalculation when its container becomes visible.
   if (pageKey === "step2") {
-    setTimeout(() => {
+    const runStep2OpenSetup = () => {
       // Default behavior: open with all Israel visible.
       step2OpenExtraZoomStops = 0;
 
@@ -5796,8 +5834,12 @@ function showPage(which, opts) {
           if (elPageStep2 && !elPageStep2.classList.contains("hidden")) centerStep2ReadingUnit();
         }, { passive: true });
       }
-      return;
-    }, 0);
+    };
+    if (_step2SetupDeferredForFlip !== null) {
+      _step2SetupDeferredForFlip = runStep2OpenSetup;
+    } else {
+      setTimeout(runStep2OpenSetup, 0);
+    }
   }
 
   if (pageKey === "emotion") {
@@ -5946,6 +5988,19 @@ function restoreReviewMapAfterRefresh() {
 
 /** @type {{lat:number, lng:number, zoom:number} | null} */
 let pendingStep2View = null;
+
+// Set (to `true`, as a sentinel) right before calling showPage("movementExpand")
+// from Step 1's expand button, so showPage()'s own step2-open setup below
+// stores its work as a function here instead of running it via its usual
+// setTimeout(fn, 0) -- that 0ms timeout's heavy, layout-forcing work
+// (map.invalidateSize(), marker/line creation, fitBounds polling) has no
+// reliable ordering relative to flipGrowElement()'s own requestAnimationFrame-
+// driven transform transition, so it was landing mid-animation and stalling
+// it. The click handler reads the function back out and runs it from
+// flipGrowElement's onDone callback instead, once the transition has
+// actually finished. Every other showPage("step2", ...) entry point leaves
+// this null and keeps the original immediate-setTimeout behavior.
+let _step2SetupDeferredForFlip = null;
 
 // When entering Step 2 from specific entry points (Create / Archive), fit the view
 // to the Israel baseline after Leaflet has a real size.
@@ -6990,17 +7045,10 @@ function armStep1RoutePreviewHover() {
 
   elStep1RoutePreview.addEventListener("pointerleave", clearStep1RoutePreviewHover, { passive: true });
 
-  elStep1RoutePreview.addEventListener("click", (e) => {
-    if (areStep1MapSpecificInteractionsDisabled()) {
-      clearStep1RoutePreviewHover();
-      return;
-    }
-    const dot = dotFromEventTarget(e.target);
-    if (!dot) return;
-    const ringIdx = Number(dot.dataset.addressIndex);
-    if (ringIdx < 0) return;
-    openStep1HomeEditMode(ringIdx);
-  });
+  // Deliberately no click handler on this small preview's dots -- opening
+  // solo (or anything else) from a click here is not wanted; only Step 2's
+  // own expanded route dots (see renderStep2AddressDots' click handler)
+  // should open the solo ring page.
 }
 
 function updateStep1RoutePreview() {
@@ -7056,9 +7104,34 @@ function updateStep1RoutePreview() {
   const isPrintOption1RoutePreview = document.documentElement.classList.contains("printOption1Mode")
     || document.documentElement.classList.contains("printOption1PreviewMode")
     || Boolean(elStep1RoutePreview.closest(".printOption1PreviewStage"));
-  const BOTTOM_BORDER_INSET = isPrintOption1RoutePreview ? BORDER_INSET : BORDER_INSET * 4;
-  const minCenterX = BORDER_INSET + MAX_OUTER_RADIUS;
-  const maxCenterX = svgW - BORDER_INSET - MAX_OUTER_RADIUS;
+  // Equal to the top inset -- was 4x it on screen, which (combined with the
+  // one-directional lowerIntoFrameShift below) made the route content sit
+  // noticeably closer to the top of its panel than the bottom, most visible
+  // once the panel grows taller after clicking finish.
+  const BOTTOM_BORDER_INSET = BORDER_INSET;
+  // Print's own panel is wider than the on-screen one (see the print-scoped
+  // width in styles.css) so the "zoom to fit" below -- which picks whichever
+  // of width/height is the tighter fit per this specific map's own lon/lat
+  // spread (see the uniform-scale comment further down) -- can end up
+  // filling *differently* than it would on screen: not just a flat resize,
+  // since which axis is doing the fitting can flip between the two panel
+  // shapes depending on the address data. To read identically to the
+  // on-screen version regardless of that, the fit is computed against a
+  // fixed content width matching the on-screen panel (490px design, scaled
+  // like everything else here), centered within the actual (wider) print
+  // panel -- i.e. print gets letterboxed side margins rather than a
+  // stretched/re-fit drawing.
+  const ROUTE_PREVIEW_ONSCREEN_DESIGN_WIDTH = 490;
+  let routePreviewStepScale = 1;
+  try {
+    routePreviewStepScale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--step1-scale")) || 1;
+  } catch {
+    routePreviewStepScale = 1;
+  }
+  const contentW = isPrintOption1RoutePreview ? ROUTE_PREVIEW_ONSCREEN_DESIGN_WIDTH * routePreviewStepScale : svgW;
+  const contentOffsetX = (svgW - contentW) / 2;
+  const minCenterX = contentOffsetX + BORDER_INSET + MAX_OUTER_RADIUS;
+  const maxCenterX = contentOffsetX + contentW - BORDER_INSET - MAX_OUTER_RADIUS;
   const minCenterY = BORDER_INSET + MAX_OUTER_RADIUS;
   const maxCenterY = svgH - BOTTOM_BORDER_INSET - MAX_OUTER_RADIUS;
   const innerW = Math.max(1, maxCenterX - minCenterX);
@@ -7101,7 +7174,7 @@ function updateStep1RoutePreview() {
   if (coords.length === 1) {
     const routePreviewScaleX = panelRect.width / Math.max(1, elStep1RoutePreview.offsetWidth || panelRect.width);
     const routePreviewSvgTranslateX = 5 * routePreviewScaleX;
-    coords[0].x = svgW / 2 - routePreviewSvgTranslateX;
+    coords[0].x = contentOffsetX + contentW / 2 - routePreviewSvgTranslateX;
     coords[0].y = svgH / 2;
   } else if (coords.length > 1) {
     const fitCoords = coords.filter((c) => viewAddressIndexes.has(c.addressIndex));
@@ -7135,12 +7208,6 @@ function updateStep1RoutePreview() {
     for (const c of coords) {
       c.x = (c.x - srcCx) * zoom + dstCx;
       c.y = (c.y - srcCy) * zoom + dstCy;
-    }
-
-    const bottomMostVisibleY = Math.max(...zoomCoords.map((c) => c.y));
-    const lowerIntoFrameShift = Math.max(0, maxCenterY - bottomMostVisibleY);
-    if (lowerIntoFrameShift > 0) {
-      for (const c of coords) c.y += lowerIntoFrameShift;
     }
   }
 
@@ -7195,8 +7262,13 @@ function updateStep1RoutePreview() {
 
   const clipRouteSegmentToPanel = (a, b) => {
     const canReachPanelFrame = !a.inIsrael || !b.inIsrael;
-    const xMin = canReachPanelFrame ? 0 : minCenterX;
-    const xMax = canReachPanelFrame ? svgW : maxCenterX;
+    // Clip to the content bounds (contentOffsetX.. +contentW), not the raw
+    // panel edges (0..svgW) -- in print those are wider than the content
+    // itself (see contentOffsetX/contentW above), and off-Israel lines
+    // should still head toward the same relative edge the on-screen version
+    // clips them at, not run further out into the extra letterboxed margin.
+    const xMin = canReachPanelFrame ? contentOffsetX : minCenterX;
+    const xMax = canReachPanelFrame ? contentOffsetX + contentW : maxCenterX;
     const yMin = canReachPanelFrame ? 0 : minCenterY;
     const yMax = canReachPanelFrame ? svgH : maxCenterY;
     const dx = b.x - a.x;
@@ -8105,6 +8177,7 @@ function openEmotionMapSoloFromStep1RingReading(ringIdx, originOverride) {
   _emotionSoloOriginStrokeWidthPx = null;
   _emotionSoloOriginPathD = null;
   _emotionSoloOriginViewBox = null;
+  _emotionSoloOriginLocalStrokeWidth = null;
 
   // The caller already knows exactly where this ring is on screen right now
   // (e.g. the fullscreen emotion map's ring spread) -- use that directly as
@@ -8117,6 +8190,7 @@ function openEmotionMapSoloFromStep1RingReading(ringIdx, originOverride) {
     _emotionSoloOriginStrokeWidthPx = originOverride.strokeWidthPx || 2;
     _emotionSoloOriginPathD = originOverride.pathD || null;
     _emotionSoloOriginViewBox = originOverride.viewBox || null;
+    _emotionSoloOriginLocalStrokeWidth = originOverride.localStrokeWidth || null;
     pendingEmotionSoloTargetRingSizePx = originOverride.targetRingSizePx || null;
     pendingEmotionSoloShapeParams = originOverride.shapeParams || null;
     pendingEmotionSoloFocusIndex = Math.max(0, Math.floor(idx));
@@ -8191,7 +8265,18 @@ function openEmotionMapSoloFromStep1RingReading(ringIdx, originOverride) {
         const d = path && path.getAttribute("d");
         const bbox = path && typeof path.getBBox === "function" ? path.getBBox() : null;
         if (d && bbox && bbox.width > 0 && bbox.height > 0) {
-          const localStrokeWidth = Number.isFinite(sourceStrokeWidth) && sourceStrokeWidth > 0 ? sourceStrokeWidth : 2;
+          // path renders with vector-effect="non-scaling-stroke", so
+          // sourceStrokeWidth (the raw attribute) is already its true,
+          // constant on-screen pixel width -- not a value in `d`/bbox's own
+          // local coordinate space. sourceUnitsPerPx (this SVG's own
+          // viewBox-to-render-size ratio, computed above) converts it into
+          // that local space, which is what both the padding below and the
+          // fly overlay's own (non-scaling-stroke-free) path need in order to
+          // render proportionally throughout the flight instead of far too
+          // thin.
+          const localStrokeWidth = Number.isFinite(sourceStrokeWidth) && sourceStrokeWidth > 0
+            ? sourceStrokeWidth * sourceUnitsPerPx
+            : 2;
           // getBBox() excludes the stroke; a stroke extends strokeWidth/2 beyond
           // the path's geometric edge on each side (SVG strokes are centered on
           // the path by default). Padding by the *full* stroke width here made
@@ -8203,6 +8288,11 @@ function openEmotionMapSoloFromStep1RingReading(ringIdx, originOverride) {
           const pad = localStrokeWidth / 2;
           _emotionSoloOriginPathD = d;
           _emotionSoloOriginViewBox = `${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`;
+          // Same value used for the pad above -- keeps the fly overlay's
+          // rendered stroke consistent with the viewBox it's about to
+          // animate inside of, instead of the screen-px _emotionSoloOriginStrokeWidthPx
+          // (a different, unrelated magnitude in this local/viewBox coordinate space).
+          _emotionSoloOriginLocalStrokeWidth = localStrokeWidth;
         }
       } catch {
         // ignore — falls back to the plain-circle overlay
@@ -8523,15 +8613,66 @@ if (elStep1RouteFullscreenBtn) {
     requestStep2OpenFitToAddresses();
     step2HoldFitAfterNextDraw = true;
     setStep2CloseReturnPage("step1");
+    // See _step2SetupDeferredForFlip's own comment: this makes showPage()
+    // hand back its post-open setup as a function instead of running it
+    // immediately.
+    _step2SetupDeferredForFlip = true;
     showPage("movementExpand");
+    const deferredStep2Setup = typeof _step2SetupDeferredForFlip === "function" ? _step2SetupDeferredForFlip : null;
+    _step2SetupDeferredForFlip = null;
     const mapWrap = document.querySelector("#pageStep2 .mapWrap");
-    if (mapWrap) flipGrowElement(mapWrap, fromRect, null);
+    if (!mapWrap) {
+      if (deferredStep2Setup) deferredStep2Setup();
+      return;
+    }
+    if (!deferredStep2Setup) {
+      flipGrowElement(mapWrap, fromRect, null);
+      return;
+    }
+    // Run the real setup (fit-to-addresses, dots/line render) now, but with
+    // the map kept invisible -- not display:none, so rects/layout still
+    // measure correctly -- so none of it paints. Previously this ran from
+    // flipGrowElement's onDone (*after* the grow animation), which fixed the
+    // main-thread jank but traded it for a visible "pop": the animation grew
+    // whatever stale content .mapWrap already had, then the real route
+    // snapped in only once the transition finished. Doing the work first and
+    // revealing only once it's actually landed means the flip's destination
+    // is already the true final route the entire time it's animating -- a
+    // single, direct, gapless motion from the Step 1 preview's exact spot to
+    // the exact expanded position/size, instead of growing into a stand-in.
+    mapWrap.style.visibility = "hidden";
+    // See _step2ReadingUnitCenteringSuspended's own comment: without this,
+    // moveend/the 300ms fallback (both scheduled by deferredStep2Setup()
+    // below) set wrapEl.style.transform directly partway through the flip,
+    // stomping the same property the transition is animating.
+    _step2ReadingUnitCenteringSuspended = true;
+    deferredStep2Setup();
+    const revealAndFly = (triesLeft) => {
+      if (!step2OpenShouldFitToAddresses || triesLeft <= 0) {
+        mapWrap.style.visibility = "";
+        // Force that reveal to commit as its own frame before flipGrowElement
+        // runs its own from-state-then-rAF-to-to-state sequence -- calling it
+        // directly from inside this rAF callback let its internal rAF (which
+        // applies the "to" transform) land in the same paint as the "from"
+        // snap above, so the browser never had a rendered frame to transition
+        // *from* and the whole 650ms motion collapsed to instant.
+        void mapWrap.offsetWidth;
+        requestAnimationFrame(() => flipGrowElement(mapWrap, fromRect, null, {
+          onDone: () => {
+            _step2ReadingUnitCenteringSuspended = false;
+            centerStep2ReadingUnit();
+          },
+        }));
+        return;
+      }
+      requestAnimationFrame(() => revealAndFly(triesLeft - 1));
+    };
+    revealAndFly(90);
   });
 }
 
 const elStep1EmotionFullscreenBtn = document.getElementById("step1EmotionFullscreenBtn");
 const elStep1EmotionFullscreenSvg = document.getElementById("step1EmotionFullscreenSvg");
-const elStep1EmotionFullscreenBackBtn = document.getElementById("step1EmotionFullscreenBackBtn");
 const elStep1EmotionFullscreenName = document.getElementById("step1EmotionFullscreenName");
 const elStep1EmotionFullscreenInfoName = document.getElementById("step1EmotionFullscreenInfoName");
 const elStep1EmotionFullscreenInfoRings = document.getElementById("step1EmotionFullscreenInfoRings");
@@ -8920,7 +9061,18 @@ function centerStep1EmotionFullscreenReadingUnit() {
 
 let _step2ReadingUnitResizeArmed = false;
 
+// Set while the movement-map expand flip is animating (see
+// elStep1RouteFullscreenBtn's click handler): centerReadingUnit() sets
+// wrapEl.style.transform directly (both a synchronous "none" reset and the
+// final centered value), which -- since that's the exact same element/
+// property flipGrowElement is mid-transition on -- clobbers the animation
+// the instant moveend/the 300ms fallback below fires, collapsing 650ms of
+// motion down to a few ms. Suspended here and re-applied once from the
+// flip's own onDone instead, once nothing else can still be animating it.
+let _step2ReadingUnitCenteringSuspended = false;
+
 function centerStep2ReadingUnit() {
+  if (_step2ReadingUnitCenteringSuspended) return;
   const wrapEl = document.getElementById("step2MapWrap");
   const panelEl = document.getElementById("step2ReadingInfo");
   if (!wrapEl || !panelEl) return;
@@ -10101,28 +10253,6 @@ if (elStep1EmotionFullscreenBtn) {
   });
 }
 
-if (elStep1EmotionFullscreenBackBtn) {
-  elStep1EmotionFullscreenBackBtn.addEventListener("click", () => {
-    // While rings are spread into a row, "back" first collapses that back to
-    // the normal concentric emotion map (staying on this page) rather than
-    // leaving the fullscreen page entirely — same as clicking anywhere else
-    // while spread.
-    if (_step1EmotionFullscreenSpreadActive) {
-      exitStep1EmotionFullscreenRingSpread();
-      return;
-    }
-    // No animation on close: drop any in-flight opening transform instantly.
-    if (elStep1EmotionFullscreenSvg) {
-      elStep1EmotionFullscreenSvg.style.transition = "";
-      elStep1EmotionFullscreenSvg.style.transform = "";
-    }
-    // showPage() itself already set _step1SkipEmotionRebuildOnce when this
-    // page was entered from Step 1 (see its own comment), so the rebuild
-    // below is skipped automatically.
-    showPage("map", { scroll: "step1", behavior: "auto" });
-  });
-}
-
 // Reveal a home's address/years/belonging text progressively (a soft "being
 // written" effect) instead of popping in instantly. Timestamp-based so it
 // stays correct no matter how often updateStep1HomesList() gets re-invoked
@@ -10750,39 +10880,21 @@ function updateHomeLogoScrollMorph() {
   logo.style.width = `${targetWidth}px`;
 }
 
-// "scroll down" label: sits snug to the right of the user's actual (OS)
-// cursor -- the real pointer plays the "mouse icon" role, no custom one
-// drawn -- while at the top of the home page. Visible immediately at a
-// sensible default position (a mousemove isn't guaranteed to ever fire --
-// e.g. the page can load with the cursor already stationary over it), then
-// switches to live-following the cursor as soon as it actually moves.
-// Faded out the moment scrolling starts. The tagline fades with the same
-// scroll trigger, but isn't cursor-linked.
-let homeScrollHintX = 60;
-let homeScrollHintY = 60;
+// "scroll down to create your map" caption, the tagline, and the "create
+// map" button all fade out together the moment scrolling starts on the home
+// page (screen 2 no longer needs screen 1's intro copy showing behind it).
+// "create map" itself now lives in the persistent top-right nav row instead
+// (see .homeTextActionBtn), so it no longer fades with these.
 const HOME_SCROLL_HINT_OFFSET_X = 14;
 const HOME_SCROLL_HINT_OFFSET_Y = 4;
 
 function updateHomeScrollHint() {
   if (!elPageWelcome) return;
   const scrolled = elPageWelcome.scrollTop > 0;
-  const hint = document.getElementById("homeScrollHint");
-  if (hint) {
-    hint.style.transform = `translate(${homeScrollHintX + HOME_SCROLL_HINT_OFFSET_X}px, ${homeScrollHintY + HOME_SCROLL_HINT_OFFSET_Y}px)`;
-    hint.classList.toggle("homeScrollHintHidden", scrolled);
-  }
   const tagline = document.getElementById("homePageTagline");
   if (tagline) tagline.classList.toggle("homeScrollHintHidden", scrolled);
-}
-
-function handleHomePageMouseMove(e) {
-  homeScrollHintX = e.clientX;
-  homeScrollHintY = e.clientY;
-  updateHomeScrollHint();
-}
-
-if (elPageWelcome) {
-  elPageWelcome.addEventListener("mousemove", handleHomePageMouseMove);
+  const scrollDownText = document.getElementById("homeScrollDownText");
+  if (scrollDownText) scrollDownText.classList.toggle("homeScrollHintHidden", scrolled);
 }
 
 // All Maps: "zoom in" hint, same cursor-following pattern as the home
@@ -10832,11 +10944,6 @@ function resetHomeLogoScrollMorph() {
   homeLogoHeroTop = null;
   homeLogoHeroLeft = null;
   homeLogoHeroWidth = null;
-  // Don't show the cursor-following hint at a stale position left over
-  // from before this page was last hidden -- back to the default fallback
-  // until a fresh mousemove updates it.
-  homeScrollHintX = 60;
-  homeScrollHintY = 60;
   const logo = document.querySelector("#pageWelcome .homePageLogo");
   if (logo) {
     logo.classList.remove("homeLogoFixed");
@@ -11043,7 +11150,6 @@ function renderAllMapsCombinedMap() {
   for (const snap of renderOrder) {
     const addrs = Array.isArray(snap?.addresses) ? snap.addresses : [];
     const yearMode = selectedYear !== null && Number.isFinite(Number(selectedYear));
-    if (yearMode && !addrs.some((addr) => Number.isFinite(getAllMapsAddressStartYear(addr)))) continue;
 
     const snapKey = String(getSavedMapKey(snap) || "");
     const snapLabel = String(snap?.label || "");
@@ -12008,16 +12114,11 @@ function startEmotionBreathing(opts) {
       const mainAmp = (rates[i] ?? 5) >= 9.5 ? amp * STEP1_MAIN_RATE10_DISTORTION_MULT : amp;
       const d = buildDistortedRingPath(cx, cy, radiiNow[i] ?? 1, phi, mainAmp, ringDistortionOptsForAmp(mainAmp, i * 7.1));
       setRingD(rings[i], d);
-      try {
-        const baseSw = Number(rings[i] && rings[i].__lpSoloBaseStrokeWidth);
-        if (Number.isFinite(baseSw) && baseSw > 0) {
-          rings[i].setAttribute("stroke-width", String(baseSw));
-          const mirror = rings[i] && rings[i].__lpMirrorPath;
-          if (mirror && mirror.setAttribute) mirror.setAttribute("stroke-width", String(baseSw));
-        }
-      } catch {
-        // ignore
-      }
+      // No longer re-pins stroke-width to __lpSoloBaseStrokeWidth here -- see
+      // applyEmotionRingFocusVisuals()'s applySoloVisualScaleMetadata comment:
+      // a solo-focused ring's stroke now scales proportionally with its own
+      // scale() transform, so forcing it back to a fixed width every
+      // breathing frame would undo that growth/shrink.
       // The fullscreen page's copy gets: a very slightly weaker pull/push
       // shape (less outward bulge / inward dent), a very slightly narrower
       // breathing range (same speed, just a touch less swing), and a very
@@ -15873,6 +15974,13 @@ function wireHomeLogoNavigation() {
   const els = Array.from(document.querySelectorAll(".brand, .life-path, .appLogoImage"));
   const resetProcessAndGoHome = () => {
     try {
+      // stopStep1EntrySound()'s own comment already flags this exact gap:
+      // it was only ever called on finishing a map, never on "start over" --
+      // so the per-ring ambient loops (and, if the logo was clicked from the
+      // solo ring page, that ring's own dedicated sound) kept playing
+      // underneath the reset map / welcome page indefinitely.
+      stopStep1EntrySound();
+      stopEmotionSoundForSoloRing();
       resetForNextStudent();
       setStatus("");
       setAddressStatus("");
@@ -15910,55 +16018,6 @@ function wireHomeLogoNavigation() {
 
 wireHomeLogoNavigation();
 
-function wireCloseToHomeButtons() {
-  const els = Array.from(document.querySelectorAll(".closeToHomeBtn"));
-  for (const el of els) {
-    if (el.dataset && el.dataset.closeWired === "1") continue;
-    if (el.dataset) el.dataset.closeWired = "1";
-
-    try {
-      el.setAttribute("aria-label", "Close");
-    } catch {
-      // ignore
-    }
-
-    el.addEventListener("click", () => {
-      const fromStep2 = (() => {
-        try {
-          return Boolean(el && typeof el.closest === "function" && el.closest("#pageStep2"));
-        } catch {
-          return false;
-        }
-      })();
-
-      if (fromStep2 && step2CloseReturnPage === "archive") {
-        // After viewing an archived map, reset Step 1 so the data entry page starts fresh.
-        try {
-          resetForNextStudent();
-          setStatus("");
-          setAddressStatus("");
-        } catch {
-          // ignore
-        }
-        step2OpenedFromArchive = false;
-        setStep2CloseReturnPage("step1");
-        showPage("archive");
-        return;
-      }
-
-      // Default: close to whichever "home base" page (Step 1 or the home
-      // page) was last active — preserving whatever is there, e.g. returning
-      // from viewing your own just-created map should land back on the exact
-      // same Step 1 page (name, addresses, emotion map still in place), not
-      // reset it as if for the next student. Archive/All Maps opened from
-      // the home page close back to the home page instead of Step 1.
-      setStep2CloseReturnPage("step1");
-      showPage(_lastPrimaryPageKey, { scroll: "step1", behavior: "auto" });
-    });
-  }
-}
-
-wireCloseToHomeButtons();
 
 
 if (elStudentName) {
@@ -16190,6 +16249,12 @@ function resumeStep1EntrySoundFromSolo() {
       }
     }
   }
+  // Entering solo directly from a hovered ring in the fullscreen spread view
+  // (without first hovering off it) leaves that ring's setStep1EntrySoundFocus()
+  // mute -- every other ring's <audio> volume still at 0 -- in place; resuming
+  // from solo always fully un-mutes every ring regardless of how solo was
+  // entered, so the full layered map sound is what's heard back here.
+  setStep1EntrySoundFocus(null);
   restartStep1EmotionTickSounds();
 }
 
@@ -16512,10 +16577,17 @@ function armStep1EditFieldActivation() {
 // committed yet) has nothing saved to load -- clicking it instead just
 // brings focus to the form so typing can continue from there.
 function handleStep1RingClick(ringIdx) {
-  const isNextUnfilled = !isStep1EditModeActive()
-    && !isStep1DataEntryFinished()
+  const isNextUnfilled = !isStep1DataEntryFinished()
     && ringIdx === (Array.isArray(addresses) ? addresses.length : 0);
   if (isNextUnfilled) {
+    if (isStep1EditModeActive()) {
+      // Clicking the not-yet-filled next ring while editing an existing one
+      // saves/exits that edit exactly like pressing SAVE would (same button,
+      // same verification/active-state guard), then leaves focus ready for
+      // the next new address below.
+      if (elStep1AddrNextBtn) elStep1AddrNextBtn.click();
+      return;
+    }
     if (elCity) elCity.focus({ preventScroll: true });
     return;
   }
@@ -16540,6 +16612,17 @@ function openStep1HomeEditMode(ringIdx) {
   if (elStreet) elStreet.value = addr._origStreet || addr.street || "";
   if (elNumber) elNumber.value = addr._origNumber || addr.number || "";
   if (elStartYear) elStartYear.value = addr.startYear || "";
+
+  // Point at the new ring *before* the synthetic "input" dispatch below, not
+  // after (enterStep1EditMode() used to be the only place that set this).
+  // That dispatch synchronously runs elBelongingInline's input handler,
+  // which calls updateCurrentEmotionRingStroke()/updateStep1EditPreviewFromFields()
+  // using getStep1CurrentPreviewIndex()/_step1EditingIdx to pick which ring
+  // to touch -- with the old idx still in place, switching from address A to
+  // B applied B's belonging rate to A's ring instead of B's, visibly
+  // changing A's stroke width even though nothing about A's own belonging
+  // level had changed.
+  _step1EditingIdx = ringIdx;
 
   const rate = normalizeBelongingRate(addr.belonging_rate);
   if (elBelongingInline) {
@@ -16815,17 +16898,6 @@ if (elStartYear) {
   if (streetAndNumberField) streetAndNumberField.placeholder = hint;
 })();
 
-const elStep1AddrBackBtn = document.getElementById("step1AddrBackBtn");
-if (elStep1AddrBackBtn) {
-  elStep1AddrBackBtn.addEventListener("click", () => {
-    // Same reasoning as step1GoBackToIntro(): the intro state this used to
-    // reveal no longer has the name/homes-count fields, so return to the
-    // home page (screen 2) instead.
-    if (elPageStep1) elPageStep1.classList.remove("step1-address-phase");
-    showPage("welcome", { welcomeScroll: "screen2" });
-  });
-}
-
 // Address NEXT → save address, then next home or finish
 if (elStep1AddrNextBtn) {
   elStep1AddrNextBtn.addEventListener("click", async () => {
@@ -17007,14 +17079,6 @@ if (elStep1AddrNextBtn) {
       updateStep1Headers();
       if (!lastHome && !isAfterFinishEdit && elCity) elCity.focus({ preventScroll: true });
     }
-  });
-}
-
-// Belonging BACK → address phase
-const elStep1BelongBackBtn = document.getElementById("step1BelongBackBtn");
-if (elStep1BelongBackBtn) {
-  elStep1BelongBackBtn.addEventListener("click", () => {
-    step1TransitionPhase("step1-belonging-phase", "step1-address-phase");
   });
 }
 
@@ -17262,42 +17326,36 @@ if (elHomePageScreen2 && elStudentName && "IntersectionObserver" in window) {
   homeScreen2Observer.observe(elHomePageScreen2);
 }
 
-if (elArchiveBackBtn) {
-  elArchiveBackBtn.addEventListener("click", () => {
-    showPage(_lastPrimaryPageKey, { scroll: "step1", behavior: "auto" });
+const elHomeCreateMapBtn = document.getElementById("homeCreateMapBtn");
+if (elHomeCreateMapBtn) {
+  elHomeCreateMapBtn.addEventListener("click", () => {
+    scrollWelcomeToScreen2("smooth");
   });
 }
 
-const elHomeArchiveBtn = document.getElementById("homeArchiveBtn");
-const elHomeAllMapsBtn = document.getElementById("homeAllMapsBtn");
-const elHomeAboutBtn = document.getElementById("homeAboutBtn");
-const elAboutBackBtn = document.getElementById("aboutBackBtn");
-
-if (elHomeArchiveBtn) {
-  elHomeArchiveBtn.addEventListener("click", () => {
-    showPage("archive");
-  });
+// Global nav (archive/all maps, plus "create map"): same buttons repeated
+// in the top-right of every page (see .globalNavBtn/.homePageTopActions in
+// styles.css), each carrying which page it opens in data-nav -- wired once
+// here instead of per-page ids/listeners.
+function wireGlobalNavButtons() {
+  const els = Array.from(document.querySelectorAll(".globalNavBtn"));
+  for (const el of els) {
+    if (el.dataset.navWired === "1") continue;
+    el.dataset.navWired = "1";
+    const target = el.dataset.nav;
+    if (!target) continue;
+    // "create map" (data-nav="welcome" data-nav-scroll="screen2"): land
+    // straight on the name/homes-count screen instead of screen 1.
+    const scrollTo = el.dataset.navScroll;
+    el.addEventListener("click", () => {
+      if (scrollTo) showPage(target, { welcomeScroll: scrollTo });
+      else showPage(target);
+    });
+  }
 }
+wireGlobalNavButtons();
 
-if (elHomeAllMapsBtn) {
-  elHomeAllMapsBtn.addEventListener("click", () => {
-    showPage("allmaps");
-  });
-}
-
-if (elHomeAboutBtn) {
-  elHomeAboutBtn.addEventListener("click", () => {
-    showPage("about");
-  });
-}
-
-if (elAboutBackBtn) {
-  elAboutBackBtn.addEventListener("click", () => {
-    showPage("welcome");
-  });
-}
-
-// Back button removed; the LifePath logo acts as home navigation.
+// Back buttons removed; the LifePath logo acts as home navigation.
 
 if (elSaveMapBtn) {
   elSaveMapBtn.addEventListener("click", () => {
@@ -17316,51 +17374,6 @@ if (elBackToStep1Btn) {
   });
 }
 
-
-if (elEmotionSoloBackBtn) {
-  elEmotionSoloBackBtn.addEventListener("click", () => {
-    _emotionRingFocusIndex = null;
-    // showPage() skips its usual solo-overlay teardown when the destination
-    // is "step1" (that exemption exists so returning to Step 1 doesn't
-    // stop-then-immediately-restart the shared breathing/sound session) —
-    // so the solo ring's text overlay (attachment/temporal/movement/etc.)
-    // needs to be cleared explicitly here instead, or it stays stuck on
-    // screen over Step 1.
-    hideEmotionRingSoloTextOverlays();
-    stopEmotionSoundForSoloRing();
-    setEmotionSoundFocus(null);
-    resumeStep1EntrySoundFromSolo();
-
-    // Came here from the fullscreen emotion map's ring spread (see the
-    // spread click handler) -- return there instead of Step 1, re-entering
-    // spread so it looks exactly like where the user left off.
-    if (_emotionSoloReturnToStep1FullscreenSpread) {
-      _emotionSoloReturnToStep1FullscreenSpread = false;
-      _step1SkipSoundRebuildOnce = true;
-      showPage("emotionExpand");
-      populateStep1EmotionFullscreenSvg();
-      fitStep1EmotionFullscreenInnerRing();
-      enterStep1EmotionFullscreenRingSpread(null);
-      return;
-    }
-
-    // Came here from the route/movement map (movementExpand) -- return there instead
-    // of Step 1. showPage("movementExpand") already fully re-renders the map/dots/
-    // reading panel on every entry, so no extra rebuild is needed here.
-    if (_emotionSoloReturnToStep2) {
-      _emotionSoloReturnToStep2 = false;
-      showPage("movementExpand");
-      return;
-    }
-
-    // showPage("map") below always triggers renderStep1EmotionMap(), which
-    // would otherwise tear down and rebuild the sound session — this flag
-    // tells it to leave sound alone this one time, so what
-    // resumeStep1EntrySoundFromSolo() just resumed simply keeps playing.
-    _step1SkipSoundRebuildOnce = true;
-    showPage("map", { scroll: "step1", behavior: "auto" });
-  });
-}
 
 if (elEmotionSaveBtn) {
   elEmotionSaveBtn.addEventListener("click", () => {
@@ -18478,11 +18491,29 @@ if (elBelongingInline) {
     }
     if (isStep1EditModeActive()) updateStep1EditPreviewFromFields();
     if (step1PendingPreviewAddress) {
-      step1PendingPreviewAddress.belonging_rate = parseFloat(val) || 1;
-      updateCurrentEmotionRingStroke(parseFloat(val) || 1);
-      updateStep1FocusCircleStroke(parseFloat(val) || 1);
+      const newRate = parseFloat(val) || 1;
+      step1PendingPreviewAddress.belonging_rate = newRate;
+      // openStep1HomeEditMode() dispatches this same "input" event just to
+      // sync the slider's own position/label when a ring is opened for
+      // viewing -- not because the user changed anything. Without this
+      // guard, updateAllEmotionRingAngles() (which restarts every ring's
+      // 1.5s phi/amp/stroke-width transition, not just this one's) and
+      // updateCurrentEmotionRingStroke() would re-run and visibly reshape
+      // rings whose belonging rate never actually changed. ring.rate is
+      // kept in sync with each address's persisted belonging_rate by every
+      // prior updateAllEmotionRingAngles()/activateEmotionRing() call, so
+      // comparing against it (rather than, say, the ring's *current*
+      // mid-transition phi/amp) reliably reflects whether this dispatch
+      // represents a real edit or just a same-value sync.
+      const idx = getStep1CurrentPreviewIndex();
+      const ringData = _activeEmotionRings.find((r) => r.idx === idx);
+      const rateUnchanged = ringData && Number.isFinite(ringData.rate) && Math.abs(ringData.rate - newRate) < 0.001;
+      if (!rateUnchanged) {
+        updateCurrentEmotionRingStroke(newRate);
+        updateAllEmotionRingAngles();
+      }
+      updateStep1FocusCircleStroke(newRate);
       updateStep1GeoMapMarkers();
-      updateAllEmotionRingAngles();
     }
   });
 }

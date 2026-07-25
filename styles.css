@@ -171,6 +171,14 @@
 }
 
 @font-face {
+  font-family: "NarkissBlock-Thin-TRIAL";
+  src: url("fonts/NarkissBlock-Thin-TRIAL.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
   font-family: "AlfaBravo-Normal";
   src: url("fonts/AlfaBravo-Normal.otf") format("opentype");
   font-weight: 400;
@@ -274,10 +282,8 @@ body {
   padding: 36px 42px;
 }
 
-/* Home page (logo, tagline, start) and the About placeholder — both share
-   the same centered layout, just with different content in .homePageContent. */
-#pageWelcome.homePage,
-#pageAbout.homePage {
+/* Home page (logo, tagline, start). */
+#pageWelcome.homePage {
   position: relative;
   background-color: #f4f2ea;
   /* Overrides the old Welcome design's #pageWelcome { max-width: 1120px }
@@ -287,10 +293,6 @@ body {
   max-width: none;
   margin-left: 0;
   margin-right: 0;
-}
-
-#pageAbout.homePage {
-  overflow: hidden;
 }
 
 /* #pageWelcome is 2 screens tall (see .homePageInner) with this element as
@@ -310,32 +312,9 @@ body {
   display: none;
 }
 
-/* "Scroll down" hint: just a label, snug to the right of the user's real
-   (OS) cursor -- not a custom icon, the actual pointer plays that role.
-   Pinned to the viewport (outside the scrolling .homePageInner), fades out
-   the moment scrolling starts (toggled in app.js) and reappears if
-   scrolled back to the very top.
-   Position (top/left:0 + a translate set live in app.js on mousemove) is
-   deliberately not transitioned -- only opacity is, so it tracks the
-   cursor instantly with no lag while still fading smoothly on scroll. */
-.homeScrollHint {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 25;
-  opacity: 1;
-  transition: opacity 0.5s ease;
-  pointer-events: none;
-  will-change: transform;
-}
-
-.homeScrollHint.homeScrollHintHidden {
-  opacity: 0;
-}
-
-/* "Zoom in" hint on All Maps: same cursor-following pattern as
-   .homeScrollHint above (real OS cursor plays the icon role; position set
-   live via transform in app.js, only opacity transitions). Visible until
+/* "Zoom in" hint on All Maps: cursor-following (real OS cursor plays the
+   icon role; position set live via transform in app.js, only opacity
+   transitions). Visible until
    the user zooms in past whatever zoom the map started at, then a one-way
    latch: it stays hidden even if they zoom back out (see
    updateAllMapsZoomHint()/allMapsZoomHintDismissed in app.js). Re-armed
@@ -363,13 +342,6 @@ body {
   color: #c3c1b7;
 }
 
-.homeScrollHintText {
-  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
-  font-weight: 400;
-  font-size: 14px;
-  text-transform: lowercase;
-  color: #c3c1b7;
-}
 
 /* The scrollable content: screen 1 (logo) and screen 2 (name/homes-count
    questions) both live here, positioned absolutely within it, so it's the
@@ -398,31 +370,41 @@ body {
   overflow: visible;
 }
 
+/* align-items:flex-start (not center): "create map"'s text line-box is
+   taller than the icon buttons', so centering would nudge the icons a
+   sub-pixel below top:34px -- flex-start keeps every item's own top edge
+   flush with the row's, matching every page's copy of this row exactly. */
 .homePageTopActions {
   position: absolute;
   top: 34px;
   right: 40px;
   z-index: 20;
   display: flex;
-  align-items: center;
-  gap: 32px;
+  align-items: flex-start;
+  gap: 24px;
 }
 
-/* Home page's archive/all maps/about buttons only use a tighter gap than
-   the shared .homePageTopActions default above; right margin (40px, the
-   site's standard — matches the logo's left margin) is the same either way. */
+/* Pinned to the viewport, unaffected by #pageWelcome's own internal scroll
+   (see .homePageInner) -- stays visible on both screens. */
 #pageWelcome .homePageTopActions {
-  gap: 24px;
-  /* Pinned to the viewport, unaffected by #pageWelcome's own internal
-     scroll (see .homePageInner) -- stays visible on both screens. */
   position: fixed;
 }
 
-#pageWelcome .homePageTopActions button {
-  font-size: 13px !important;
+/* Step 1's own copy of this row lives outside .frame (which the archive/all
+   maps/about buttons must NOT inherit -- .frame is wrapped in
+   transform:scale(var(--step1-scale)), which would otherwise shrink this
+   row's flat top:34/right:40 along with everything else in the frame,
+   landing it off the home page's own unscaled position on any viewport
+   narrower than the 1920px design width). position:fixed for the same
+   reason as #pageWelcome above: guaranteed viewport-relative regardless of
+   ancestor positioning. */
+#pageStep1 .homePageTopActions {
+  position: fixed;
 }
 
-.homePageTopActions button {
+.homePageTopActions button,
+#pageAllMaps .allMapsActions button,
+#pageStep2 .step2Actions button {
   background: transparent;
   border: 0;
   padding: 0;
@@ -435,33 +417,23 @@ body {
   text-transform: lowercase;
 }
 
-.homePageTopActions .homeTextActionBtn {
+.homePageTopActions .homeTextActionBtn,
+#pageAllMaps .allMapsActions .homeTextActionBtn,
+#pageStep2 .step2Actions .homeTextActionBtn {
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
   line-height: 1;
 }
 
-#pageWelcome .homePageTopActions button:hover,
-#pageAbout .homePageTopActions button:hover {
+.homePageTopActions button:hover,
+#pageAllMaps .allMapsActions button:hover,
+#pageStep2 .step2Actions button:hover {
   color: #8e3300;
-}
-
-.homePageContent {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 24px;
 }
 
 /* The logo is #pageWelcome's only screen-1 content now (tagline/start row
    removed) -- it centers itself directly rather than through a wrapper,
-   since a transformed *ancestor* (the old .homePageContent wrapper's own
+   since a transformed *ancestor* (a centering wrapper's own
    translateX(-50%)) would otherwise establish a containing block that traps
    position:fixed descendants, breaking the scroll-morph below (it needs to
    truly escape to the viewport, not just to the wrapper's box). */
@@ -510,10 +482,11 @@ body {
 }
 
 /* #pageWelcome's logo now centers itself directly (see .homePageLogo)
-   rather than through the flex-column .homePageContent wrapper #pageAbout
-   still uses -- so its tagline needs its own fresh, standalone positioning
-   (centered below the logo) instead of the base rule's flow-column-specific
-   margin/left. Fades out with .homeScrollHint on scroll (toggled in app.js). */
+   rather than through a flex-column wrapper -- so its tagline needs its own
+   fresh, standalone positioning (centered below the logo) instead of the
+   base .homePageTagline rule's flow-column-specific margin/left (that base
+   rule's own font/color still applies here, just not its layout). Fades
+   out on scroll (toggled in app.js). */
 #pageWelcome .homePageTagline {
   position: absolute;
   /* Same 53px gap below the logo as before, now measured from the logo's
@@ -541,6 +514,39 @@ body {
 }
 
 #pageWelcome .homePageTagline.homeScrollHintHidden {
+  opacity: 0;
+}
+
+/* Static "scroll down to create your map" caption -- replaces the old
+   cursor-following "scroll down" hint. Centered horizontally on screen 1;
+   anchored 40px above screen 1's own bottom edge (100vh, not
+   .homePageInner's full 165vh) -- top:100vh + transform's -100% Y shifts by
+   the caption's own height so its *bottom* edge (not top) lands on that
+   line. The "-36px" compensates for #pageWelcome's own top padding, which
+   offsets .homePageInner's (this element's containing block) top edge away
+   from the true viewport top -- same correction as .homePageLogo's own
+   top:calc(50vh - 36px) (see its comment). Fades with the same scroll
+   trigger as the tagline (see updateHomeScrollHint() in app.js). */
+#pageWelcome .homeScrollDownText {
+  position: absolute;
+  top: calc(100vh - 40px - 36px);
+  left: 50%;
+  transform: translate(-50%, -100%);
+  z-index: 1;
+  margin: 0;
+  width: max-content;
+  max-width: 90vw;
+  text-align: center;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+  text-transform: lowercase;
+  color: #000000;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+#pageWelcome .homeScrollDownText.homeScrollHintHidden {
   opacity: 0;
 }
 
@@ -659,11 +665,6 @@ body {
   height: 100vh;
 }
 
-/* Close (X) button: matches textLink styling but with tighter glyph metrics. */
-.closeToHomeBtn {
-  line-height: 1;
-}
-
 #pageStep2 .topbar {
   padding: 36px 42px 0;
   position: absolute;
@@ -757,10 +758,11 @@ body {
 }
 
 /* Home page's archive/all maps/about buttons are 7% smaller than every
-   other .btnImg (18.48px * 0.93). All Maps' own back button matches this
-   exactly too (see #pageAllMaps .allMapsActions below). */
+   other .btnImg (18.48px * 0.93). Every other page's own copy of this same
+   trio (see .globalNavBtn in app.js) matches this exactly too. */
 .homePageTopActions .btnImg,
-#pageAllMaps .allMapsActions .btnImg {
+#pageAllMaps .allMapsActions .btnImg,
+#pageStep2 .step2Actions .btnImg {
   height: calc(17.1864px * var(--step1-scale, 1));
 }
 
@@ -785,9 +787,6 @@ button:hover .btnImgArchive {
 }
 button:hover .btnImgAllMaps {
   content: url("buttons/all-maps-hover.png");
-}
-button:hover .btnImgAbout {
-  content: url("buttons/about-hover.png");
 }
 button:hover .btnImgBack {
   content: url("buttons/back-hover.png");
@@ -986,14 +985,21 @@ button:hover .btnImgFinish {
   min-width: 0;
 }
 
-/* Emotion Map: map name label -- sits directly below the top-left logo (not
-   centered), same position/font/size convention as .step2Signature and
+/* Emotion Map: map name label -- centered at the top, matching
+   #pageStep1 .step1TopProgress's own on-screen position exactly. That
+   element sits inside #pageStep1 .frame, which has its own
+   transform:scale(--step1-scale) -- so its literal "top:34px" actually
+   renders at 34px*scale on screen. This page has no such scaled ancestor
+   (position:fixed, straight off the viewport), so the *same* calc() is
+   needed here to land on the same physical pixel, not just the same
+   design-space number. Same convention as .step2Signature and
    .step1EmotionFullscreenName (see each). */
 #pageEmotion .emotionSignature {
   position: fixed;
-  left: calc(40px * var(--step1-scale, 1));
+  left: 50%;
   right: auto;
-  top: calc(86px * var(--step1-scale, 1));
+  top: calc(34px * var(--step1-scale, 1));
+  transform: translateX(-50%);
   bottom: auto;
   text-align: left;
   z-index: 2000;
@@ -1129,8 +1135,7 @@ button:hover .btnImgFinish {
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
 }
 
-#pageEmotion .emotionMapTitle,
-#pageEmotion .emotionSignature {
+#pageEmotion .emotionMapTitle {
   display: none !important;
 }
 
@@ -1670,20 +1675,6 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   background: #f4f2ea;
 }
 
-#pageArchive .archiveBackBtn {
-  position: fixed;
-  right: 40px;
-  top: 36px;
-  z-index: 2000;
-  display: inline-block;
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
-  font-weight: 400;
-  font-size: 14.5px;
-  text-transform: lowercase !important;
-  padding-bottom: 4px;
-  margin-bottom: -4px;
-  text-decoration: underline;
-}
 
 #pageArchive .archiveSearchWrap {
   position: fixed;
@@ -2040,6 +2031,8 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   html.printMapOptionMode .printModalBackdrop,
   html.printMapOptionMode .printModalCloseBtn,
   html.printMapOptionMode .printModalOptions,
+  html.printMapOptionMode .printModalTitle,
+  html.printMapOptionMode .printModalSubtitle,
   html.printMapOptionMode .printOption1Preview,
   html.printMapOptionMode .printMapOptionPreviewActions {
     display: none !important;
@@ -2289,7 +2282,18 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
     padding: 0 !important;
     overflow: hidden !important;
     background: transparent !important;
-    transform: translate(15.12px, 15.12px) scale(0.33856) !important;
+    /* Centers the *actual printed content* (not the raw 1540x1027 frame,
+       which has empty margin baked into its own bottom -- the real content
+       only spans design-y 36 (logo) to ~1016 (ring reading / belonging over
+       time bottom, verified identical across every map's data since it's
+       driven by fixed CSS positioning, not per-map content), not the full
+       1027. Centering the bare frame instead (as this used to) put a
+       symmetric 15.12px margin around the *frame*, which reads as a much
+       bigger gap below the content than above it, since the content itself
+       sits closer to the frame's own top. Centering on the 36-1016 content
+       band instead gives top ≈ bottom ≈ 23.08px, matching the horizontal
+       22.72px margins established above. */
+    transform: translate(22.72px, 10.9px) scale(0.33856) !important;
     transform-origin: top left !important;
   }
 
@@ -2399,10 +2403,9 @@ body.printModalOpen .printModalOverlay {
   left: 50%;
   top: 50%;
   width: min(760px, calc(100vw - 56px));
-  height: min(520px, calc(100vh - 56px));
+  height: min(490px, calc(100vh - 56px));
   transform: translate(-50%, -50%);
   background: #f4f2ea;
-  border: 1px solid #000000;
   box-sizing: border-box;
 }
 
@@ -2411,30 +2414,81 @@ body.printModalOpen .printModalOverlay {
   height: min(820px, calc(100vh - 64px));
 }
 
+/* X mark drawn with two rotated pseudo-elements instead of a glyph -- the
+   app's custom fonts don't cover the × character (renders as tofu), and
+   this keeps the mark's weight/look consistent with the rest of the site's
+   thin drawn lines regardless of font availability. */
 .printModalCloseBtn {
   position: absolute;
   top: 18px;
   right: 20px;
+  width: 16px;
+  height: 16px;
   border: 0;
   padding: 0;
   background: transparent;
-  color: #000000;
+  cursor: pointer;
+}
+
+.printModalCloseBtn::before,
+.printModalCloseBtn::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 1px;
+  background: #000000;
+  transform-origin: center;
+}
+
+.printModalCloseBtn::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.printModalCloseBtn::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.printModalCloseBtn:hover::before,
+.printModalCloseBtn:hover::after {
+  background: #8e3300;
+}
+
+.printModalTitle {
+  position: absolute;
+  left: 26px;
+  top: 22px;
+  margin: 0;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 400;
   line-height: 1;
   text-transform: lowercase;
-  cursor: pointer;
+  color: #000000;
+}
+
+.printModalSubtitle {
+  position: absolute;
+  left: 26px;
+  top: 42px;
+  margin: 0;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  text-transform: lowercase;
+  color: #000000;
 }
 
 .printModalOptions {
   position: absolute;
   left: 50%;
-  top: 72px;
-  width: min(640px, calc(100% - 64px));
+  top: 92px;
+  width: min(708px, calc(100% - 52px));
   transform: translateX(-50%);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 28px;
+  gap: 24px;
   align-items: start;
 }
 
@@ -2461,11 +2515,11 @@ body.printModalOpen .printModalOverlay {
 
 .printModalOptionThumb {
   position: relative;
-  width: min(150px, 100%);
+  width: 100%;
   aspect-ratio: 2 / 3;
   overflow: hidden;
   background: transparent;
-  border: 1px solid #000000;
+  border: 0.5px solid rgba(0, 0, 0, 0.2);
   box-sizing: border-box;
   flex: 0 0 auto;
 }
@@ -2477,27 +2531,52 @@ body.printModalOpen .printModalOverlay {
   pointer-events: none;
 }
 
+/* Scale tuned so the full design-size stage (1027x1540) exactly fills the
+   thumb's own width (220px, matching .printModalOptions' 3-column math
+   above: (708px - 2*24px gap) / 3 = 220px) -- the biggest the options can
+   go while still fitting 3 across the panel without shrinking its margins
+   to nothing. */
 .printModalOptionThumb .printMapOptionThumbStage {
   width: 1027px;
   height: 1540px;
-  transform: scale(0.146057);
+  transform: scale(0.214216);
   transform-origin: top left;
 }
 
 .printModalOptionThumb .printOption1ThumbStage {
-  left: 150px;
+  left: 220px;
   width: 1540px;
   height: 1027px;
-  transform: rotate(90deg) scale(0.146057);
+  transform: rotate(90deg) scale(0.214216);
   transform-origin: top left;
 }
 
 .printModalOptionLabel {
   display: block;
-  text-align: center;
+  align-self: flex-start;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-size: 13px;
+  line-height: 1;
+  text-transform: lowercase;
+  color: #000000 !important;
 }
 
-.printModalOverlay.printModalShowingPreview .printModalOptions {
+/* Hovering one option keeps it as-is and dims the other two (thumb + name
+   together, via opacity on the whole button) to 40% -- explicitly excludes
+   the global button:hover color change (styles.css ~4017) from touching this
+   button's own name, since that rule would otherwise tint it orange. */
+.printModalOptions:hover .printModalOptionBtn:not(:hover) {
+  opacity: 0.3;
+}
+
+.printModalOptionBtn:hover,
+.printModalOptionBtn:hover .printModalOptionLabel {
+  color: #000000 !important;
+}
+
+.printModalOverlay.printModalShowingPreview .printModalOptions,
+.printModalOverlay.printModalShowingPreview .printModalTitle,
+.printModalOverlay.printModalShowingPreview .printModalSubtitle {
   display: none;
 }
 
@@ -2591,7 +2670,7 @@ body.printModalOpen .printModalOverlay {
   left: 0;
   bottom: 36px;
   width: 260px;
-  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-size: 44px;
   line-height: 1.15;
   color: #000000;
@@ -2741,7 +2820,7 @@ html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1RingReading::be
   width: 560px;
   height: 0.1px;
   background: #000000;
-  opacity: 0.65;
+  opacity: 0.4;
   pointer-events: none;
   z-index: 5;
 }
@@ -2760,20 +2839,41 @@ html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1EmotionMap::bef
   width: 0.1px;
   height: calc(100% - 40px);
   background: #000000;
-  opacity: 0.65;
+  opacity: 0.4;
   pointer-events: none;
   z-index: 5;
 }
 
+/* 10px here, not 40px like .step1EmotionMap::before -- .step1RoutePreview's
+   own box already starts 30px lower than .step1EmotionMap's (top: dashboard-
+   top + 30 vs just dashboard-top), so 10px here lands this divider's top at
+   the exact same absolute position as the emotion map's divider (both
+   boxes share the same bottom edge already, so only the top needed
+   compensating). */
 .printOption1PreviewStage #pageStep1 .step1RoutePreview::before,
 html.printOption1Mode #pageStep1 .step1RoutePreview::before {
-  top: 40px !important;
-  height: calc(100% - 40px) !important;
+  top: 10px !important;
+  height: calc(100% - 10px) !important;
+  opacity: 0.4 !important;
 }
 
 .printOption1PreviewStage #pageStep1 .step1RoutePreview svg,
 html.printOption1Mode #pageStep1 .step1RoutePreview svg {
   preserve-aspect-ratio: xMidYMid meet;
+  /* Route content only, 25px higher than its normal translate(5px, 0) --
+     .step1RoutePreview itself (the frame) and its ::before divider are
+     untouched, this only moves the drawn route/dots inside. (A previous
+     scaleX() hack lived here to visually narrow the route back down to the
+     on-screen proportions, but that couldn't correctly handle every map:
+     the "zoom to fit" in updateStep1RoutePreview() picks whichever of
+     width/height is the tighter constraint per that map's own lon/lat
+     spread, so a flat post-hoc squeeze doesn't reproduce the on-screen
+     layout for maps where the binding axis differs between the two panel
+     shapes. Fixed at the source instead -- see contentW/contentOffsetX in
+     that function, which computes the fit against a fixed on-screen-width
+     content area centered in the wider print panel, so this only needs the
+     plain translate.) */
+  transform: translate(5px, -25px) !important;
 }
 
 .printOption1PreviewStage #pageStep1 .step1RoutePreview svg line[data-print-route-line="1"],
@@ -2784,33 +2884,6 @@ html.printOption1Mode #pageStep1 .step1RoutePreview svg line[data-print-route-li
 .printOption1PreviewStage #pageStep1 .step1RoutePreview canvas[data-step1-route-line-canvas="1"],
 html.printOption1Mode #pageStep1 .step1RoutePreview canvas[data-step1-route-line-canvas="1"] {
   display: none !important;
-}
-
-html.printOption1SingleAddressColumn .printOption1PreviewStage #pageStep1 .step1EmotionMap,
-html.printOption1SingleAddressColumn.printOption1Mode #pageStep1 .step1EmotionMap {
-  left: 280px !important;
-  width: 740px !important;
-}
-
-html.printOption1SingleAddressColumn .printOption1PreviewStage #pageStep1 .step1EmotionMapTitle,
-html.printOption1SingleAddressColumn.printOption1Mode #pageStep1 .step1EmotionMapTitle {
-  left: 280px !important;
-  width: 740px !important;
-}
-
-html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1HomesListTitle,
-html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1HomesListTitle {
-  display: block !important;
-  left: 0 !important;
-  top: calc(var(--step1-dashboard-top, 285px) + 40px) !important;
-  width: 560px !important;
-  padding-left: 0 !important;
-  z-index: 6 !important;
-}
-
-html.printOption1SingleAddressColumn .printOption1PreviewStage #pageStep1 .step1HomesListTitle,
-html.printOption1SingleAddressColumn.printOption1Mode #pageStep1 .step1HomesListTitle {
-  width: 280px !important;
 }
 
 html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1MoveFrequencyLabel,
@@ -2852,7 +2925,7 @@ html.printOption1Mode #pageStep1 .step1MoveFrequencyLabel {
 
 .printOption1PreviewStage #pageStep1 .step1JourneyTimeline text,
 html.printOption1Mode #pageStep1 .step1JourneyTimeline text {
-  font-size: calc(22.5px / var(--step1-scale, 1)) !important;
+  font-size: calc(21.5px / var(--step1-scale, 1)) !important;
 }
 
 html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1RingReadingContent,
@@ -2880,7 +2953,10 @@ html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1TimeBelonging {
   display: flex !important;
   flex-direction: column !important;
   justify-content: center !important;
-  padding: 0 30px !important;
+  /* No right padding (was 30px both sides) -- right-aligns the chart's own
+     edge with .step1RoutePreview::after's right endpoint (right:0, i.e.
+     the movement map's own right edge, the horizontal divider under it). */
+  padding: 0 0 0 30px !important;
 }
 
 .printOption1PreviewStage #pageStep1 .step1TimeBelonging::before,
@@ -2888,11 +2964,18 @@ html.printOption1Mode #pageStep1 .step1TimeBelonging::before {
   display: block !important;
   top: -30px !important;
   height: calc(100% + 30px) !important;
+  opacity: 0.4 !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1EmotionMap::after,
+html.printOption1Mode #pageStep1 .step1EmotionMap::after {
+  opacity: 0.4 !important;
 }
 
 .printOption1PreviewStage #pageStep1 .step1RoutePreview::after,
 html.printOption1Mode #pageStep1 .step1RoutePreview::after {
   right: 0 !important;
+  opacity: 0.4 !important;
 }
 
 html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1TimeBelongingTitle,
@@ -2904,6 +2987,25 @@ html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1TimeBe
 html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1TimeBelongingChart {
   flex: 0 0 calc(100% - 44px) !important;
   width: 100% !important;
+}
+
+/* Axis numbers + "belonging"/"years" legend (text and swatch lines, all
+   .tb-label) -- drawn by _tbDrawDurationCurve() in app.js with an inline
+   fill/stroke of #c3c1b7 and a flat font-size="13" (SVG user units, so it
+   already scales with the chart's own box); overridden here to black and
+   1px bigger, using the same calc(Npx/scale) pattern as the rest of this
+   print layout's text so the size stays consistent across viewports. */
+.printOption1PreviewStage #pageStep1 .step1TimeBelongingChart .tb-label,
+html.printOption1Mode #pageStep1 .step1TimeBelongingChart .tb-label {
+  fill: #000000 !important;
+  stroke: #000000 !important;
+  font-size: calc(13px / var(--step1-scale, 1)) !important;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+}
+
+.printOption1PreviewStage #pageStep1 .step1TimeBelongingChart .tb-line-seg,
+html.printOption1Mode #pageStep1 .step1TimeBelongingChart .tb-line-seg {
+  stroke-width: 0.75 !important;
 }
 
 .printOption1PreviewStage #pageStep1 .step1HomesList,
@@ -2926,16 +3028,33 @@ html.printOption1Mode #pageStep1 .step1HomesListTitle {
   display: none !important;
 }
 
+/* Stats (left) column narrower again -- 460 + 540 + 540 = 1540, still a
+   fixed split shared by every map's option 1 print regardless of address
+   count (see the equal-thirds comment further down for why that
+   "regardless of map" part matters). --print-option1-stats-value-left
+   stays at 278px (label column = 278 - 18px gap = 260px, still fits the
+   longest label, "avarage years in home", which needs ~254px). What's left
+   for the value column is 460 - 18px right pad - 260 - 18px gap = 164px,
+   still comfortably above the widest realistic value (e.g. "15158 km"
+   needs ~110px) -- shrinking the column this much doesn't reintroduce the
+   truncation the earlier 400px version had. */
 .printOption1PreviewStage #pageStep1,
 html.printOption1Mode #pageStep1 {
-  --print-option1-panel-width: 513.333333px;
-  --print-option1-panel-2-left: 513.333333px;
-  --print-option1-panel-3-left: 1026.666667px;
-  --print-option1-two-panel-width: 1026.666667px;
-  --print-option1-stats-value-left: 242px;
+  --print-option1-stats-width: 460px;
+  --print-option1-panel-width: 540px;
+  --print-option1-panel-2-left: 460px;
+  --print-option1-panel-3-left: 1000px;
+  --print-option1-two-panel-width: 1000px;
+  --print-option1-stats-value-left: 278px;
   --print-option1-timeline-left: 206px;
 }
 
+/* Fixed three-way split (stats / emotion map / movement map), unconditionally
+   -- previously .printOption1SingleAddressColumn (5-7 addresses) widened this
+   panel to 740px starting at 280px, breaking the shared layout and leaving a
+   gap before the movement map's own column. Every map option 1 can print
+   (5+ addresses, see isPrintOption1Available()) now gets the same three-way
+   split regardless of address count. */
 .printOption1PreviewStage #pageStep1 .step1EmotionMap,
 .printOption1PreviewStage #pageStep1 .step1EmotionMapTitle,
 html.printOption1Mode #pageStep1 .step1EmotionMap,
@@ -2959,7 +3078,7 @@ html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1RingReading {
 
 html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1RingReading::before,
 html.printOption1ManyAddresses.printOption1Mode #pageStep1 .step1RingReading::before {
-  width: var(--print-option1-panel-width) !important;
+  width: var(--print-option1-stats-width) !important;
 }
 
 .printOption1PreviewStage #pageStep1 .step1TimeBelonging,
@@ -2973,21 +3092,21 @@ html.printOption1Mode #pageStep1 .printOption1Stats {
   display: grid !important;
   position: absolute !important;
   left: 0 !important;
-  top: calc(var(--step1-dashboard-top, 285px) + 40px) !important;
-  width: var(--print-option1-panel-width) !important;
-  height: calc(var(--step1-dashboard-top-section, 486px) - 60px) !important;
+  top: calc(var(--step1-dashboard-top, 285px) + 40px - 79px) !important;
+  width: var(--print-option1-stats-width) !important;
+  height: calc(var(--step1-dashboard-top-section, 486px) - 60px + 79px) !important;
   grid-template-columns: calc(var(--print-option1-stats-value-left, 242px) - 18px) max-content !important;
   align-content: start !important;
   column-gap: 18px !important;
-  row-gap: 10px !important;
+  row-gap: 20px !important;
   padding: 0 18px 0 0 !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
   font-family: "NarkissBlock-Light-TRIAL", sans-serif;
-  font-size: 24px !important;
+  font-size: 27px !important;
   line-height: 1.05 !important;
   color: #000000;
-  text-transform: none;
+  text-transform: lowercase;
   z-index: 10;
 }
 
@@ -3006,7 +3125,7 @@ html.printOption1Mode #pageStep1 .printOption1StatsNameRow .printOption1StatsVal
   display: block !important;
   grid-column: 1 / -1 !important;
   text-align: left !important;
-  font-family: "NarkissBlock-Bold-TRIAL", sans-serif !important;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif !important;
   font-weight: 400 !important;
 }
 
@@ -3023,6 +3142,7 @@ html.printOption1Mode #pageStep1 .printOption1StatsValue {
 .printOption1PreviewStage #pageStep1 .printOption1StatsValue,
 html.printOption1Mode #pageStep1 .printOption1StatsValue {
   text-align: left !important;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
 }
 
 html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1HomesList,
@@ -3312,8 +3432,8 @@ img.postcardCardLogo {
   top: 34px;
   z-index: 2200;
   display: flex;
-  gap: 18px;
-  align-items: baseline;
+  gap: 24px;
+  align-items: flex-start;
 }
 
 #pageAllMaps .allMapsBackBtn {
@@ -4180,14 +4300,17 @@ input[type="reset"]:hover:not(:disabled) {
   height: 100% !important;
 }
 
-/* Step 2: signature label -- sits directly below the top-left logo (not
-   centered), same position/font/size convention as .emotionSignature and
-   .step1EmotionFullscreenName (see each). */
+/* Step 2: signature label -- centered at the top, matching
+   #pageStep1 .step1TopProgress's own on-screen position exactly -- see
+   .emotionSignature's own comment for why this needs the same
+   calc(*var(--step1-scale)) rather than a flat 34px. Same convention as
+   .emotionSignature and .step1EmotionFullscreenName (see each). */
 #pageStep2 .step2Signature {
   position: fixed;
-  left: calc(40px * var(--step1-scale, 1));
+  left: 50%;
   right: auto;
-  top: calc(86px * var(--step1-scale, 1));
+  top: calc(34px * var(--step1-scale, 1));
+  transform: translateX(-50%);
   bottom: auto;
   text-align: left;
   z-index: 2000;
@@ -4321,12 +4444,17 @@ input[type="reset"]:hover:not(:disabled) {
   text-underline-offset: 1px;
 }
 
-/* Step 2: keep header actions consistent (Edit + Save). */
+/* Step 2's own nav row (archive/all maps/about) -- position:absolute so it
+   lands at the same top:34/right:40 every other page's copy of this same
+   row uses, regardless of #pageStep2 .topbar's own padding (36px 42px 0,
+   tuned for other content in that header, not this row). */
 #pageStep2 .step2Actions {
+  position: absolute;
+  top: 34px;
+  right: 40px;
   display: flex;
-  gap: 18px;
-  align-items: baseline;
-  margin-left: auto;
+  gap: 24px;
+  align-items: flex-start;
 }
 
 #pageStep2 .step2Actions .textLink {
@@ -4636,20 +4764,6 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageStep1 .step1TopActionBtn:hover {
   color: #602000;
-}
-
-/* "edit" breaks out of the top-actions row -- dropped down to sit level
-   with the timeline, right-aligned to "all maps" (the row's own right
-   edge, since .step1TopActions is right:40px and "all maps" is its last
-   flex item). Position is relative to .step1TopActions's own box (itself
-   absolutely positioned, so it's a containing block for this), whose top
-   is a fixed 34px -- subtract that from the timeline's own (dynamic, grows
-   with the dashboard) top so the two stay level through the grow/shrink
-   animation too. */
-#pageStep1 #step1EditFinishedBtn {
-  position: absolute;
-  right: 0;
-  top: calc(var(--step1-header-timeline-top, 206px) - 34px);
 }
 
 #pageStep1 .step1FinishedOnlyBtn {
@@ -5373,13 +5487,16 @@ input[type="reset"]:hover:not(:disabled) {
   justify-content: flex-end;
 }
 
-/* Name badge -- sits directly below the top-left logo (not centered), same
-   position/font/size convention as .step2Signature and .emotionSignature
-   (see each). */
+/* Name badge -- centered at the top, matching #pageStep1 .step1TopProgress's
+   own on-screen position exactly -- see .emotionSignature's own comment for
+   why this needs the same calc(*var(--step1-scale)) rather than a flat
+   34px. Same convention as .step2Signature and .emotionSignature (see
+   each). */
 #pageStep1EmotionFullscreen .step1EmotionFullscreenName {
   position: absolute;
-  top: calc(86px * var(--step1-scale, 1));
-  left: calc(40px * var(--step1-scale, 1));
+  top: calc(34px * var(--step1-scale, 1));
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 2001;
   color: #000000;
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
@@ -6825,8 +6942,7 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1.step1-dashboard-animating .step1MovementMapTitleCenter,
 #pageStep1.step1-dashboard-animating .step1HomesListTitle,
 #pageStep1.step1-dashboard-animating .step1MoveFrequencyLabel,
-#pageStep1.step1-dashboard-animating .step1JourneyTimeline,
-#pageStep1.step1-dashboard-animating #step1EditFinishedBtn {
+#pageStep1.step1-dashboard-animating .step1JourneyTimeline {
   transition: top 0.75s ease, height 0.75s ease;
 }
 
