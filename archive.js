@@ -52,7 +52,10 @@ function createArchiveMiniMapSvg(snapshot) {
   // Because our thumbnails are SVG with a viewBox, we store these as
   // "base px" values on elements and convert them to viewBox units at runtime
   // (see attachArchiveThumbInteractions).
-  const ARCHIVE_LINE_PX = 1;
+  const ARCHIVE_LINE_PX = 0.55;
+  const ARCHIVE_LINE_OPACITY = 0.9;
+  const ARCHIVE_LINE_SOFT_PX = 1.4;
+  const ARCHIVE_LINE_SOFT_OPACITY = 0.18;
   // Match Leaflet styling used elsewhere in the app:
   // radius = innerRadius + rate/2, stroke weight = rate.
   const ARCHIVE_CIRCLE_INNER_RADIUS_PX = 3;
@@ -171,20 +174,23 @@ function createArchiveMiniMapSvg(snapshot) {
   const clampToView = !useIsraelViewport;
   const clamp = (v) => (clampToView ? Math.max(0, Math.min(100, v)) : v);
 
-  const poly = document.createElementNS(NS, "polyline");
-  poly.setAttribute(
-    "points",
-    projected
-      .map((p) => `${clamp(p.x).toFixed(2)},${clamp(p.y).toFixed(2)}`)
-      .join(" ")
-  );
-  poly.setAttribute("fill", "none");
-  poly.setAttribute("stroke", "#000000");
-  poly.dataset.baseStrokePx = String(ARCHIVE_LINE_PX);
-  poly.setAttribute("stroke-width", "1");
-  poly.setAttribute("stroke-linecap", "round");
-  poly.setAttribute("stroke-linejoin", "round");
-  svg.appendChild(poly);
+  const routePoints = projected
+    .map((p) => `${clamp(p.x).toFixed(2)},${clamp(p.y).toFixed(2)}`)
+    .join(" ");
+  const appendRouteLayer = (strokePx, opacity) => {
+    const poly = document.createElementNS(NS, "polyline");
+    poly.setAttribute("points", routePoints);
+    poly.setAttribute("fill", "none");
+    poly.setAttribute("stroke", "#000000");
+    poly.setAttribute("stroke-opacity", String(opacity));
+    poly.dataset.baseStrokePx = String(strokePx);
+    poly.setAttribute("stroke-width", "1");
+    poly.setAttribute("stroke-linecap", "round");
+    poly.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(poly);
+  };
+  appendRouteLayer(ARCHIVE_LINE_SOFT_PX, ARCHIVE_LINE_SOFT_OPACITY);
+  appendRouteLayer(ARCHIVE_LINE_PX, ARCHIVE_LINE_OPACITY);
 
   for (const p of projected) {
     const rate = normalizeBelongingRate(p.rate, 5);
