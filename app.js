@@ -306,7 +306,12 @@ const MP3_NEW_SOUNDS = {
 const EMOTION_ENTRY_SOUND_ENABLED = true;
 // Per-ring loop volume for the entry-phase sound above (see activateEmotionRing()) —
 // applies only to those "mp3/new/" ring-loop files, not the tick layer.
-const EMOTION_ENTRY_RING_VOLUME = 0.95;
+const EMOTION_ENTRY_RING_VOLUME = 1;
+const EMOTION_ENTRY_RING_INPUT_GAIN = 2;
+// Master lift for continuous ring loops after all map/ring sound rules are
+// applied. Tick one-shots have their own untouched volume path.
+const EMOTION_RING_LOOP_VOLUME_MULT = 1.3;
+const EMOTION_RING_LOOP_OUTPUT_GAIN = 1.7;
 const EMOTION_SOLO_SOUND_ENABLED = true;
 const EMOTION_SOUND_ENABLED = false;
 
@@ -350,6 +355,8 @@ const EMOTION_SOUND_CONFIG = {
 let _emotionTickCtx = null;
 let _emotionTickBuffers = null;
 let _emotionTickBufferPromises = null;
+let _emotionLoopOutputGainNode = null;
+let _emotionLoopOutputLimiterNode = null;
 let _emotionTickTimeouts = null;
 
 let _emotionLoopBuffers = null;
@@ -359,28 +366,6 @@ let _emotionRingFocusIndex = null;
 let pendingEmotionSoloRingSnapshot = null;
 let pendingEmotionSoloTargetRingSizePx = null;
 let pendingEmotionSoloShapeParams = null;
-
-// Viewport rect (+ color/stroke) of the ring-reading path the user clicked to
-// enter solo, captured while Step 1 is still on screen. Reused as the landing
-// target when leaving solo, so the ring "flies" directly between the two
-// pages instead of animating in place on whichever page is currently shown.
-let _emotionSoloOriginRect = null;
-let _emotionSoloOriginColor = null;
-let _emotionSoloOriginStrokeWidthPx = null;
-// The ring-reading path's own `d` + a viewBox fit to its local bounding box,
-// so the fly overlay can render the ring's true (distorted) shape instead of
-// approximating it as a circle.
-let _emotionSoloOriginPathD = null;
-let _emotionSoloOriginViewBox = null;
-// Stroke width in the *same* local/viewBox units as _emotionSoloOriginViewBox
-// above (not screen px like _emotionSoloOriginStrokeWidthPx) -- this is what
-// the fly overlay's own path actually needs, since its stroke scales with the
-// viewBox-to-viewport ratio rather than staying a fixed screen size. Reusing
-// _emotionSoloOriginStrokeWidthPx there would mix screen-px and local-unit
-// magnitudes (which aren't the same scale), rendering the stroke far too
-// thin throughout the flight and popping to the right width only once the
-// real ring takes over.
-let _emotionSoloOriginLocalStrokeWidth = null;
 
 // Solo alignment anchor: derived fraction of the emotion SVG width.
 // This keeps the focused ring's right-edge alignment consistent across maps/layouts.
@@ -394,12 +379,7 @@ let _emotionSoloRightEdgeTargetFrac = null;
 let _emotionSoloReturnToStep1FullscreenSpread = false;
 let _emotionSoloReturnToStep2 = false;
 
-// Builds an _emotionSoloOriginRect-shaped origin (+ shape params) directly
-// from a currently-rendered fullscreen-emotion-map ring element, so the fly
-// animation into the solo page starts from wherever that ring actually is on
-// screen right now (e.g. its spread-out position) instead of always
-// re-measuring Step 1's own (separate, often hidden) ring-reading panel --
-// see openEmotionMapSoloFromStep1RingReading()'s originOverride parameter.
+// Captures the selected ring's shape and size for the solo page.
 function buildEmotionSoloOriginFromRingEl(ring, idx) {
   if (!ring) return null;
   try {
@@ -477,127 +457,6 @@ function getEmotionRingsStateFromSvg() {
   };
 }
 
-// A stand-in for a ring while it "flies" between Step 1's ring-reading panel
-// and its solo spot on the Emotion page. The real ring/rings stay hidden for
-// the duration; only this overlay moves, so the whole transition reads as one
-// continuous motion bridging the two pages instead of two separate
-// animations (page switch, then ring settling).
-//
-// It renders the ring's *actual* (mildly distorted) path — the same `d` the
-// ring-reading path used — inside a small SVG sized to that path's own
-// bounding box, with preserveAspectRatio="xMidYMid meet" so the shape scales
-// uniformly and never distorts into a circle or an ellipse as the container
-// resizes. The stroke has no vector-effect="non-scaling-stroke", so its
-// on-screen width scales right along with the viewBox-to-viewport ratio as
-// the wrapper's CSS width/height animate — the stroke grows/shrinks in
-// proportion to the ring itself, not just the overall size.
-function createEmotionRingFlyOverlay(rect, opts) {
-  try {
-    if (!rect || !(rect.width > 0) || !(rect.height > 0)) return null;
-    const o = opts && typeof opts === "object" ? opts : {};
-
-    const wrap = document.createElement("div");
-    wrap.className = "emotionRingFlyOverlay";
-    wrap.style.position = "fixed";
-    wrap.style.left = `${rect.left}px`;
-    wrap.style.top = `${rect.top}px`;
-    wrap.style.width = `${rect.width}px`;
-    wrap.style.height = `${rect.height}px`;
-    wrap.style.margin = "0";
-    wrap.style.pointerEvents = "none";
-    wrap.style.zIndex = "99999";
-    wrap.style.overflow = "visible";
-
-    if (o.pathD && o.viewBox) {
-      const svgNS = "http://www.w3.org/2000/svg";
-      const svg = document.createElementNS(svgNS, "svg");
-      svg.setAttribute("viewBox", o.viewBox);
-      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-      svg.style.width = "100%";
-      svg.style.height = "100%";
-      svg.style.overflow = "visible";
-      svg.style.display = "block";
-
-      const path = document.createElementNS(svgNS, "path");
-      path.setAttribute("d", o.pathD);
-      path.setAttribute("fill", "none");
-      path.setAttribute("stroke", o.color || "#111827");
-      // This overlay's path has no non-scaling-stroke (see comment above), so
-      // its stroke scales with the viewBox-to-viewport ratio -- stroke-width
-      // here must be expressed in the *same* local/viewBox units as
-      // `d`/viewBox (o.localStrokeWidth, computed from the same source
-      // element's own attributes the viewBox's padding was), not o.strokeWidth
-      // (a screen-px value from a *different* coordinate system -- the source
-      // SVG's own render scale, unrelated to this cropped viewBox's scale).
-      // Using the screen-px value here rendered the stroke far too thin
-      // throughout the whole flight, only jumping to the correct width once
-      // the real ring (scaled independently in applyEmotionRingFocusVisuals)
-      // took over at the end. Falls back to o.strokeWidth as-is only if a
-      // caller doesn't provide the local value.
-      const localStrokeWidth = Number.isFinite(Number(o.localStrokeWidth)) && Number(o.localStrokeWidth) > 0
-        ? Number(o.localStrokeWidth)
-        : Math.max(0.5, Number(o.strokeWidth) || 2);
-      path.setAttribute("stroke-width", String(Math.max(0.01, localStrokeWidth)));
-      svg.appendChild(path);
-      wrap.appendChild(svg);
-    } else {
-      // Fallback: a plain circle, only used if we couldn't capture the real path.
-      wrap.style.borderRadius = "50%";
-      wrap.style.boxSizing = "border-box";
-      wrap.style.border = `${Math.max(1, Number(o.strokeWidth) || 2)}px solid ${o.color || "#111827"}`;
-      wrap.style.background = "transparent";
-    }
-
-    document.body.appendChild(wrap);
-    return wrap;
-  } catch {
-    return null;
-  }
-}
-
-function flyEmotionRingOverlayTo(overlay, toRect, durationMs) {
-  return new Promise((resolve) => {
-    if (!overlay || !toRect) {
-      resolve();
-      return;
-    }
-    try {
-      void overlay.offsetWidth; // Force layout so the start rect is registered before animating.
-      requestAnimationFrame(() => {
-        try {
-          // No separate stroke-width animation needed here — the inner
-          // path's stroke (no non-scaling-stroke, see createEmotionRingFlyOverlay)
-          // scales automatically as this wrapper's width/height transition
-          // changes the SVG's viewBox-to-viewport ratio.
-          overlay.style.transition = [
-            `left ${durationMs}ms cubic-bezier(0.22, 1, 0.36, 1)`,
-            `top ${durationMs}ms cubic-bezier(0.22, 1, 0.36, 1)`,
-            `width ${durationMs}ms cubic-bezier(0.22, 1, 0.36, 1)`,
-            `height ${durationMs}ms cubic-bezier(0.22, 1, 0.36, 1)`,
-          ].join(", ");
-          overlay.style.left = `${toRect.left}px`;
-          overlay.style.top = `${toRect.top}px`;
-          overlay.style.width = `${toRect.width}px`;
-          overlay.style.height = `${toRect.height}px`;
-        } catch {
-          // ignore
-        }
-      });
-    } catch {
-      // ignore
-    }
-    setTimeout(resolve, Math.max(0, Number(durationMs) || 0) + 30);
-  });
-}
-
-function removeEmotionRingFlyOverlay(overlay) {
-  try {
-    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
-  } catch {
-    // ignore
-  }
-}
-
 function applyEmotionRingFocusVisuals(focusIdx, options) {
   const opts = options && typeof options === "object" ? options : {};
   // When a fly-overlay transition is driving the visible motion (see
@@ -657,12 +516,12 @@ function applyEmotionRingFocusVisuals(focusIdx, options) {
   try {
     const r0 = rings[idx];
     if (r0) {
-      const rect = r0.getBoundingClientRect();
       const text = ringReadingTextForRingEl(r0, idx);
       const x = targetSoloTextXForPage();
-      // Keep all the "additional" text (HOME/ADDRESS/ATTACHMENT/EMOTIONAL) anchored
-      // to the previous layout baseline, even if we move RING READING itself.
-      const yLayout = (rect.top + rect.height / 2) - 190;
+      // Distorted rings have asymmetric bounding boxes, so their visual bbox
+      // centers vary by ring and while breathing. Anchor every details view
+      // to the map's fixed geometric center instead.
+      const yLayout = (Math.max(1, Number(window.innerHeight) || 1) * 0.5) - 190;
       const yReading = yLayout + 35;
 
       const readingRectLayout = showEmotionRingReading(text, x, yLayout, { reveal: false });
@@ -862,11 +721,8 @@ function applyEmotionRingFocusVisuals(focusIdx, options) {
     }
   };
 
-  // No longer pins stroke-width to a fixed value while focused -- see
-  // applySoloVisualScaleMetadata's comment just below: the ring's stroke now
-  // scales proportionally with its own solo scale() transform instead, so
-  // there's nothing left to re-enforce here. Kept as a no-op (rather than
-  // removing its call sites) since it's called from a few places below.
+  // The focused ring keeps non-scaling-stroke, so its line weight remains
+  // fixed while its geometry is enlarged and animated.
   const enforceSoloBaseStrokeWidth = () => {};
 
   const snapFocusedRingToTarget = (ringEl, hitEl, scale) => {
@@ -906,23 +762,14 @@ function applyEmotionRingFocusVisuals(focusIdx, options) {
   let focusDx = null;
   const focusScale = soloScaleForRing(rings[idx]);
 
-  // Rings normally render with vector-effect="non-scaling-stroke" so their
-  // stroke stays a fixed on-screen width regardless of ambient container
-  // scaling elsewhere in the app. The solo-focused ring is the one exception:
-  // it's meant to visibly grow/shrink via its own scale() transform below, and
-  // its stroke should grow/shrink right along with it -- so this removes
-  // non-scaling-stroke just for this ring while focused, letting the
-  // transform's scale factor proportionally scale the rendered stroke width
-  // the same way it scales the ring's geometry. (Still records
-  // __lpSoloBaseStrokeWidth/__lpSoloVisualScale -- the breathing loop and
-  // amplitude compensation elsewhere still read these.)
+  // Scale solo geometry without scaling its line weight.
   const applySoloVisualScaleMetadata = (ringEl, hitEl, scale) => {
     const s = Math.max(0.2, Number(scale) || 1);
     if (!(s > 0)) return;
     try {
       const baseSw = Number(ringEl.__lpSoloBaseStrokeWidth || ringEl.getAttribute("stroke-width"));
       if (Number.isFinite(baseSw) && baseSw > 0) ringEl.__lpSoloBaseStrokeWidth = baseSw;
-      ringEl.removeAttribute("vector-effect");
+      ringEl.setAttribute("vector-effect", "non-scaling-stroke");
       ringEl.__lpSoloVisualScale = s;
     } catch {
       // ignore
@@ -930,7 +777,7 @@ function applyEmotionRingFocusVisuals(focusIdx, options) {
     try {
       const baseHitSw = Number(hitEl.__lpSoloBaseStrokeWidth || hitEl.getAttribute("stroke-width"));
       if (Number.isFinite(baseHitSw) && baseHitSw > 0) hitEl.__lpSoloBaseStrokeWidth = baseHitSw;
-      hitEl.removeAttribute("vector-effect");
+      hitEl.setAttribute("vector-effect", "non-scaling-stroke");
       hitEl.__lpSoloVisualScale = s;
     } catch {
       // ignore
@@ -1131,8 +978,6 @@ function applyEmotionRingFocusVisuals(focusIdx, options) {
 
 let pendingEmotionSoloFocusIndex = null;
 
-const EMOTION_SOLO_FLY_MS = 900;
-
 function applyPendingEmotionSoloFocus() {
   const idx = Number(pendingEmotionSoloFocusIndex);
   pendingEmotionSoloFocusIndex = null;
@@ -1140,17 +985,11 @@ function applyPendingEmotionSoloFocus() {
   pendingEmotionSoloRingSnapshot = null;
   try {
     _emotionRingFocusIndex = Math.max(0, Math.floor(idx));
-    const originRect = _emotionSoloOriginRect;
     applyEmotionRingFocusVisuals(_emotionRingFocusIndex, {
-      instant: Boolean(originRect),
-      hideFocusedInitially: Boolean(originRect),
+      instant: true,
+      hideFocusedInitially: false,
     });
 
-    // Sound switches to solo-only *immediately* — not gated behind the fly
-    // overlay animation below, which can run for the better part of a
-    // second. setEmotionSoundFocus() only matters once the ambient "whole
-    // map" system is turned on; startEmotionSoundForSoloRing() is what
-    // actually plays anything right now — just this one ring's own sound.
     try {
       setEmotionSoundFocus(_emotionRingFocusIndex);
       startEmotionSoundForSoloRing(_emotionRingFocusIndex);
@@ -1158,61 +997,127 @@ function applyPendingEmotionSoloFocus() {
       // ignore
     }
 
-    // Breathing (visual) still waits until the ring actually becomes
-    // visible, so its continuous geometry animation can't drift the ring's
-    // size away from what the fly overlay displayed while it was hidden —
-    // this is purely a visual concern, decoupled from sound above.
-    const startPlaybackNow = () => {
-      try {
-        const armed = _emotionBreathArmedOpts;
-        if (armed) {
-          disarmEmotionBreathing();
-          startEmotionBreathing(armed);
-        }
-      } catch {
-        // ignore
-      }
-    };
-
-    if (originRect) {
-      const state = getEmotionRingsStateFromSvg();
-      const ringEl = state && state.rings ? state.rings[_emotionRingFocusIndex] : null;
-      const destRect = ringEl && typeof ringEl.getBoundingClientRect === "function"
-        ? ringEl.getBoundingClientRect()
-        : null;
-      const reveal = () => {
-        try {
-          if (ringEl && ringEl.style) ringEl.style.opacity = "1";
-        } catch {
-          // ignore
-        }
-        startPlaybackNow();
-      };
-      if (destRect && destRect.width > 0 && destRect.height > 0) {
-        const overlay = createEmotionRingFlyOverlay(originRect, {
-          color: _emotionSoloOriginColor,
-          strokeWidth: _emotionSoloOriginStrokeWidthPx,
-          localStrokeWidth: _emotionSoloOriginLocalStrokeWidth,
-          pathD: _emotionSoloOriginPathD,
-          viewBox: _emotionSoloOriginViewBox,
-        });
-        if (overlay) {
-          flyEmotionRingOverlayTo(overlay, destRect, EMOTION_SOLO_FLY_MS).then(() => {
-            reveal();
-            removeEmotionRingFlyOverlay(overlay);
-          });
-        } else {
-          reveal();
-        }
-      } else {
-        reveal();
-      }
-    } else {
-      startPlaybackNow();
+    const armed = _emotionBreathArmedOpts;
+    if (armed) {
+      disarmEmotionBreathing();
+      startEmotionBreathing(armed);
     }
+    renderEmotionSoloRingReadingStrip();
   } catch {
     // ignore
   }
+}
+
+function layoutEmotionSoloRingReadingStrip(host) {
+  if (!host) return;
+  const rings = Array.from(host.querySelectorAll("svg[data-emotion-solo-reading-index]"));
+  if (!rings.length || host.clientWidth <= 0 || host.clientHeight <= 0) return;
+
+  const sourceSizes = rings.map((ring) => Math.max(1, Number(ring.getAttribute("data-emotion-solo-source-size")) || 1));
+  const sourceTotal = sourceSizes.reduce((sum, size) => sum + size, 0);
+  const sourceMax = Math.max(...sourceSizes);
+  const gap = Number.parseFloat(getComputedStyle(host).columnGap) || 0;
+  const widthForRings = Math.max(1, host.clientWidth - gap * Math.max(0, rings.length - 1));
+  const editorScale = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--step1-scale")) || 1;
+  const scale = Math.min(
+    editorScale,
+    widthForRings / sourceTotal,
+    (host.clientHeight * 0.8) / sourceMax
+  );
+
+  rings.forEach((ring, ringIndex) => {
+    const renderedSize = sourceSizes[ringIndex] * scale;
+    ring.style.width = `${renderedSize}px`;
+    ring.style.height = `${renderedSize}px`;
+  });
+}
+
+let _emotionSoloRingReadingBreathRaf = 0;
+
+function stopEmotionSoloRingReadingBreathing() {
+  if (!_emotionSoloRingReadingBreathRaf) return;
+  cancelAnimationFrame(_emotionSoloRingReadingBreathRaf);
+  _emotionSoloRingReadingBreathRaf = 0;
+}
+
+function startEmotionSoloRingReadingBreathing(host) {
+  stopEmotionSoloRingReadingBreathing();
+  if (!host) return;
+
+  const breathe = () => {
+    if (!host.isConnected || !elPageEmotion || elPageEmotion.classList.contains("hidden")) {
+      _emotionSoloRingReadingBreathRaf = 0;
+      return;
+    }
+
+    host.querySelectorAll("svg[data-emotion-solo-reading-index]").forEach((ring) => {
+      const sourcePath = ring.__lpSoloReadingSourcePath;
+      const visualPath = ring.querySelector("[data-step1-ring-reading-path]");
+      if (!sourcePath || !visualPath) return;
+      const d = sourcePath.getAttribute("d");
+      if (!d) return;
+      visualPath.setAttribute("d", d);
+      const hitPath = ring.querySelector("[data-step1-ring-reading-hit]");
+      if (hitPath) hitPath.setAttribute("d", d);
+    });
+
+    _emotionSoloRingReadingBreathRaf = requestAnimationFrame(breathe);
+  };
+
+  _emotionSoloRingReadingBreathRaf = requestAnimationFrame(breathe);
+}
+
+function renderEmotionSoloRingReadingStrip() {
+  const host = document.getElementById("emotionSoloRingReadingStrip");
+  if (!host) return;
+  stopEmotionSoloRingReadingBreathing();
+  host.replaceChildren();
+  if (!elStep1RingReadingContent) return;
+
+  if (!host.__lpRingSelectionArmed) {
+    host.__lpRingSelectionArmed = true;
+    const selectRing = (target) => {
+      const ring = target && typeof target.closest === "function"
+        ? target.closest("svg[data-emotion-solo-reading-index]")
+        : null;
+      if (!ring || !host.contains(ring)) return;
+      const ringIndex = Number(ring.getAttribute("data-emotion-solo-reading-index"));
+      if (!Number.isFinite(ringIndex) || ringIndex === _emotionRingFocusIndex) return;
+      openEmotionMapSoloFromStep1RingReading(ringIndex);
+    };
+    host.addEventListener("click", (event) => selectRing(event.target));
+    host.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      selectRing(event.target);
+    });
+    if (typeof ResizeObserver === "function") {
+      host.__lpRingReadingResizeObserver = new ResizeObserver(() => layoutEmotionSoloRingReadingStrip(host));
+      host.__lpRingReadingResizeObserver.observe(host);
+    }
+  }
+
+  const sourceRings = elStep1RingReadingContent.querySelectorAll(":scope > svg");
+  sourceRings.forEach((source, ringIndex) => {
+    const ring = source.cloneNode(true);
+    const selected = ringIndex === _emotionRingFocusIndex;
+    const sourceSize = Math.max(1, Number(source.getAttribute("width")) || Number(source.getAttribute("height")) || 1);
+    ring.removeAttribute("style");
+    ring.setAttribute("data-emotion-solo-reading-index", String(ringIndex));
+    ring.setAttribute("data-emotion-solo-source-size", String(sourceSize));
+    ring.setAttribute("role", "button");
+    ring.setAttribute("tabindex", "0");
+    ring.setAttribute("aria-label", `Show details for home ${String(ringIndex + 1).padStart(2, "0")}`);
+    ring.setAttribute("aria-pressed", selected ? "true" : "false");
+    ring.__lpSoloReadingSourcePath = source.querySelector("[data-step1-ring-reading-path]");
+    ring.querySelectorAll("[data-step1-ring-reading-path]").forEach((path) => {
+      path.setAttribute("stroke", selected ? "#000000" : "#c3c1b7");
+    });
+    host.appendChild(ring);
+  });
+  layoutEmotionSoloRingReadingStrip(host);
+  requestAnimationFrame(() => layoutEmotionSoloRingReadingStrip(host));
+  startEmotionSoloRingReadingBreathing(host);
 }
 
 function applyPendingEmotionSoloRingSnapshot(idx) {
@@ -1362,6 +1267,7 @@ function createEmotionLoopAudio(src, initialVolume) {
     audio.preload = "auto";
     audio.loop = true;
     audio.volume = initialVolume;
+    routeEmotionHtmlLoopToOutput(audio);
     // Desync loops slightly so they don't feel phase-locked.
     audio.addEventListener("loadedmetadata", () => {
       try {
@@ -1383,7 +1289,7 @@ function createEmotionLoopAudio(src, initialVolume) {
 // options: { rates, ringHomeNums, phis }, one entry per ring, in ring-index order.
 function startEmotionSound(options) {
   stopEmotionSound(); // fresh session whenever the map's rings are (re)built
-  if (!EMOTION_SOUND_ENABLED) return;
+  if (!EMOTION_SOUND_ENABLED && !options?.forceSound) return;
 
   const rates = Array.isArray(options && options.rates) ? options.rates : [];
   const ringHomeNums = Array.isArray(options && options.ringHomeNums) ? options.ringHomeNums : [];
@@ -1392,7 +1298,7 @@ function startEmotionSound(options) {
 
   const innerCount = Math.max(1, Math.ceil(n * EMOTION_SOUND_CONFIG.innerFraction));
   const mapVolume = computeEmotionMapVolume(rates);
-  const perRingVolume = clamp(mapVolume / Math.sqrt(n), 0, 1);
+  const perRingVolume = clamp((mapVolume / Math.sqrt(n)) * EMOTION_RING_LOOP_VOLUME_MULT, 0, 1);
 
   void primeMp3NewManifest({ force: false });
   const srcByIndex = computeEmotionLoopSrcAssignmentsForMap({
@@ -1591,6 +1497,47 @@ function ensureEmotionAudioReady() {
   return ctx;
 }
 
+function ensureEmotionLoopOutputNode() {
+  const ctx = ensureEmotionTickContext();
+  if (!ctx) return null;
+  if (_emotionLoopOutputGainNode) return _emotionLoopOutputGainNode;
+  try {
+    const gain = ctx.createGain();
+    const limiter = ctx.createDynamicsCompressor();
+    gain.gain.setValueAtTime(EMOTION_RING_LOOP_OUTPUT_GAIN, ctx.currentTime);
+    limiter.threshold.setValueAtTime(-3, ctx.currentTime);
+    limiter.knee.setValueAtTime(6, ctx.currentTime);
+    limiter.ratio.setValueAtTime(8, ctx.currentTime);
+    limiter.attack.setValueAtTime(0.003, ctx.currentTime);
+    limiter.release.setValueAtTime(0.18, ctx.currentTime);
+    gain.connect(limiter);
+    limiter.connect(ctx.destination);
+    _emotionLoopOutputGainNode = gain;
+    _emotionLoopOutputLimiterNode = limiter;
+    return gain;
+  } catch {
+    return null;
+  }
+}
+
+function routeEmotionHtmlLoopToOutput(audio, inputGainMult = 1) {
+  if (!(audio instanceof HTMLAudioElement) || audio.__lpLoopOutputSource) return;
+  const ctx = ensureEmotionTickContext();
+  const output = ensureEmotionLoopOutputNode();
+  if (!ctx || !output) return;
+  try {
+    const source = ctx.createMediaElementSource(audio);
+    const inputGain = ctx.createGain();
+    inputGain.gain.setValueAtTime(Math.max(0, Number(inputGainMult) || 1), ctx.currentTime);
+    source.connect(inputGain);
+    inputGain.connect(output);
+    audio.__lpLoopOutputSource = source;
+    audio.__lpLoopInputGain = inputGain;
+  } catch {
+    // The element continues through its normal output if routing is unavailable.
+  }
+}
+
 function ensureEmotionLoopBuffersState() {
   if (!_emotionLoopBuffers) _emotionLoopBuffers = Object.create(null);
   if (!_emotionLoopBufferPromises) _emotionLoopBufferPromises = Object.create(null);
@@ -1674,7 +1621,7 @@ function createEmotionWebAudioLoopPlayer({ src, buffer, startOffsetSec, initialV
         nodeSource.buffer = buffer;
         nodeSource.loop = true;
         nodeSource.connect(nodeGain);
-        nodeGain.connect(ctx.destination);
+        nodeGain.connect(ensureEmotionLoopOutputNode() || ctx.destination);
 
         const dur = Math.max(0, Number(buffer.duration) || 0);
         const off = dur > 0 ? (startOffset % dur) : 0;
@@ -2033,7 +1980,7 @@ function formatRawCountriesForAddresses(items) {
   return countries.length ? countries.join(", ") : "--";
 }
 
-function formatRawCitiesForAddresses(items) {
+function getRawCitiesForAddresses(items) {
   const list = Array.isArray(items) ? items : [];
   const cities = [];
   for (const item of list) {
@@ -2042,7 +1989,26 @@ function formatRawCitiesForAddresses(items) {
     if (!city) continue;
     if (cities[cities.length - 1] !== city) cities.push(city);
   }
+  return cities;
+}
+
+function formatRawCitiesForAddresses(items) {
+  const cities = getRawCitiesForAddresses(items);
   return cities.length ? cities.join(", ") : "--";
+}
+
+function setExpandCitiesValue(valueEl, cities) {
+  const list = Array.isArray(cities) ? cities : [];
+  valueEl.classList.add("expandCitiesValue");
+  list.forEach((city, index) => {
+    const cityEl = document.createElement("span");
+    cityEl.className = "expandCityValue";
+    cityEl.textContent = String(city);
+    valueEl.appendChild(cityEl);
+    if (index >= list.length - 1) return;
+    if ((index + 1) % 5 === 0) valueEl.appendChild(document.createElement("br"));
+    else valueEl.appendChild(document.createTextNode(", "));
+  });
 }
 
 function confirmArchiveMapRemoval(snapshot) {
@@ -3298,7 +3264,6 @@ function prepareAllMapsFocusForCurrentMap() {
   allMapsPendingFocusKey = key || null;
   allMapsPendingRestoreView = null;
   allMapsViewBeforeHighlightFocus = null;
-  setAllMapsListVisible(true);
   return Boolean(key);
 }
 
@@ -4812,8 +4777,6 @@ function armEmotionHomeHoverTooltips() {
   };
 }
 
-const elCreateLifePathTransition = document.getElementById("createLifePathTransition");
-
 const elToast = document.getElementById("toast");
 
 let toastHideTimer = 0;
@@ -4877,6 +4840,7 @@ function resetStep1HouseList() {
   // them, so both need an explicit clear (homesCount used to be cleared
   // implicitly by the form reset when it was still inside the form).
   if (elHomesCount) elHomesCount.value = "";
+  clearStep1MapCreatedOnce();
   if (elPageStep1) elPageStep1.classList.remove("step1-finished-state");
   step1DashboardGrown = false;
 
@@ -5019,15 +4983,6 @@ function showToast(text, ms = 1800) {
 // (or click Save) before the map appears in the Archive.
 let autoSaveAfterStep2OpenAt100 = false;
 
-let createLifePathTransitionActive = false;
-
-function showCreateLifePathTransition(show) {
-  if (!elCreateLifePathTransition) return;
-  const on = Boolean(show);
-  elCreateLifePathTransition.classList.toggle("hidden", !on);
-  elCreateLifePathTransition.setAttribute("aria-hidden", on ? "false" : "true");
-}
-
 const elSavedMapsList = document.getElementById("savedMapsList");
 const elSavedMapsEmpty = document.getElementById("savedMapsEmpty");
 
@@ -5037,9 +4992,7 @@ const elAllMapsEditBtn = document.getElementById("allMapsEditBtn");
 const elAllMapsCountLabel = document.getElementById("allMapsCountLabel");
 const elAllMapsZoomLabel = document.getElementById("allMapsZoomLabel");
 const elAllMapsSearchInput = document.getElementById("allMapsSearchInput");
-const elAllMapsSearchWrap = document.querySelector("#pageAllMaps .allMapsSearchWrap");
-const elAllMapsListToggleBtn = document.getElementById("allMapsListToggleBtn");
-const elAllMapsYearToggleBtn = document.getElementById("allMapsYearToggleBtn");
+const elAllMapsTimelineToggleBtn = document.getElementById("allMapsTimelineToggleBtn");
 const elAllMapsYearControls = document.getElementById("allMapsYearControls");
 const elAllMapsYearSlider = document.getElementById("allMapsYearSlider");
 const elAllMapsYearSliderValue = document.getElementById("allMapsYearSliderValue");
@@ -5106,6 +5059,20 @@ function updateCreateLifePathButtonState() {
 // false whenever the finished map is left (the state-reset helper near
 // stopStep1EntrySound()).
 let step1DashboardGrown = false;
+let step1MapCreatedOnceTimer = 0;
+
+function clearStep1MapCreatedOnce() {
+  if (step1MapCreatedOnceTimer) window.clearTimeout(step1MapCreatedOnceTimer);
+  step1MapCreatedOnceTimer = 0;
+  if (elPageStep1) elPageStep1.classList.remove("step1-map-created-once");
+}
+
+function showStep1MapCreatedOnce() {
+  clearStep1MapCreatedOnce();
+  if (!elPageStep1) return;
+  elPageStep1.classList.add("step1-map-created-once");
+  step1MapCreatedOnceTimer = window.setTimeout(clearStep1MapCreatedOnce, 6400);
+}
 
 function updateStep1Scale() {
   const DESIGN_W = 1920;
@@ -5194,6 +5161,7 @@ function updateStep1Scale() {
   document.documentElement.style.setProperty("--step1-scale", String(scale));
   document.documentElement.style.setProperty("--step1-offset-x", `${offsetX}px`);
   document.documentElement.style.setProperty("--step1-offset-y", `${offsetY}px`);
+  document.documentElement.style.setProperty("--step1-map-name-x", `${window.innerWidth / (2 * scale)}px`);
   document.documentElement.style.setProperty("--step1-dashboard-top", `${dashboardTop}px`);
   document.documentElement.style.setProperty("--step1-dashboard-height", `${dashboardHeight}px`);
   document.documentElement.style.setProperty("--step1-dashboard-top-section", `${dashboardTopSection}px`);
@@ -5666,6 +5634,7 @@ function showPage(which, opts) {
   // Leaving Step 1 for any other page -- see _step1SkipEmotionRebuildOnce's
   // own comment for why this is always safe to skip on the way back.
   if (pageKey !== "step1" && elPageStep1 && !elPageStep1.classList.contains("hidden")) {
+    clearStep1MapCreatedOnce();
     _step1SkipEmotionRebuildOnce = true;
   }
 
@@ -5969,6 +5938,12 @@ function findReviewMapFromRefreshMarker(marker) {
 }
 
 function restoreReviewMapAfterRefresh() {
+  // Archive and All Maps are explicit durable destinations. A previously
+  // opened review map may still have a session marker, but it must not
+  // override either page during startup or the async server restore pass.
+  const currentPage = window.history?.state?.lifepathPage;
+  if (currentPage === "archive" || currentPage === "allmaps") return false;
+
   let marker = null;
   try {
     marker = JSON.parse(sessionStorage.getItem(REVIEW_MAP_SESSION_KEY) || "null");
@@ -6091,6 +6066,8 @@ function forceStep2OpenFitToAddressesSoon(triesLeft = 200) {
 function loadSavedMapSnapshotIntoEditingState(snapshot, archiveDisplayName = "") {
   if (!snapshot) return;
   cancelStep1AddressAsyncWork();
+  stopStep1EntrySound();
+  stopEmotionSoundForSoloRing();
 
   // Track which saved map is being edited so re-saving updates in place.
   try {
@@ -6140,7 +6117,10 @@ function loadSavedMapSnapshotIntoEditingState(snapshot, archiveDisplayName = "")
   // tuning constants have since changed (see renderStep1EmotionMap()'s own
   // frozenLayout handling). Falls back to a normal live render for maps
   // saved before this existed.
-  renderStep1EmotionMap({ frozenLayout: snapshot.emotionLayoutSnapshot || null });
+  renderStep1EmotionMap({
+    frozenLayout: snapshot.emotionLayoutSnapshot || null,
+    forceSound: true,
+  });
   updateCreateLifePathButtonState();
   currentAddressVerified = false;
   updateAddButtonState();
@@ -6182,7 +6162,13 @@ function openSavedMapSnapshotFinishedFromArchive(snapshot, archiveDisplayName = 
     try {
       updateStep1Scale();
       ensureStep1GeoMap();
-      renderStep1EmotionMap({ frozenLayout: snapshot.emotionLayoutSnapshot || null });
+      // Keep the audio session started synchronously by the archive click.
+      // Rebuilding it from this timer can be blocked by autoplay policy.
+      _step1SkipSoundRebuildOnce = true;
+      renderStep1EmotionMap({
+        frozenLayout: snapshot.emotionLayoutSnapshot || null,
+        forceSound: true,
+      });
       fitStep1GeoMapToIsraelBoundaries({ animate: false });
       updateStep1GeoMapMarkers();
       if (step1GeoRouteLine) step1GeoRouteLine.setStyle({ color: getStep1GeoRouteColor(), weight: 1 });
@@ -6226,11 +6212,9 @@ let allMapsViewBeforeHighlightFocus = null;
 /** @type {{ center: L.LatLng, zoom: number } | null} */
 let allMapsPendingRestoreView = null;
 
-let allMapsListVisible = false;
-
 let allMapsSearchQuery = "";
 
-let allMapsYearSelectorEnabled = false;
+let allMapsYearFilterEnabled = false;
 let allMapsSelectedYear = null;
 
 function getAllMapsAddressStartYear(addr) {
@@ -6254,10 +6238,17 @@ function getAllMapsYearRange(items) {
 function updateAllMapsYearSlider(items) {
   if (!elAllMapsYearSlider || !elAllMapsYearSliderValue) return null;
   if (elAllMapsYearControls) {
-    elAllMapsYearControls.classList.toggle("hidden", !allMapsYearSelectorEnabled);
-    elAllMapsYearControls.setAttribute("aria-hidden", allMapsYearSelectorEnabled ? "false" : "true");
+    elAllMapsYearControls.classList.toggle("hidden", !allMapsYearFilterEnabled);
+    elAllMapsYearControls.setAttribute("aria-hidden", allMapsYearFilterEnabled ? "false" : "true");
   }
-  if (elAllMapsYearToggleBtn) elAllMapsYearToggleBtn.setAttribute("aria-pressed", allMapsYearSelectorEnabled ? "true" : "false");
+  if (elAllMapsTimelineToggleBtn) {
+    elAllMapsTimelineToggleBtn.setAttribute("aria-expanded", allMapsYearFilterEnabled ? "true" : "false");
+  }
+  if (!allMapsYearFilterEnabled) {
+    allMapsSelectedYear = null;
+    elAllMapsYearSliderValue.textContent = "";
+    return null;
+  }
 
   const range = getAllMapsYearRange(items);
   if (!range) {
@@ -6267,6 +6258,7 @@ function updateAllMapsYearSlider(items) {
     elAllMapsYearSlider.max = "0";
     elAllMapsYearSlider.value = "0";
     elAllMapsYearSliderValue.textContent = "";
+    elAllMapsYearSlider.parentElement?.style.setProperty("--all-maps-year-position", "0%");
     return null;
   }
 
@@ -6278,7 +6270,11 @@ function updateAllMapsYearSlider(items) {
   elAllMapsYearSlider.max = String(range.max);
   elAllMapsYearSlider.value = String(allMapsSelectedYear);
   elAllMapsYearSliderValue.textContent = String(allMapsSelectedYear);
-  return allMapsYearSelectorEnabled ? allMapsSelectedYear : null;
+  const position = range.max > range.min
+    ? ((range.max - allMapsSelectedYear) / (range.max - range.min)) * 100
+    : 0;
+  elAllMapsYearSlider.parentElement?.style.setProperty("--all-maps-year-position", `${position}%`);
+  return allMapsSelectedYear;
 }
 
 function allMapsAddressIsActiveInYear(addrs, index, selectedYear) {
@@ -6772,6 +6768,8 @@ function focusStep1GeoMapAt(lat, lon, zoom, options) {
 
   const maxZoom = Number(step1GeoMap.getMaxZoom && step1GeoMap.getMaxZoom());
   const targetZoom = Math.min(Number.isFinite(maxZoom) ? maxZoom : 18, Math.max(1, Number(zoom) || 12));
+  const flightDuration = Math.max(0.1, Number(opts.duration) || 0.45);
+  const flightDurationMs = Math.round(flightDuration * 1000);
   const applyFocus = () => {
     if (viewSeq !== _step1GeoViewSeq) return;
     if (!step1GeoMap) return;
@@ -6791,7 +6789,7 @@ function focusStep1GeoMapAt(lat, lon, zoom, options) {
     clearStep1GeoMapDots();
     _step1GeoDotsPendingSeq = viewSeq;
     if (elStep1GeoMap) elStep1GeoMap.classList.add("step1-geo-dots-pending");
-    const revealDotsAfter = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now()) + 480;
+    const revealDotsAfter = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now()) + flightDurationMs;
     let didRenderSettledDots = false;
     const renderSettledDots = () => {
       if (didRenderSettledDots) return;
@@ -6817,7 +6815,11 @@ function focusStep1GeoMapAt(lat, lon, zoom, options) {
       if (viewSeq !== _step1GeoViewSeq) return;
       if (!step1GeoMap) return;
       step1GeoMap.invalidateSize(true);
-      step1GeoMap.flyTo([latNum, lonNum], targetZoom, { animate: true, duration: 0.45 });
+      step1GeoMap.flyTo([latNum, lonNum], targetZoom, {
+        animate: true,
+        duration: flightDuration,
+        easeLinearity: 0.25,
+      });
     });
     setTimeout(() => {
       if (viewSeq !== _step1GeoViewSeq) return;
@@ -6826,7 +6828,7 @@ function focusStep1GeoMapAt(lat, lon, zoom, options) {
     setTimeout(() => {
       applyFocus();
       renderSettledDots();
-    }, 520);
+    }, flightDurationMs + 70);
     return;
   }
 
@@ -8172,25 +8174,10 @@ function openEmotionMapSoloFromStep1RingReading(ringIdx, originOverride) {
   }
   pauseStep1EntrySoundForSolo();
   pendingEmotionSoloRingSnapshot = null;
-  _emotionSoloOriginRect = null;
-  _emotionSoloOriginColor = null;
-  _emotionSoloOriginStrokeWidthPx = null;
-  _emotionSoloOriginPathD = null;
-  _emotionSoloOriginViewBox = null;
-  _emotionSoloOriginLocalStrokeWidth = null;
 
-  // The caller already knows exactly where this ring is on screen right now
-  // (e.g. the fullscreen emotion map's ring spread) -- use that directly as
-  // the fly-animation origin instead of re-measuring Step 1's own ring-
-  // reading panel below, which has no relationship to that on-screen
-  // position and would make the animation start from the wrong place.
+  // Callers from an expanded map already provide the selected ring's final
+  // solo size and shape, so no Step 1 measurement is needed.
   if (originOverride && originOverride.rect && originOverride.rect.width > 0 && originOverride.rect.height > 0) {
-    _emotionSoloOriginRect = originOverride.rect;
-    _emotionSoloOriginColor = originOverride.color || "#111827";
-    _emotionSoloOriginStrokeWidthPx = originOverride.strokeWidthPx || 2;
-    _emotionSoloOriginPathD = originOverride.pathD || null;
-    _emotionSoloOriginViewBox = originOverride.viewBox || null;
-    _emotionSoloOriginLocalStrokeWidth = originOverride.localStrokeWidth || null;
     pendingEmotionSoloTargetRingSizePx = originOverride.targetRingSizePx || null;
     pendingEmotionSoloShapeParams = originOverride.shapeParams || null;
     pendingEmotionSoloFocusIndex = Math.max(0, Math.floor(idx));
@@ -8234,14 +8221,8 @@ function openEmotionMapSoloFromStep1RingReading(ringIdx, originOverride) {
     const rect = path && typeof path.getBoundingClientRect === "function" ? path.getBoundingClientRect() : null;
     const ringSize = rect ? Math.max(Number(rect.width) || 0, Number(rect.height) || 0) : 0;
     const sourceStrokeWidth = Number(path && path.getAttribute("stroke-width"));
-    const sourceSvg = path && path.ownerSVGElement;
-    const sourceSvgRect = sourceSvg && typeof sourceSvg.getBoundingClientRect === "function" ? sourceSvg.getBoundingClientRect() : null;
-    const sourceVb = sourceSvg ? parseSvgViewBox(sourceSvg.getAttribute("viewBox")) : null;
-    const sourceUnitsPerPx = sourceSvgRect && sourceVb && Number(sourceSvgRect.width) > 0
-      ? Math.max(1e-6, Number(sourceVb.w) || 1) / Math.max(1e-6, Number(sourceSvgRect.width) || 1)
-      : 1;
     const sourceStrokeWidthPx = Number.isFinite(sourceStrokeWidth) && sourceStrokeWidth > 0
-      ? sourceStrokeWidth / sourceUnitsPerPx
+      ? sourceStrokeWidth
       : Number(path && path.getAttribute("data-step1-ring-stroke-width-px"));
     pendingEmotionSoloTargetRingSizePx = ringSize > 0 ? ringSize * 1.5 : null;
     pendingEmotionSoloShapeParams = path ? {
@@ -8252,52 +8233,6 @@ function openEmotionMapSoloFromStep1RingReading(ringIdx, originOverride) {
       strokeWidth: sourceStrokeWidth,
       strokeWidthPx: sourceStrokeWidthPx,
     } : null;
-    if (rect && rect.width > 0 && rect.height > 0) {
-      _emotionSoloOriginRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-      _emotionSoloOriginColor = (path && path.getAttribute("stroke")) || "#111827";
-      _emotionSoloOriginStrokeWidthPx = Number.isFinite(sourceStrokeWidthPx) && sourceStrokeWidthPx > 0
-        ? sourceStrokeWidthPx
-        : 2;
-
-      // Capture the ring's actual path so the fly overlay can render its true
-      // (mildly distorted) shape instead of approximating a circle.
-      try {
-        const d = path && path.getAttribute("d");
-        const bbox = path && typeof path.getBBox === "function" ? path.getBBox() : null;
-        if (d && bbox && bbox.width > 0 && bbox.height > 0) {
-          // path renders with vector-effect="non-scaling-stroke", so
-          // sourceStrokeWidth (the raw attribute) is already its true,
-          // constant on-screen pixel width -- not a value in `d`/bbox's own
-          // local coordinate space. sourceUnitsPerPx (this SVG's own
-          // viewBox-to-render-size ratio, computed above) converts it into
-          // that local space, which is what both the padding below and the
-          // fly overlay's own (non-scaling-stroke-free) path need in order to
-          // render proportionally throughout the flight instead of far too
-          // thin.
-          const localStrokeWidth = Number.isFinite(sourceStrokeWidth) && sourceStrokeWidth > 0
-            ? sourceStrokeWidth * sourceUnitsPerPx
-            : 2;
-          // getBBox() excludes the stroke; a stroke extends strokeWidth/2 beyond
-          // the path's geometric edge on each side (SVG strokes are centered on
-          // the path by default). Padding by the *full* stroke width here made
-          // the rendered content noticeably smaller than the container's true
-          // edge-to-edge rect (which getBoundingClientRect() — used for both the
-          // container and the real ring — does include the stroke in), so the
-          // overlay looked smaller than the real ring throughout the flight and
-          // "popped" larger the instant it was swapped for the real ring.
-          const pad = localStrokeWidth / 2;
-          _emotionSoloOriginPathD = d;
-          _emotionSoloOriginViewBox = `${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`;
-          // Same value used for the pad above -- keeps the fly overlay's
-          // rendered stroke consistent with the viewBox it's about to
-          // animate inside of, instead of the screen-px _emotionSoloOriginStrokeWidthPx
-          // (a different, unrelated magnitude in this local/viewBox coordinate space).
-          _emotionSoloOriginLocalStrokeWidth = localStrokeWidth;
-        }
-      } catch {
-        // ignore — falls back to the plain-circle overlay
-      }
-    }
   } catch {
     pendingEmotionSoloTargetRingSizePx = null;
     pendingEmotionSoloShapeParams = null;
@@ -8447,16 +8382,21 @@ function updateStep1RingReading() {
     }
     svg.appendChild(hitPath);
 
-    // Fade-in + grow entrance animation
-    svg.style.opacity = "0";
-    svg.style.transform = "scale(0.3)";
+    // Print previews clone this content synchronously, so their rings must be
+    // visible immediately instead of capturing the animation's first frame.
+    svg.style.opacity = isPrintOption1RingLayout ? "1" : "0";
+    svg.style.transform = isPrintOption1RingLayout ? "scale(1)" : "scale(0.3)";
     svg.style.transformOrigin = "center center";
-    svg.style.transition = "opacity 500ms ease, transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1)";
+    svg.style.transition = isPrintOption1RingLayout
+      ? "none"
+      : "opacity 500ms ease, transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1)";
     elStep1RingReadingContent.appendChild(svg);
-    requestAnimationFrame(() => {
-      svg.style.opacity = "1";
-      svg.style.transform = "scale(1)";
-    });
+    if (!isPrintOption1RingLayout) {
+      requestAnimationFrame(() => {
+        svg.style.opacity = "1";
+        svg.style.transform = "scale(1)";
+      });
+    }
 
     // Breathing animation for this ring — uses the exact same per-ring
     // amplitude/speed profile as the main emotion map (belonging-based
@@ -8649,6 +8589,14 @@ if (elStep1RouteFullscreenBtn) {
     deferredStep2Setup();
     const revealAndFly = (triesLeft) => {
       if (!step2OpenShouldFitToAddresses || triesLeft <= 0) {
+        // Resolve the map+details unit's final centered transform before the
+        // FLIP starts, while the map is still hidden. The FLIP then lands on
+        // and preserves this transform instead of applying centering as a
+        // second visible move after the transition.
+        _step2ReadingUnitCenteringSuspended = false;
+        centerStep2ReadingUnit();
+        const finalTransform = mapWrap.style.transform || "";
+        _step2ReadingUnitCenteringSuspended = true;
         mapWrap.style.visibility = "";
         // Force that reveal to commit as its own frame before flipGrowElement
         // runs its own from-state-then-rAF-to-to-state sequence -- calling it
@@ -8658,9 +8606,9 @@ if (elStep1RouteFullscreenBtn) {
         // *from* and the whole 650ms motion collapsed to instant.
         void mapWrap.offsetWidth;
         requestAnimationFrame(() => flipGrowElement(mapWrap, fromRect, null, {
+          finalTransform,
           onDone: () => {
             _step2ReadingUnitCenteringSuspended = false;
-            centerStep2ReadingUnit();
           },
         }));
         return;
@@ -9545,7 +9493,7 @@ let _step1EmotionFullscreenResizeArmed = false;
 
 function updateStep1EmotionFullscreenName() {
   if (!elStep1EmotionFullscreenName) return;
-  elStep1EmotionFullscreenName.textContent = String(elStudentName?.value || "").trim();
+  elStep1EmotionFullscreenName.textContent = getCurrentMapDisplayName();
 }
 
 function updateStep1EmotionFullscreenInfo() {
@@ -9575,8 +9523,8 @@ function updateStep1EmotionFullscreenInfo() {
   const countries = formatRawCountriesForAddresses(validAddrs);
   setStep1EmotionFullscreenInfoRow(elStep1EmotionFullscreenInfoCountries, "countries :", countries !== "--" ? countries : "", "step1EmotionFullscreenInfoListValue");
 
-  const cities = formatRawCitiesForAddresses(validAddrs);
-  setStep1EmotionFullscreenInfoRow(elStep1EmotionFullscreenInfoCities, "cities :", cities !== "--" ? cities : "", "step1EmotionFullscreenInfoListValue");
+  const cities = getRawCitiesForAddresses(validAddrs);
+  setStep1EmotionFullscreenInfoRow(elStep1EmotionFullscreenInfoCities, "cities :", cities, "step1EmotionFullscreenInfoListValue");
 }
 
 // Builds a "label : value" row via textContent (not innerHTML) since the
@@ -9586,13 +9534,14 @@ function updateStep1EmotionFullscreenInfo() {
 function setStep1EmotionFullscreenInfoRow(el, labelText, valueText, valueClass) {
   if (!el) return;
   el.textContent = "";
-  if (valueText === "" || valueText == null) return;
+  if (valueText === "" || valueText == null || (Array.isArray(valueText) && valueText.length === 0)) return;
   const label = document.createElement("span");
   label.className = "step1EmotionFullscreenInfoLabel";
   label.textContent = labelText;
   const value = document.createElement("span");
   value.className = valueClass;
-  value.textContent = String(valueText);
+  if (Array.isArray(valueText)) setExpandCitiesValue(value, valueText);
+  else value.textContent = String(valueText);
   el.append(label, value);
 }
 
@@ -9625,9 +9574,10 @@ function flipGrowElement(el, fromRect, toRect, opts) {
   const duration = (opts && opts.duration) || 650;
   const easing = (opts && opts.easing) || "cubic-bezier(0.33, 1, 0.68, 1)";
   const onDone = opts && typeof opts.onDone === "function" ? opts.onDone : null;
+  const finalTransform = opts && typeof opts.finalTransform === "string" ? opts.finalTransform : "";
 
   el.style.transition = "none";
-  el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+  el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale}) ${finalTransform}`.trim();
   // Force the browser to register the starting transform before animating away from it.
   void el.getBoundingClientRect();
 
@@ -9636,14 +9586,14 @@ function flipGrowElement(el, fromRect, toRect, opts) {
     if (done) return;
     done = true;
     el.style.transition = "";
-    el.style.transform = "";
+    el.style.transform = finalTransform;
     el.removeEventListener("transitionend", cleanup);
     if (onDone) onDone();
   };
 
   requestAnimationFrame(() => {
     el.style.transition = `transform ${duration}ms ${easing}`;
-    el.style.transform = "translate(0px, 0px) scale(1)";
+    el.style.transform = finalTransform || "translate(0px, 0px) scale(1)";
     el.addEventListener("transitionend", cleanup);
     setTimeout(cleanup, duration + 150);
   });
@@ -10562,9 +10512,6 @@ function resetAllMapsZoomToBase() {
     focusAllMapsOnIsraelLocationsMax();
     setAllMapsZoomLabelBaseToCurrentView();
     updateAllMapsZoomLabel();
-    allMapsZoomHintBaseZoom = allMapsMap.getZoom();
-    allMapsZoomHintDismissed = false;
-    updateAllMapsZoomHint();
   } catch {
     // ignore
   }
@@ -10735,10 +10682,6 @@ function setAllMapsTilesVisible(enabled) {
   restyleAllMapsOverlaysForBasemap();
 }
 
-function toggleAllMapsTiles() {
-  setAllMapsTilesVisible(!allMapsTilesVisible);
-}
-
 function ensureAllMapsMap() {
   if (!elAllMapsMap || allMapsMap) return;
 
@@ -10753,10 +10696,9 @@ function ensureAllMapsMap() {
   });
 
   allMapsTileLayer = createBasemapTileLayer(basemapStyleId);
-  updateAllMapsHideMapLabel();
   applyBasemapStyleClasses();
 
-  // Default: tiles hidden until user clicks "Show map".
+  // Keep the All Maps overview in its routes-only presentation.
   allMapsTilesVisible = false;
   updateAllMapsHideMapLabel();
   if (elPageAllMaps) {
@@ -10777,7 +10719,6 @@ function ensureAllMapsMap() {
 
   allMapsMap.on("zoomend", () => {
     updateAllMapsZoomLabel();
-    updateAllMapsZoomHint();
     if (allMapsTilesVisible && isLineArtBasemap(basemapStyleId) && allMapsLineArtLayer) {
       scheduleLineArtUpdate(allMapsMap, allMapsLineArtLayer, allMapsLineArtState);
     }
@@ -10895,40 +10836,6 @@ function updateHomeScrollHint() {
   if (tagline) tagline.classList.toggle("homeScrollHintHidden", scrolled);
   const scrollDownText = document.getElementById("homeScrollDownText");
   if (scrollDownText) scrollDownText.classList.toggle("homeScrollHintHidden", scrolled);
-}
-
-// All Maps: "zoom in" hint, same cursor-following pattern as the home
-// page's scroll hint above. Visible until the user zooms in past whatever
-// zoom level the map started at (allMapsZoomHintBaseZoom, captured in
-// resetAllMapsZoomToBase() once the initial fit settles) -- unlike the
-// scroll hint, this is a one-way latch: once hidden by zooming in, it
-// stays hidden even if the user zooms back out.
-let allMapsZoomHintX = 60;
-let allMapsZoomHintY = 60;
-let allMapsZoomHintBaseZoom = null;
-let allMapsZoomHintDismissed = false;
-
-function updateAllMapsZoomHint() {
-  const hint = document.getElementById("allMapsZoomHint");
-  if (!hint) return;
-  if (!allMapsZoomHintDismissed) {
-    const zoomedIn = Boolean(
-      allMapsZoomHintBaseZoom !== null && allMapsMap && allMapsMap.getZoom() > allMapsZoomHintBaseZoom + 0.05
-    );
-    if (zoomedIn) allMapsZoomHintDismissed = true;
-  }
-  hint.style.transform = `translate(${allMapsZoomHintX + HOME_SCROLL_HINT_OFFSET_X}px, ${allMapsZoomHintY + HOME_SCROLL_HINT_OFFSET_Y}px)`;
-  hint.classList.toggle("allMapsZoomHintHidden", allMapsZoomHintDismissed);
-}
-
-function handleAllMapsMouseMove(e) {
-  allMapsZoomHintX = e.clientX;
-  allMapsZoomHintY = e.clientY;
-  updateAllMapsZoomHint();
-}
-
-if (elPageAllMaps) {
-  elPageAllMaps.addEventListener("mousemove", handleAllMapsMouseMove);
 }
 
 let homeLogoScrollRaf = 0;
@@ -11323,13 +11230,14 @@ function renderAllMapsCombinedMap() {
 if (elAllMapsHideMapBtn) {
   elAllMapsHideMapBtn.addEventListener("click", () => {
     ensureAllMapsMap();
-    toggleAllMapsTiles();
+    setAllMapsTilesVisible(!allMapsTilesVisible);
   });
 }
 
-if (elAllMapsYearToggleBtn) {
-  elAllMapsYearToggleBtn.addEventListener("click", () => {
-    allMapsYearSelectorEnabled = !allMapsYearSelectorEnabled;
+if (elAllMapsTimelineToggleBtn) {
+  elAllMapsTimelineToggleBtn.addEventListener("click", () => {
+    allMapsYearFilterEnabled = !allMapsYearFilterEnabled;
+    if (!allMapsYearFilterEnabled) allMapsSelectedYear = null;
     renderAllMapsCombinedMap();
   });
 }
@@ -11338,25 +11246,6 @@ if (elAllMapsYearSlider) {
   elAllMapsYearSlider.addEventListener("input", () => {
     allMapsSelectedYear = Math.floor(Number(elAllMapsYearSlider.value));
     renderAllMapsCombinedMap();
-  });
-}
-
-function setAllMapsListVisible(visible) {
-  allMapsListVisible = Boolean(visible);
-  if (elSavedMapsList) elSavedMapsList.classList.toggle("allMapsListCollapsed", !allMapsListVisible);
-  if (elAllMapsSearchWrap) elAllMapsSearchWrap.classList.toggle("allMapsListCollapsed", !allMapsListVisible);
-  if (elAllMapsListToggleBtn) {
-    elAllMapsListToggleBtn.textContent = allMapsListVisible ? "hide maps list" : "show maps list";
-    elAllMapsListToggleBtn.setAttribute("aria-expanded", allMapsListVisible ? "true" : "false");
-  }
-}
-
-if (elAllMapsListToggleBtn && elSavedMapsList) {
-  setAllMapsListVisible(false);
-  elAllMapsListToggleBtn.addEventListener("click", () => {
-    // The search row only ever shows alongside the names list (see
-    // .allMapsListCollapsed in styles.css for the fade/slide animation).
-    setAllMapsListVisible(!allMapsListVisible);
   });
 }
 
@@ -11406,13 +11295,12 @@ window.addEventListener("resize", () => {
 
 function updateEmotionTitle() {
   if (!elEmotionTitle) return;
-  const name = formatStep2SignatureDisplayName(elStudentName?.value || "");
-  const count = formatAddrCount(addresses.length);
+  const name = getCurrentMapDisplayName();
   if (!name) {
-    elEmotionTitle.innerHTML = "";
+    elEmotionTitle.textContent = "";
     return;
   }
-  elEmotionTitle.innerHTML = `<div class="step2SignatureMain"><span>${name}</span><span class="step2SignatureCount">${count} addrs</span></div>`;
+  elEmotionTitle.textContent = name;
 }
 
 /**
@@ -11854,6 +11742,9 @@ function startEmotionBreathing(opts) {
   const gapPx = Math.max(0, Number(options.gapPx) || 0);
   const strokesScaleWithGroup = Boolean(options.strokesScaleWithGroup);
   const breathScale = Math.max(0.1, Number(options.breathScale) || 1);
+  const immediateRingIndex = Number.isFinite(Number(options.immediateRingIndex))
+    ? Math.max(0, Math.floor(Number(options.immediateRingIndex)))
+    : -1;
 
   const n = Math.min(rings.length, baseRadii.length);
   if (n <= 1) return;
@@ -12057,8 +11948,9 @@ function startEmotionBreathing(opts) {
 
     const radiiWanted = new Array(n);
     for (let i = 0; i < n; i++) {
-      const delay = (n - 1 - i) * EMOTION_BREATH_STAGGER_MS;
-      const ramp = smootherstep01((t - delay) / EMOTION_BREATH_RAMP_MS);
+      const startsImmediately = i === immediateRingIndex;
+      const delay = startsImmediately ? 0 : (n - 1 - i) * EMOTION_BREATH_STAGGER_MS;
+      const ramp = startsImmediately ? 1 : smootherstep01((t - delay) / EMOTION_BREATH_RAMP_MS);
       if (ramp <= 0) {
         radiiWanted[i] = baseRadii[i];
         continue;
@@ -12114,11 +12006,8 @@ function startEmotionBreathing(opts) {
       const mainAmp = (rates[i] ?? 5) >= 9.5 ? amp * STEP1_MAIN_RATE10_DISTORTION_MULT : amp;
       const d = buildDistortedRingPath(cx, cy, radiiNow[i] ?? 1, phi, mainAmp, ringDistortionOptsForAmp(mainAmp, i * 7.1));
       setRingD(rings[i], d);
-      // No longer re-pins stroke-width to __lpSoloBaseStrokeWidth here -- see
-      // applyEmotionRingFocusVisuals()'s applySoloVisualScaleMetadata comment:
-      // a solo-focused ring's stroke now scales proportionally with its own
-      // scale() transform, so forcing it back to a fixed width every
-      // breathing frame would undo that growth/shrink.
+      // Breathing changes path geometry only. The solo ring retains
+      // non-scaling-stroke, so this loop never changes its line weight.
       // The fullscreen page's copy gets: a very slightly weaker pull/push
       // shape (less outward bulge / inward dent), a very slightly narrower
       // breathing range (same speed, just a touch less swing), and a very
@@ -12758,15 +12647,11 @@ function renderEmotionMap(start) {
     const finalAmp = hasSoloShape && Number.isFinite(Number(soloShape.ampRatio))
       ? targetR * Number(soloShape.ampRatio)
       : ampTarget;
-    // Cap at finalStroke (the belonging-rate-defined thickness): the solo
-    // ring's carried-over pixel measurement exists only to avoid a visual
-    // "pop" during the fly-in transition -- it should never let the ring end
-    // up rendering thicker than what its own belonging rate calls for.
-    const finalStrokeForRing = Math.min(finalStroke, hasSoloShape && Number.isFinite(Number(soloShape.strokeWidthPx)) && Number(soloShape.strokeWidthPx) > 0
+    const finalStrokeForRing = hasSoloShape && Number.isFinite(Number(soloShape.strokeWidthPx)) && Number(soloShape.strokeWidthPx) > 0
       ? Math.max(0.5, Number(soloShape.strokeWidthPx))
       : (hasSoloShape && Number.isFinite(Number(soloShape.strokeRatio)) && Number(soloShape.strokeRatio) > 0
         ? Math.max(0.5, targetR * Number(soloShape.strokeRatio))
-        : finalStroke));
+        : finalStroke);
     setRingStrokeWidth(path, finalStrokeForRing);
 
     ringAngles.push(finalPhi);
@@ -12840,6 +12725,9 @@ function renderEmotionMap(start) {
     groupScale,
     strokesScaleWithGroup,
     gapPx: EMOTION_BREATH_CLEARANCE_PX,
+    immediateRingIndex: Number.isFinite(Number(pendingEmotionSoloFocusIndex))
+      ? Math.max(0, Math.floor(Number(pendingEmotionSoloFocusIndex)))
+      : -1,
   };
 
   // If we don't have a start source, skip animation.
@@ -13292,6 +13180,7 @@ function renderStep1EmotionMap(options) {
     strokesScaleWithGroup,
     gapPx: EMOTION_BREATH_CLEARANCE_PX,
     breathScale: nominalBreathScale * wobbleFitScale,
+    forceSound: Boolean(opts.forceSound),
   };
 
   // Add placeholder circles for unfilled rings (remaining expected homes).
@@ -13634,10 +13523,7 @@ function formatStep2SignatureDisplayName(text) {
 
 function updateStep2SignatureLabel() {
   if (!elSignatureLabel) return;
-  // Shown exactly as typed on the address-entry page -- no case/format
-  // transformation (unlike formatStep2SignatureDisplayName, used elsewhere
-  // for archive/emotion labels).
-  const name = String(elStudentName?.value || "").trim();
+  const name = getCurrentMapDisplayName();
   const count = formatAddrCount(addresses.length);
   if (!name) {
     elSignatureLabel.innerHTML = "";
@@ -13647,7 +13533,10 @@ function updateStep2SignatureLabel() {
   const mapName = `${normalizeNameForMapLabel(elStudentName?.value || "")}.${count}addrs`;
   // Keep the same nested span/font (Regular-weight) the name always rendered
   // in -- only the address-count span is dropped.
-  elSignatureLabel.innerHTML = `<span class="step2SignatureMain">${name}</span>`;
+  const nameSpan = document.createElement("span");
+  nameSpan.className = "step2SignatureMain";
+  nameSpan.textContent = name;
+  elSignatureLabel.replaceChildren(nameSpan);
   if (elPostcardCardMapName) elPostcardCardMapName.textContent = mapName;
 }
 
@@ -13669,30 +13558,27 @@ function updateStep2ReadingInfo() {
   const age = Number.isFinite(birthYear) ? Math.max(0, new Date().getFullYear() - birthYear) : "";
   setStep2ReadingInfoRow(elStep2ReadingInfoAge, "age :", age, "step2ReadingInfoStatValue");
 
-  let avg = "";
-  if (validAddrs.length) {
-    const sum = validAddrs.reduce((s, a) => s + normalizeBelongingRate(a.belonging_rate, 5), 0);
-    avg = Math.round((sum / validAddrs.length) * 10) / 10;
-  }
-  setStep2ReadingInfoRow(elStep2ReadingInfoAvg, "avg. belonging :", avg, "step2ReadingInfoStatValue");
+  const totalDistance = formatCumulativeDistanceForAddresses(validAddrs);
+  setStep2ReadingInfoRow(elStep2ReadingInfoAvg, "total distance :", totalDistance, "step2ReadingInfoStatValue");
 
   const countries = formatRawCountriesForAddresses(validAddrs);
   setStep2ReadingInfoRow(elStep2ReadingInfoCountries, "countries :", countries !== "--" ? countries : "", "step2ReadingInfoListValue");
 
-  const cities = formatRawCitiesForAddresses(validAddrs);
-  setStep2ReadingInfoRow(elStep2ReadingInfoCities, "cities :", cities !== "--" ? cities : "", "step2ReadingInfoListValue");
+  const cities = getRawCitiesForAddresses(validAddrs);
+  setStep2ReadingInfoRow(elStep2ReadingInfoCities, "cities :", cities, "step2ReadingInfoListValue");
 }
 
 function setStep2ReadingInfoRow(el, labelText, valueText, valueClass) {
   if (!el) return;
   el.textContent = "";
-  if (valueText === "" || valueText == null) return;
+  if (valueText === "" || valueText == null || (Array.isArray(valueText) && valueText.length === 0)) return;
   const label = document.createElement("span");
   label.className = "step2ReadingInfoLabel";
   label.textContent = labelText;
   const value = document.createElement("span");
   value.className = valueClass;
-  value.textContent = String(valueText);
+  if (Array.isArray(valueText)) setExpandCitiesValue(value, valueText);
+  else value.textContent = String(valueText);
   el.append(label, value);
 }
 
@@ -13926,7 +13812,6 @@ function replaceAllMapsTileLayerIfReady() {
     }
   }
 
-  updateAllMapsHideMapLabel();
 }
 
 function setBasemapStyle(styleId) {
@@ -14177,9 +14062,13 @@ function alignStep1TopProgressCounter() {
   });
 }
 
+function getCurrentMapDisplayName() {
+  return String(currentLoadedMapDisplayName || elStudentName?.value || "").trim();
+}
+
 function updateStep1TopProgress() {
   if (!elStep1TopProgressSummary || !elStep1TopProgressCounter) return;
-  const studentName = String(currentLoadedMapDisplayName || elStudentName?.value || "").trim();
+  const studentName = getCurrentMapDisplayName();
   const totalHomes = getStep1TotalHomesCount();
   if (!studentName && !totalHomes) {
     elStep1TopProgressSummary.textContent = "";
@@ -15965,9 +15854,12 @@ updateBelongingValueLabel();
 // viewport-scaled elements are correctly sized from the very first paint.
 updateStep1Scale();
 
-// Restore a review map across refresh; otherwise default to the home page.
+// Restore a review map across refresh. Archive and All Maps are durable
+// top-level pages, so preserve them too; every other page defaults to home.
 if (!restoreReviewMapAfterRefresh()) {
-  showPage("welcome");
+  const historyPage = window.history?.state?.lifepathPage;
+  const refreshPage = historyPage === "archive" || historyPage === "allmaps" ? historyPage : "welcome";
+  showPage(refreshPage, { history: "replace" });
 }
 
 function wireHomeLogoNavigation() {
@@ -16279,6 +16171,7 @@ function startEmotionSoundForSoloRing(ringIdx) {
     const audio = new Audio(src);
     audio.loop = true;
     audio.volume = EMOTION_ENTRY_RING_VOLUME;
+    routeEmotionHtmlLoopToOutput(audio);
     void audio.play().catch(() => {});
     _emotionSoloRingAudio = audio;
   } catch {
@@ -16411,6 +16304,7 @@ function activateEmotionRing(ringIdx) {
       const loopAudio = new Audio(src);
       loopAudio.loop = true;
       loopAudio.volume = EMOTION_ENTRY_RING_VOLUME;
+      routeEmotionHtmlLoopToOutput(loopAudio, EMOTION_ENTRY_RING_INPUT_GAIN);
       void loopAudio.play().catch(() => {});
       if (!window._step1RingLoops) window._step1RingLoops = [];
       window._step1RingLoops.push(loopAudio);
@@ -16995,6 +16889,7 @@ if (elStep1AddrNextBtn) {
         elPageStep1.classList.remove("step1-archive-loaded");
         elPageStep1.classList.add("step1-finished-state");
       }
+      showStep1MapCreatedOnce();
       growStep1DashboardAnimated();
       // Deliberately NOT stopping the per-home entry loops here: this path
       // never calls renderStep1EmotionMap()/startEmotionSound() (see the
@@ -17255,6 +17150,7 @@ if (elStep1BelongNextBtn) {
         elPageStep1.classList.remove("step1-archive-loaded");
         elPageStep1.classList.add("step1-finished-state");
       }
+      showStep1MapCreatedOnce();
       growStep1DashboardAnimated();
       stopStep1EntrySound();
       updateStep1TopProgress();
@@ -17865,12 +17761,15 @@ async function resolveStep1CityFocus() {
   }
 }
 
-async function focusCityOnGeoMap() {
+async function focusCityOnGeoMap(options) {
   const focus = await resolveStep1CityFocus();
-  if (focus) focusStep1GeoMapAt(focus.lat, focus.lon, 17, { animate: true });
+  if (focus) focusStep1GeoMapAt(focus.lat, focus.lon, 17, { animate: true, ...(options || {}) });
 }
 
 async function focusStep1MapFromYearFocus() {
+  if (_streetFocusDebounceId) window.clearTimeout(_streetFocusDebounceId);
+  _streetFocusDebounceId = 0;
+  _streetFocusSeq += 1;
   const parsedStreetAndNumber = syncStreetAndNumberFields();
   const country = String(elCountry?.value || "").trim();
   const city = String(elCity?.value || "").trim();
@@ -17881,7 +17780,7 @@ async function focusStep1MapFromYearFocus() {
 
   if (!rawAddress && !street && !number) {
     await verifyCurrentCity();
-    await focusCityOnGeoMap();
+    await focusCityOnGeoMap({ duration: 1.2 });
     return;
   }
 
@@ -17904,7 +17803,7 @@ async function focusStep1MapFromYearFocus() {
     if (!geo) throw new Error(number ? "No address result" : "No street result");
     setStep1PreviewAddressFromGeo(address, geo, { renderMarkers: false });
     clearStep1FocusMarker();
-    focusStep1GeoMapAt(geo.lat, geo.lon, number ? 17 : 15, { animate: true });
+    focusStep1GeoMapAt(geo.lat, geo.lon, number ? 17 : 15, { animate: true, duration: 1.2 });
   } catch (e) {
     console.warn("[yearFocusAddress] error", e);
     currentAddressVerified = false;
@@ -18602,28 +18501,19 @@ if (elCreateLifePathBtn) {
     updateStep2SignatureLabel();
     updateStep2ReadingInfo();
 
-    if (createLifePathTransitionActive) return;
-    createLifePathTransitionActive = true;
     armResetStep1AfterCreateSave();
     if (elCreateLifePathBtn) elCreateLifePathBtn.disabled = true;
-    showCreateLifePathTransition(true);
 
-    // After 3 seconds, show the Life Path map page.
-    setTimeout(() => {
-      showCreateLifePathTransition(false);
-      createLifePathTransitionActive = false;
-      if (elCreateLifePathBtn) elCreateLifePathBtn.disabled = false;
+    // Navigate immediately so the map is visible for drawing.
+    requestStep2OpenFitToAddresses();
+    step2HoldFitAfterNextDraw = true;
+    setStep2CloseReturnPage("step1");
+    showPage("movementExpand");
 
-      // Navigate so the map is visible for drawing.
-      requestStep2OpenFitToAddresses();
-      step2HoldFitAfterNextDraw = true;
-      setStep2CloseReturnPage("step1");
-      showPage("movementExpand");
-
-      // Reuse existing draw handler, but only after we have snapped to 100%.
-      autoSaveAfterStep2OpenAt100 = true;
-      autoDrawAfterStep2OpenAt100 = true;
-    }, 3000);
+    // Reuse existing draw handler, but only after we have snapped to 100%.
+    autoSaveAfterStep2OpenAt100 = true;
+    autoDrawAfterStep2OpenAt100 = true;
+    if (elCreateLifePathBtn) elCreateLifePathBtn.disabled = false;
   });
 }
 
@@ -19964,6 +19854,7 @@ function resetForNextStudent() {
   addresses = [];
   saveJson(STORAGE_KEY, addresses);
   step1SummaryPhaseActive = false;
+  clearStep1MapCreatedOnce();
   // Unlike resetStep1HouseList(), this was missing the phase-class cleanup —
   // leaving e.g. step1-finished-state/step1-summary-phase on the page after
   // clearing the data meant Step 1 stayed styled as "finished" (data-entry

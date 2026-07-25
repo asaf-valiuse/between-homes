@@ -496,37 +496,12 @@ function renderArchiveGrid() {
 
     const cumulativeEl = document.createElement("div");
     cumulativeEl.className = "archiveCumulativeDistance";
-    setArchiveStatRow(cumulativeEl, "cumulative distance :\u00a0\u00a0\u00a0\u00a0\u00a0", formatCumulativeDistanceForAddresses(snap?.addresses));
+    setArchiveStatRow(cumulativeEl, "total distance :\u00a0\u00a0\u00a0\u00a0\u00a0", formatCumulativeDistanceForAddresses(snap?.addresses));
 
     const preview = document.createElement("div");
     preview.className = "archivePreview";
 
     const thumb = createArchiveMiniMapSvg(snap);
-
-    const footer = document.createElement("div");
-    footer.className = "archiveFooter";
-
-    const openBtn = document.createElement("button");
-    openBtn.type = "button";
-    openBtn.className = "archiveShowBtn";
-    openBtn.textContent = "open";
-    openBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openSavedMapSnapshotFromArchive(snap, archiveDisplayName);
-    });
-    footer.appendChild(openBtn);
-
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "archiveRemoveBtn";
-    removeBtn.textContent = "remove map";
-    removeBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      confirmArchiveMapRemoval(snap);
-    });
-    footer.appendChild(removeBtn);
 
     item.addEventListener("click", () => {
       openSavedMapSnapshotFromArchive(snap, archiveDisplayName);
@@ -538,27 +513,11 @@ function renderArchiveGrid() {
     preview.appendChild(thumb);
     attachArchiveThumbInteractions(thumb, () => openSavedMapSnapshotFromArchive(snap, archiveDisplayName));
     item.appendChild(preview);
-    item.appendChild(footer);
     elArchiveGrid.appendChild(item);
   }
 }
 
 function openSavedMapSnapshotFromArchive(snapshot, archiveDisplayName = "") {
   if (!snapshot) return;
-
-  // Requirement: after clicking an Archive tile, show the pulsing-circle
-  // transition for 1.5 seconds, then display the selected map in its
-  // finished editing state.
-  if (createLifePathTransitionActive) return;
-  createLifePathTransitionActive = true;
-  showCreateLifePathTransition(true);
-
-  setTimeout(() => {
-    try {
-      showCreateLifePathTransition(false);
-      openSavedMapSnapshotFinishedFromArchive(snapshot, archiveDisplayName);
-    } finally {
-      createLifePathTransitionActive = false;
-    }
-  }, 1500);
+  openSavedMapSnapshotFinishedFromArchive(snapshot, archiveDisplayName);
 }

@@ -45,9 +45,6 @@
       <!-- Page 3: Archive (grid of saved snapshots) -->
       <section id="pageArchive" class="page hidden" aria-label="Archive">
         <header class="topbar">
-          <div class="archiveSearchWrap">
-            <input id="archiveSearchInput" class="archiveSearchInput" type="text" placeholder="search map" aria-label="Search maps by name" />
-          </div>
           <div class="homePageTopActions" aria-label="Site navigation">
             <button type="button" class="homeTextActionBtn globalNavBtn" data-nav="welcome" data-nav-scroll="screen2">create map</button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
@@ -58,6 +55,9 @@
         <img class="step2LogoText appLogoImage" src="logo.png" alt="LifePath" />
 
         <div class="archiveBody">
+          <div class="archiveSearchWrap">
+            <input id="archiveSearchInput" class="archiveSearchInput" type="text" placeholder="search map" aria-label="Search maps by name" />
+          </div>
           <div id="archiveEmpty" class="archiveEmpty hidden">No saved maps yet.</div>
           <div id="archiveGrid" class="archiveGrid" aria-label="Saved maps archive"></div>
         </div>
@@ -75,35 +75,25 @@
 
         <img class="step2LogoText appLogoImage" src="logo.png" alt="LifePath" />
 
-        <div id="allMapsZoomHint" class="allMapsZoomHint" aria-hidden="true">
-          <span class="allMapsZoomHintText">zoom in</span>
-        </div>
-
         <div class="allMapsBody">
           <div id="savedMapsEmpty" class="allMapsEmpty hidden">No saved maps yet.</div>
           <div id="allMapsMap" class="allMapsMap" aria-label="All maps combined"></div>
           <div id="allMapsCountLabel" class="allMapsCount" aria-hidden="true"></div>
           <button type="button" id="allMapsHideMapBtn" class="textLink">show map</button>
           <div id="allMapsInfoPanel" class="allMapsInfoPanel" aria-label="Filter maps by year">
-            <button type="button" id="allMapsYearToggleBtn" class="allMapsYearToggleBtn" aria-label="Toggle year selector" aria-pressed="false" title="Toggle year selector">
-              <span class="allMapsYearToggleIcon" aria-hidden="true"></span>
-            </button>
+            <button type="button" id="allMapsTimelineToggleBtn" class="allMapsTimelineToggle" aria-expanded="false" aria-controls="allMapsYearControls">timeline</button>
             <div id="allMapsYearControls" class="allMapsYearControls hidden" aria-hidden="true">
               <div class="allMapsYearSliderHeader">
-                <span class="allMapsYearSliderLabel">year</span>
                 <span id="allMapsYearSliderValue" class="allMapsYearSliderValue"></span>
               </div>
               <input id="allMapsYearSlider" class="allMapsYearSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Filter maps by year" disabled />
             </div>
           </div>
           <div class="allMapsPanel" aria-label="Saved maps list">
-            <div class="allMapsListToggleRow">
-              <button type="button" id="allMapsListToggleBtn" class="allMapsListToggle" aria-expanded="false" aria-controls="savedMapsList">show maps list</button>
-            </div>
-            <div class="allMapsSearchWrap allMapsListCollapsed">
+            <div class="allMapsSearchWrap">
               <input id="allMapsSearchInput" class="allMapsSearchInput" type="text" placeholder="search map" aria-label="Search all maps by name" />
             </div>
-            <ol id="savedMapsList" class="allMapsList allMapsListCollapsed"></ol>
+            <ol id="savedMapsList" class="allMapsList"></ol>
           </div>
         </div>
       </section>
@@ -246,7 +236,6 @@
         <div id="step1EmotionFullscreenName" class="step1EmotionFullscreenName" aria-hidden="true"></div>
         <header class="topbar">
           <div class="homePageTopActions" aria-label="Site navigation">
-            <button type="button" class="homeTextActionBtn globalNavBtn" data-nav="welcome" data-nav-scroll="screen2">create map</button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="allmaps"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
           </div>
@@ -258,7 +247,7 @@
           </div>
 
           <div id="step1EmotionFullscreenInfo" class="step1EmotionFullscreenInfo" aria-label="Emotion map reading">
-            <div class="step1EmotionFullscreenInfoTitle">map reading</div>
+            <div class="step1EmotionFullscreenInfoTitle">map details</div>
             <div class="step1EmotionFullscreenInfoNameRow">
               <span id="step1EmotionFullscreenInfoName" class="step1EmotionFullscreenInfoName"></span>
               <span id="step1EmotionFullscreenInfoRings" class="step1EmotionFullscreenInfoRings"></span>
@@ -280,7 +269,6 @@
       <section id="pageStep2" class="page hidden" aria-label="Movement map expanded">
         <header class="topbar">
           <div class="step2Actions">
-            <button type="button" class="homeTextActionBtn globalNavBtn" data-nav="welcome" data-nav-scroll="screen2">create map</button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="allmaps"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
           </div>
@@ -296,7 +284,7 @@
         <div id="coordinateLabel" class="step2Coordinates hidden" aria-hidden="true"></div>
 
         <div id="step2ReadingInfo" class="step2ReadingInfo" aria-label="Map reading">
-          <div class="step2ReadingInfoTitle">map reading</div>
+          <div class="step2ReadingInfoTitle">map details</div>
           <div class="step2ReadingInfoNameRow">
             <span id="step2ReadingInfoName" class="step2ReadingInfoName"></span>
             <span id="step2ReadingInfoCount" class="step2ReadingInfoCount"></span>
@@ -309,7 +297,6 @@
             <div id="step2ReadingInfoCountries" class="step2ReadingInfoList"></div>
             <div id="step2ReadingInfoCities" class="step2ReadingInfoList"></div>
           </div>
-          <div class="step2ReadingInfoHint">Click a point to open Ring Reading</div>
         </div>
 
         <!-- Keep existing controls in DOM (hidden) to avoid breaking JS references -->
@@ -338,7 +325,6 @@
             <h2 class="emotionMapTitle">emotion map</h2>
           </div>
           <div class="homePageTopActions" aria-label="Site navigation">
-            <button type="button" class="homeTextActionBtn globalNavBtn" data-nav="welcome" data-nav-scroll="screen2">create map</button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="allmaps"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
           </div>
@@ -348,13 +334,9 @@
           <svg id="emotionSvg" class="emotionSvg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
         </div>
 
+        <div id="emotionSoloRingReadingStrip" class="emotionSoloRingReadingStrip" aria-label="Ring reading overview"></div>
         <div id="emotionTitle" class="emotionSignature" aria-hidden="true"></div>
       </section>
-
-      <!-- Create Life Path transition overlay -->
-      <div id="createLifePathTransition" class="createLifePathTransition hidden" aria-hidden="true">
-        <div class="createLifePathTransitionCircle" aria-hidden="true"></div>
-      </div>
 
       <!-- Print modal (review mode) -->
       <div id="printModalOverlay" class="printModalOverlay hidden" aria-hidden="true">

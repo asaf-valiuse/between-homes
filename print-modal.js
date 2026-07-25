@@ -425,6 +425,36 @@ function addPrintMovementRouteLines(svg) {
   }
 }
 
+function fitPrintMovementMapViewBox(svg) {
+  if (!svg) return;
+  const dots = Array.from(svg.querySelectorAll("circle[data-step1-route-dot='1']"));
+  const bounds = dots.reduce((result, dot) => {
+    const cx = Number(dot.getAttribute("cx"));
+    const cy = Number(dot.getAttribute("cy"));
+    const radius = Math.max(0, Number(dot.getAttribute("r")) || 0);
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) return result;
+    result.minX = Math.min(result.minX, cx - radius);
+    result.maxX = Math.max(result.maxX, cx + radius);
+    result.minY = Math.min(result.minY, cy - radius);
+    result.maxY = Math.max(result.maxY, cy + radius);
+    return result;
+  }, { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+  if (![bounds.minX, bounds.maxX, bounds.minY, bounds.maxY].every(Number.isFinite)) return;
+
+  const routeWidth = Math.max(1, bounds.maxX - bounds.minX);
+  const routeHeight = Math.max(1, bounds.maxY - bounds.minY);
+  const margin = Math.max(routeWidth, routeHeight) * 0.08;
+  let width = routeWidth + margin * 2;
+  let height = routeHeight + margin * 2;
+  const frameAspect = PRINT_MAP_OPTION_STAGE_WIDTH / PRINT_MAP_OPTION_STAGE_HEIGHT;
+  if (width / height < frameAspect) width = height * frameAspect;
+  else height = width / frameAspect;
+
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+  svg.setAttribute("viewBox", `${centerX - width / 2} ${centerY - height / 2} ${width} ${height}`);
+}
+
 function addPrintMovementRouteLinesForRoot(root) {
   if (!root) return;
   const routeSvgs = root.matches && root.matches(".step1RoutePreview svg")
@@ -509,6 +539,7 @@ function createPrintMovementMapSvg() {
   const clone = normalizePrintMapOptionSvg(sourceSvg);
   forcePrintWhiteCircleFills(clone);
   addPrintMovementRouteLines(clone);
+  fitPrintMovementMapViewBox(clone);
   return clone;
 }
 

@@ -312,37 +312,6 @@ body {
   display: none;
 }
 
-/* "Zoom in" hint on All Maps: cursor-following (real OS cursor plays the
-   icon role; position set live via transform in app.js, only opacity
-   transitions). Visible until
-   the user zooms in past whatever zoom the map started at, then a one-way
-   latch: it stays hidden even if they zoom back out (see
-   updateAllMapsZoomHint()/allMapsZoomHintDismissed in app.js). Re-armed
-   the next time the page is freshly entered. */
-#pageAllMaps .allMapsZoomHint {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 2300;
-  opacity: 1;
-  transition: opacity 0.5s ease;
-  pointer-events: none;
-  will-change: transform;
-}
-
-#pageAllMaps .allMapsZoomHint.allMapsZoomHintHidden {
-  opacity: 0;
-}
-
-#pageAllMaps .allMapsZoomHintText {
-  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
-  font-weight: 400;
-  font-size: 14px;
-  text-transform: lowercase;
-  color: #c3c1b7;
-}
-
-
 /* The scrollable content: screen 1 (logo) and screen 2 (name/homes-count
    questions) both live here, positioned absolutely within it, so it's the
    shared containing block for both -- see .homePageLogo's top:50vh and
@@ -894,6 +863,8 @@ button:hover .btnImgFinish {
   position: relative;
   display: flex;
   align-items: baseline;
+  margin-top: -7px;
+  margin-bottom: 7px;
 }
 
 #pageStep2 .step2ReadingInfoName {
@@ -916,7 +887,11 @@ button:hover .btnImgFinish {
 #pageStep2 .step2ReadingInfoLists {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+}
+
+#pageStep2 .step2ReadingInfoLists {
+  margin-top: -4px;
 }
 
 #pageStep2 .step2ReadingInfoStat,
@@ -943,12 +918,31 @@ button:hover .btnImgFinish {
   unicode-bidi: plaintext;
 }
 
+#pageStep2 #step2ReadingInfoCities .expandCitiesValue,
+#pageStep1EmotionFullscreen #step1EmotionFullscreenInfoCities .expandCitiesValue {
+  display: inline-block;
+  vertical-align: top;
+  text-align: left;
+  direction: ltr;
+}
+
+#pageStep2 #step2ReadingInfoCities .step2ReadingInfoLabel,
+#pageStep1EmotionFullscreen #step1EmotionFullscreenInfoCities .step1EmotionFullscreenInfoLabel {
+  vertical-align: top;
+}
+
+#pageStep2 #step2ReadingInfoCities .expandCityValue,
+#pageStep1EmotionFullscreen #step1EmotionFullscreenInfoCities .expandCityValue {
+  direction: auto;
+  unicode-bidi: isolate;
+}
+
 #pageStep2 .step2ReadingInfoHint {
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
   font-size: 13px;
   color: #000000;
-  margin-top: 24px;
+  margin-top: 20px;
 }
 
 #pageStep2 .step2ReadingInfoStat:empty,
@@ -1003,7 +997,7 @@ button:hover .btnImgFinish {
   bottom: auto;
   text-align: left;
   z-index: 2000;
-  font-size: 14px;
+  font-size: calc(17px * var(--step1-scale, 1));
   white-space: nowrap;
 
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
@@ -1078,6 +1072,44 @@ button:hover .btnImgFinish {
 #pageEmotion .emotionSvg {
   width: 100%;
   height: 100%;
+}
+
+#pageEmotion .emotionSoloRingReadingStrip {
+  display: none;
+}
+
+#pageEmotion.emotionSoloActive .emotionSoloRingReadingStrip {
+  position: fixed;
+  left: 50%;
+  bottom: 8px;
+  width: min(62.5vw, 1200px);
+  height: clamp(110px, 17.5vh, 190px);
+  transform: translateX(-50%);
+  z-index: 6050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 0.55vw, 10px);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+#pageEmotion .emotionSoloRingReadingStrip svg {
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  cursor: pointer;
+  outline: none;
+}
+
+#pageEmotion .emotionSoloRingReadingStrip [data-step1-ring-reading-path] {
+  transition: stroke 180ms ease;
+  pointer-events: none;
+}
+
+#pageEmotion .emotionSoloRingReadingStrip svg:focus-visible [data-step1-ring-reading-path] {
+  stroke: #000000 !important;
 }
 
 /* Emotion Map: hover tooltip for ring numbering (home 01..). */
@@ -1677,11 +1709,8 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 
 
 #pageArchive .archiveSearchWrap {
-  position: fixed;
-  left: 40px;
-  right: auto;
-  top: 118px;
-  z-index: 3000;
+  position: static;
+  margin: -25px 0 16px 10px;
   pointer-events: auto;
 }
 
@@ -1852,52 +1881,6 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   text-overflow: ellipsis;
 }
 
-#pageArchive .archiveFooter {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 10px;
-  z-index: 3;
-  background: transparent;
-}
-
-#pageArchive .archiveRemoveBtn,
-#pageArchive .archiveShowBtn {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: #000000;
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  padding: 4px 10px;
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 1;
-  text-transform: lowercase !important;
-  text-decoration: underline;
-}
-
-#pageArchive .archiveItem:hover .archiveRemoveBtn,
-#pageArchive .archiveItem:hover .archiveShowBtn {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-#pageArchive .archiveRemoveBtn:hover,
-#pageArchive .archiveShowBtn:hover {
-  color: #000000;
-  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
-  font-weight: 700;
-}
-
-#pageArchive .archiveRemoveBtn:hover:not(:disabled),
-#pageArchive .archiveShowBtn:hover:not(:disabled),
 .archiveConfirmBtn:hover:not(:disabled) {
   color: #000000;
 }
@@ -1958,41 +1941,6 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   font-weight: 700;
 }
 
-/* Create Life Path transition */
-.createLifePathTransition {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: grid;
-  place-items: center;
-  background: #f4f2ea;
-}
-
-.createLifePathTransition.hidden {
-  display: none;
-}
-
-.createLifePathTransitionCircle {
-  width: 92px;
-  height: 92px;
-  border: 3px solid #000000;
-  border-radius: 9999px;
-  transform: scale(0.6);
-  animation: lifepathPulseCircle 1.4s ease-in-out infinite;
-}
-
-@keyframes lifepathPulseCircle {
-  0% {
-    transform: scale(0.6);
-  }
-  50% {
-    transform: scale(1);
-  }
-  100% {
-    transform: scale(0.6);
-  }
-}
-
 /* Print: 10x15cm portrait postcard */
 @media print {
   @page print-map-option {
@@ -2026,7 +1974,6 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 
   html.printMapOptionMode .page,
   html.printMapOptionMode .toast,
-  html.printMapOptionMode #createLifePathTransition,
   html.printMapOptionMode .postcardPreviewOverlay,
   html.printMapOptionMode .printModalBackdrop,
   html.printMapOptionMode .printModalCloseBtn,
@@ -2097,8 +2044,7 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 
   /* When printing from the postcard preview, hide the app pages and only print the card. */
   body.postcardPrintMode .page,
-  body.postcardPrintMode .toast,
-  body.postcardPrintMode #createLifePathTransition {
+  body.postcardPrintMode .toast {
     display: none !important;
   }
 
@@ -2164,7 +2110,6 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
   .step2Actions,
   .step2BottomActions,
   .welcomeBottomButtons,
-  #pageArchive .archiveFooter,
   #signatureLabel,
   #emotionTitle,
   button,
@@ -2261,7 +2206,6 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 
   html.printOption1Mode .page,
   html.printOption1Mode .toast,
-  html.printOption1Mode #createLifePathTransition,
   html.printOption1Mode .printModalOverlay,
   html.printOption1Mode .postcardPreviewOverlay {
     display: none !important;
@@ -2656,7 +2600,7 @@ body.printModalOpen .printModalOverlay {
 
 .printMapOptionLogo {
   position: absolute;
-  left: 0;
+  left: 36px;
   top: 36px;
   width: 150px;
   height: 66px;
@@ -2680,10 +2624,10 @@ body.printModalOpen .printModalOverlay {
 
 .printMapOptionMapHost {
   position: absolute;
-  left: 96px;
-  right: 96px;
-  top: 180px;
-  bottom: 140px;
+  left: 54px;
+  right: 54px;
+  top: 130px;
+  bottom: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2696,13 +2640,16 @@ body.printModalOpen .printModalOverlay {
   max-width: 100%;
   max-height: 100%;
   overflow: visible;
+  transform: scale(1.3);
+  transform-origin: center;
 }
 
 .printMapOptionCard.printMapOptionMovement .printMapOptionMapHost {
-  left: 54px;
-  right: 54px;
-  top: 110px;
-  bottom: 105px;
+  inset: 15%;
+}
+
+.printMapOptionCard.printMapOptionMovement .printMapOptionMapHost svg {
+  transform: none;
 }
 
 .printOption1PreviewStage {
@@ -3089,16 +3036,15 @@ html.printOption1Mode #pageStep1 .step1TimeBelonging {
 
 .printOption1PreviewStage #pageStep1 .printOption1Stats,
 html.printOption1Mode #pageStep1 .printOption1Stats {
-  display: grid !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
   position: absolute !important;
   left: 0 !important;
   top: calc(var(--step1-dashboard-top, 285px) + 40px - 79px) !important;
   width: var(--print-option1-stats-width) !important;
   height: calc(var(--step1-dashboard-top-section, 486px) - 60px + 79px) !important;
-  grid-template-columns: calc(var(--print-option1-stats-value-left, 242px) - 18px) max-content !important;
-  align-content: start !important;
-  column-gap: 18px !important;
-  row-gap: 20px !important;
+  gap: 20px !important;
   padding: 0 18px 0 0 !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
@@ -3106,24 +3052,34 @@ html.printOption1Mode #pageStep1 .printOption1Stats {
   font-size: 27px !important;
   line-height: 1.05 !important;
   color: #000000;
+  text-align: left !important;
   text-transform: lowercase;
   z-index: 10;
 }
 
+.printOption1PreviewStage #pageStep1 .printOption1Stats {
+  left: 36px !important;
+  width: calc(var(--print-option1-stats-width) - 36px) !important;
+}
+
 .printOption1PreviewStage #pageStep1 .printOption1StatsRow,
 html.printOption1Mode #pageStep1 .printOption1StatsRow {
-  display: contents !important;
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: flex-start !important;
+  gap: 18px !important;
+  width: 100% !important;
+  text-align: left !important;
 }
 
 .printOption1PreviewStage #pageStep1 .printOption1StatsNameRow,
 html.printOption1Mode #pageStep1 .printOption1StatsNameRow {
-  display: contents !important;
+  display: block !important;
 }
 
 .printOption1PreviewStage #pageStep1 .printOption1StatsNameRow .printOption1StatsValue,
 html.printOption1Mode #pageStep1 .printOption1StatsNameRow .printOption1StatsValue {
   display: block !important;
-  grid-column: 1 / -1 !important;
   text-align: left !important;
   font-family: "NarkissBlock-Light-TRIAL", sans-serif !important;
   font-weight: 400 !important;
@@ -3143,6 +3099,11 @@ html.printOption1Mode #pageStep1 .printOption1StatsValue {
 html.printOption1Mode #pageStep1 .printOption1StatsValue {
   text-align: left !important;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif !important;
+}
+
+.printOption1PreviewStage #pageStep1 .printOption1StatsLabel,
+html.printOption1Mode #pageStep1 .printOption1StatsLabel {
+  text-align: left !important;
 }
 
 html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1HomesList,
@@ -3484,8 +3445,7 @@ img.postcardCardLogo {
   opacity: 0.3;
 }
 
-/* "show map" (setAllMapsTilesVisible()/.tiles-visible in app.js) displays
-   the map at full opacity instead of the dimmed default above. */
+/* A visible basemap displays at full opacity instead of the dimmed default. */
 #pageAllMaps.tiles-visible .allMapsMap .leaflet-tile-pane {
   opacity: 1;
 }
@@ -3517,36 +3477,17 @@ img.postcardCardLogo {
      regardless of whether the search row/list are actually visible --
      without this, it silently swallows every drag/wheel interaction with
      the map underneath across that whole area, even while collapsed.
-     Each actually-interactive descendant re-enables its own
-     pointer-events below; .allMapsListCollapsed (already existing)
-     correctly turns it back off for whichever of them is currently
-     hidden. */
+    Each actually-interactive descendant re-enables its own
+    pointer-events below. */
   pointer-events: none;
 }
 
-#pageAllMaps .allMapsListToggleRow,
 #pageAllMaps .allMapsSearchWrap,
 #pageAllMaps .allMapsList {
   pointer-events: auto;
 }
 
-/* All Maps: houses the list-visibility toggle button. position:fixed
-   lifts it out of .allMapsPanel's flex-column flow -- right-aligned with
-   the back button (.allMapsActions), raised close to its row now that the
-   maps-count label that used to sit above it is gone. */
-#pageAllMaps .allMapsListToggleRow {
-  position: fixed;
-  top: 70px;
-  right: 40px;
-  z-index: 2200;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-/* Toggles #savedMapsList's (+ the search row's) visibility. Matches
-   #allMapsHideMapBtn's own text-link styling. */
+/* Per-map visibility actions in the saved maps list. */
 #pageAllMaps .allMapsListToggle {
   border: 0;
   background: transparent;
@@ -3573,30 +3514,9 @@ img.postcardCardLogo {
 #pageAllMaps .allMapsSearchWrap {
   /* 40% shorter than the original 240px. */
   width: 144px;
-  /* Room below the fixed toggle row above (raised along with it -- see
-     .allMapsListToggleRow), and before the list below. */
-  margin: 64px 0 30px;
+  margin: 34px 0 30px;
   display: flex;
   justify-content: flex-end;
-}
-
-/* Animated show/hide for the search row + names list, toggled together by
-   #allMapsListToggleBtn (see its click handler in app.js). Opacity/transform
-   only (no display:none) so the fade/slide is actually visible; .allMapsList
-   already reserves its own scroll space via flex, so leaving that space
-   reserved while collapsed doesn't shift anything else in the panel. */
-#pageAllMaps .allMapsSearchWrap,
-#pageAllMaps .allMapsList {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 0.35s ease, transform 0.35s ease;
-}
-
-#pageAllMaps .allMapsSearchWrap.allMapsListCollapsed,
-#pageAllMaps .allMapsList.allMapsListCollapsed {
-  opacity: 0;
-  transform: translateY(-20px);
-  pointer-events: none;
 }
 
 #pageAllMaps .allMapsSearchInput {
@@ -3630,67 +3550,51 @@ img.postcardCardLogo {
 
 #pageAllMaps .allMapsInfoPanel {
   position: fixed;
-  left: 16px;
-  bottom: 23px;
+  left: 42px;
+  top: calc(50% + 22px);
+  bottom: auto;
   z-index: 2050;
-  width: min(393px, calc(100vw - 32px));
-  height: 59px;
+  width: 74px;
+  height: min(360px, calc(50vh - 58px));
   box-sizing: border-box;
-  border: 1px solid #b6b4aa;
-  border-radius: 6px;
-  background: rgba(244, 242, 234, 0.88);
-  padding: 7px 12px 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   pointer-events: auto;
 }
 
-#pageAllMaps .allMapsYearToggleBtn {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  box-sizing: border-box;
-  border: 1px solid #b6b4aa;
-  border-radius: 50%;
+#pageAllMaps .allMapsTimelineToggle {
+  border: 0;
   background: transparent;
-  display: grid;
-  place-items: center;
+  padding: 0 0 4px;
+  color: #000000;
   cursor: pointer;
-  padding: 0;
+  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1;
+  text-transform: lowercase;
+  text-decoration: underline;
+  text-decoration-thickness: 0.75px;
+  text-underline-offset: 1px;
 }
 
-#pageAllMaps .allMapsYearToggleBtn[aria-pressed="true"] {
-  border-color: #000000;
-}
-
-#pageAllMaps .allMapsYearToggleIcon {
-  position: relative;
-  display: block;
-  width: 17px;
-  height: 13px;
-  border-top: 2px solid #000000;
-  border-bottom: 2px solid #000000;
-}
-
-#pageAllMaps .allMapsYearToggleIcon::before {
-  content: "";
-  position: absolute;
-  left: 6px;
-  top: -5px;
-  width: 3px;
-  height: 19px;
-  border-radius: 999px;
-  background: #000000;
+#pageAllMaps .allMapsTimelineToggle:hover:not(:disabled),
+#pageAllMaps .allMapsTimelineToggle[aria-expanded="true"] {
+  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
+  font-weight: 700;
 }
 
 #pageAllMaps .allMapsYearControls {
+  position: relative;
   flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 6px;
+  width: 74px;
+  min-height: 0;
+  display: block;
 }
 
 #pageAllMaps .allMapsYearControls.hidden {
@@ -3698,10 +3602,16 @@ img.postcardCardLogo {
 }
 
 #pageAllMaps .allMapsYearSliderHeader {
+  position: absolute;
+  left: 24px;
+  top: clamp(7px, var(--all-maps-year-position, 0%), calc(100% - 7px));
+  transform: translateY(-50%);
   display: flex;
+  flex-direction: row;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
+  justify-content: flex-start;
+  gap: 4px;
+  white-space: nowrap;
   color: #000000;
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
   font-size: 13px;
@@ -3715,10 +3625,15 @@ img.postcardCardLogo {
 }
 
 #pageAllMaps .allMapsYearSlider {
-  width: 100%;
-  height: 16px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 100%;
   margin: 0;
   appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
   background: transparent;
   cursor: pointer;
 }
@@ -3729,7 +3644,8 @@ img.postcardCardLogo {
 }
 
 #pageAllMaps .allMapsYearSlider::-webkit-slider-runnable-track {
-  height: 2px;
+  width: 1px;
+  height: 100%;
   background: #b6b4aa;
   border-radius: 999px;
 }
@@ -3738,14 +3654,15 @@ img.postcardCardLogo {
   appearance: none;
   width: 12px;
   height: 12px;
-  margin-top: -5px;
+  margin-left: -5px;
   border: 1px solid #77756d;
   border-radius: 50%;
   background: #f4f2ea;
 }
 
 #pageAllMaps .allMapsYearSlider::-moz-range-track {
-  height: 2px;
+  width: 1px;
+  height: 100%;
   background: #b6b4aa;
   border-radius: 999px;
 }
@@ -3789,7 +3706,7 @@ img.postcardCardLogo {
   pointer-events: none;
 }
 
-/* All Maps: show/hide map button, raised to vertical screen center. */
+/* All Maps basemap toggle, centered on the left edge. */
 #pageAllMaps #allMapsHideMapBtn {
   position: fixed;
   left: 42px;
@@ -3798,7 +3715,6 @@ img.postcardCardLogo {
   bottom: auto;
   transform: translateY(-50%);
   z-index: 2000;
-
   display: inline-block;
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
   font-weight: 400;
@@ -3820,8 +3736,7 @@ img.postcardCardLogo {
 #pageAllMaps .allMapsList {
   margin: 0;
   /* Shifts the list (and its scrollbar, which otherwise sits flush against
-     the right-aligned text) further right, without moving .allMapsPanel
-     itself (that would misalign it from .allMapsListToggleRow above). */
+  the right-aligned text) further right without moving .allMapsPanel. */
   margin-right: -24px;
   padding: 0;
   list-style: none;
@@ -4314,7 +4229,7 @@ input[type="reset"]:hover:not(:disabled) {
   bottom: auto;
   text-align: left;
   z-index: 2000;
-  font-size: 14px;
+  font-size: calc(17px * var(--step1-scale, 1));
   white-space: nowrap;
 
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
@@ -4551,10 +4466,7 @@ input[type="reset"]:hover:not(:disabled) {
   color: #f2f0e8;
 }
 
-#pageAllMaps.dark-map-ui #allMapsHideMapBtn {
-  color: #f2f0e8;
-}
-
+#pageAllMaps.dark-map-ui #allMapsHideMapBtn,
 #pageAllMaps.dark-map-ui #allMapsHideMapBtn:hover:not(:disabled) {
   color: #f2f0e8;
 }
@@ -4613,6 +4525,28 @@ input[type="reset"]:hover:not(:disabled) {
 #pageAllMaps.tiles-visible .allMapsSearchInput {
   border-bottom-color: #f4f2eb;
   color: #f4f2eb;
+}
+
+#pageAllMaps.tiles-visible .allMapsTimelineToggle {
+  color: #f4f2eb;
+}
+
+#pageAllMaps.tiles-visible .allMapsYearSlider::-webkit-slider-runnable-track {
+  background: #f4f2eb;
+}
+
+#pageAllMaps.tiles-visible .allMapsYearSliderHeader {
+  color: #f4f2eb;
+}
+
+#pageAllMaps.tiles-visible .allMapsYearSlider::-webkit-slider-thumb,
+#pageAllMaps.tiles-visible .allMapsYearSlider::-moz-range-thumb {
+  border-color: #f4f2eb;
+  background: #77756d;
+}
+
+#pageAllMaps.tiles-visible .allMapsYearSlider::-moz-range-track {
+  background: #f4f2eb;
 }
 
 #pageStep2.dark-map-ui #hideMapBtn:hover:not(:disabled) {
@@ -4808,7 +4742,10 @@ input[type="reset"]:hover:not(:disabled) {
      The finished state overrides this with an animation (below) that starts
      lower and rises back to this exact spot once the title has faded out. */
   top: 34px;
-  left: 50%;
+    /* This element is inside the scaled 1920px frame. Use a viewport-derived
+      design-space coordinate so its rendered center remains at 50vw even
+      when viewport height, rather than width, determines the frame scale. */
+    left: var(--step1-map-name-x, 50%);
   transform: translateX(-50%);
   z-index: 21;
   text-align: left;
@@ -4822,32 +4759,10 @@ input[type="reset"]:hover:not(:disabled) {
   white-space: nowrap;
 }
 
-/* On FINISH, .step1MapCompleteTitle occupies this same centered/top:34
-   spot for ~5.8s before fading out (see its own keyframes) -- so the map
-   name starts lower (60px) to avoid overlapping it, then rises to top:34
-   once the title is gone. Timed to match: 90.625% of 6.4s = 5.8s. */
-#pageStep1.step1-finished-state:not(.step1-edit-mode) .step1TopProgress {
-  animation: step1TopProgressRiseToLogo 6.4s ease-out forwards;
-}
-
-@keyframes step1TopProgressRiseToLogo {
-  0% {
-    top: 60px;
-  }
-  90.625% {
-    top: 60px;
-  }
-  100% {
-    top: 34px;
-  }
-}
-
-/* While re-editing a home from the finished dashboard, #step1EditModeTitle
-   occupies the same centered/top:34 spot "your map is complete" used --
-   so, same as that title, the name row stays lowered (60px) instead of
-   resting at the base top:34, avoiding a direct collision between the two. */
+/* The map name keeps this same anchor in every editor state. Temporary
+   completion/edit labels sit below it instead of moving the name. */
 #pageStep1.step1-finished-state.step1-edit-mode .step1TopProgress {
-  top: 60px;
+  top: 34px;
 }
 
 #pageStep1.step1-address-phase .step1TopProgress,
@@ -4973,16 +4888,13 @@ input[type="reset"]:hover:not(:disabled) {
 
 /* "your map is complete" heading: shown only once Step 1 is finished (and
    hidden again if the user re-enters edit mode, since the address form
-   reclaims that space then). Centered on the screen, top-aligned with the
-   logo (top: 34px, matching #pageStep1 img.life-path.appLogoImage) --
-   no longer part of the move-frequency-label/timeline header stack, see
-   updateStep1Scale()'s comment. Shows briefly then fades out on its own,
-   rather than staying up like the rest of the finished-state chrome. */
+  reclaims that space then). It sits below the stable map-name anchor,
+  shows briefly, then fades out on its own. */
 #pageStep1 .step1MapCompleteTitle {
   display: none;
   position: absolute;
-  left: 50%;
-  top: 34px;
+  left: var(--step1-map-name-x, 50%);
+  top: 60px;
   width: max-content;
   transform: translateX(-50%);
   margin: 0;
@@ -4998,22 +4910,17 @@ input[type="reset"]:hover:not(:disabled) {
   pointer-events: none;
 }
 
-#pageStep1.step1-finished-state:not(.step1-edit-mode):not(.step1-archive-loaded) .step1MapCompleteTitle {
+#pageStep1.step1-map-created-once:not(.step1-edit-mode):not(.step1-archive-loaded) .step1MapCompleteTitle {
   display: block;
   animation: step1MapCompleteFadeOut 5.8s ease-out forwards;
 }
 
-/* "edit" title while re-editing a home from the finished dashboard --
-   same centered, top:34px (logo-aligned) spot, same font/size as
-   .step1MapCompleteTitle, sitting above the name (which stays in
-   .step1TopProgress below). Never shown at the same time as that title
-   (mutually exclusive via :not(.step1-edit-mode) above / .step1-edit-mode
-   here), so no overlap risk despite sharing the same position. */
+/* "edit" title while re-editing a home from the finished dashboard. */
 #pageStep1 .step1EditModeTitle {
   display: none;
   position: absolute;
-  left: 50%;
-  top: 34px;
+  left: var(--step1-map-name-x, 50%);
+  top: 60px;
   width: max-content;
   transform: translateX(-50%);
   margin: 0;
@@ -5501,7 +5408,7 @@ input[type="reset"]:hover:not(:disabled) {
   color: #000000;
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 14px;
+  font-size: calc(17px * var(--step1-scale, 1));
   line-height: 1.1;
   text-transform: lowercase;
   white-space: nowrap;
