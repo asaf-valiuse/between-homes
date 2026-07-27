@@ -7246,7 +7246,18 @@ function updateStep1RoutePreview() {
 
   const drawSupersampledRouteLines = (segments) => {
     if (!segments || segments.length === 0) return;
-    const scale = ROUTE_PREVIEW_LINE_SUPERSAMPLE;
+    // ROUTE_PREVIEW_LINE_SUPERSAMPLE alone was a *fixed* multiplier of the
+    // panel's CSS pixel size, not of the viewing screen's actual pixel grid
+    // -- fine on a standard/2x display, but on a higher-DPI screen (3x+,
+    // increasingly common, e.g. Windows laptops at 250-300% display scaling)
+    // the canvas ends up with fewer raster samples than physical pixels to
+    // fill, so the browser has to upscale it, rendering the route lines
+    // visibly soft/pixelated. Scale by the real devicePixelRatio too (same
+    // pattern already used by resizeSplashCanvas() elsewhere in this file)
+    // so there's always at least the intended supersampling margin above
+    // the device's own pixel density, not just above its CSS size.
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const scale = Math.max(ROUTE_PREVIEW_LINE_SUPERSAMPLE, dpr * 2);
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.ceil(svgW * scale));
     canvas.height = Math.max(1, Math.ceil(svgH * scale));
