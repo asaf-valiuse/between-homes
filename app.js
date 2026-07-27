@@ -1434,6 +1434,35 @@ function scheduleEmotionTicksForCurrentSoundState() {
 
 let _emotionSoundGestureFallbackArmed = false;
 
+function retryEmotionSoundPlayback() {
+  try {
+    ensureEmotionAudioReady();
+  } catch {
+    // ignore
+  }
+
+  const rings = _emotionSoundRings;
+  if (rings && rings.length) {
+    try {
+      applyEmotionSoundVolumes();
+      return true;
+    } catch {
+      // fall through to playback-options rebuild below
+    }
+  }
+
+  const playbackOptions = _step1EmotionLastPlaybackOptions;
+  if (playbackOptions) {
+    try {
+      startEmotionSound(playbackOptions);
+      return true;
+    } catch {
+      // Browser may still require a real user gesture.
+    }
+  }
+  return false;
+}
+
 // Browsers can block audio.play() until the page has a real user gesture.
 // startEmotionSound() always tries immediately regardless of what triggered
 // it, so as a safety net this retries on the very next click/tap anywhere on
@@ -1441,21 +1470,14 @@ let _emotionSoundGestureFallbackArmed = false;
 function armEmotionSoundGestureFallback() {
   if (_emotionSoundGestureFallbackArmed) return;
   _emotionSoundGestureFallbackArmed = true;
-  document.addEventListener("pointerdown", () => {
-    try {
-      ensureEmotionAudioReady();
-    } catch {
-      // ignore
-    }
-    const rings = _emotionSoundRings;
-    if (!rings) return;
-    for (const r of rings) {
-      try {
-        if (r.audio.volume > 0.0005) void r.audio.play().catch(() => {});
-      } catch {
-        // ignore
-      }
-    }
+  const retry = () => retryEmotionSoundPlayback();
+  document.addEventListener("pointerdown", retry, { passive: true });
+  document.addEventListener("click", retry, { passive: true });
+  document.addEventListener("keydown", retry, { passive: true });
+  window.addEventListener("focus", retry, { passive: true });
+  window.addEventListener("pageshow", retry, { passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) retryEmotionSoundPlayback();
   }, { passive: true });
 }
 
@@ -2592,6 +2614,11 @@ function getAllMapsRouteDotFillStyle() {
   };
 }
 
+const ALL_MAPS_ROUTE_MAIN_WEIGHT = 1;
+const ALL_MAPS_ROUTE_SOFT_WEIGHT = 1.4;
+const ALL_MAPS_ROUTE_MAIN_OPACITY = 1;
+const ALL_MAPS_ROUTE_SOFT_OPACITY = 0.18;
+
 function getMinZoomToAvoidBlankViewport(targetMap, fallbackMinZoom = 2) {
   if (!targetMap || typeof targetMap.getSize !== "function") return fallbackMinZoom;
   const size = targetMap.getSize();
@@ -3265,6 +3292,13 @@ function prepareAllMapsFocusForCurrentMap() {
   allMapsPendingRestoreView = null;
   allMapsViewBeforeHighlightFocus = null;
   return Boolean(key);
+}
+
+function clearAllMapsFocusState() {
+  allMapsHighlightedKey = null;
+  allMapsPendingFocusKey = null;
+  allMapsPendingRestoreView = null;
+  allMapsViewBeforeHighlightFocus = null;
 }
 
 // Product pages:
@@ -4936,7 +4970,7 @@ if (elStep1PrintBtn) {
 if (elStep1TopAllMapsBtn) {
   elStep1TopAllMapsBtn.addEventListener("click", async () => {
     await refreshServerMapsCache();
-    prepareAllMapsFocusForCurrentMap();
+    clearAllMapsFocusState();
     showPage("allmaps");
   });
 }
@@ -5750,6 +5784,9 @@ function showPage(which, opts) {
       updateStep1GeoMapView();
       if (_step1SkipEmotionRebuildOnce) {
         _step1SkipEmotionRebuildOnce = false;
+        if (!resumeStep1EmotionPlaybackFromCache()) {
+          renderStep1EmotionMap();
+        }
       } else {
         renderStep1EmotionMap();
       }
@@ -6192,7 +6229,7 @@ function openSavedMapSnapshotFinishedFromArchive(snapshot, archiveDisplayName = 
       });
       fitStep1GeoMapToIsraelBoundaries({ animate: false });
       updateStep1GeoMapMarkers();
-      if (step1GeoRouteLine) step1GeoRouteLine.setStyle({ color: getStep1GeoRouteColor(), weight: 1 });
+      styleStep1GeoRouteLines(STEP1_GEO_ROUTE_MAIN_WEIGHT);
       updateStep1TimeBelonging();
     } catch {
       // ignore
@@ -6366,6 +6403,8 @@ let step1GeoMap = null;
 let step1GeoTileLayer = null;
 /** @type {L.Polyline | null} */
 let step1GeoRouteLine = null;
+/** @type {L.Polyline | null} */
+let step1GeoRouteSoftLine = null;
 /** @type {L.LayerGroup | null} */
 let step1GeoMarkerLayer = null;
 /** @type {L.Renderer | null} */
@@ -6555,6 +6594,21 @@ function getStep1GeoRouteColor() {
   return isDarkBasemap(basemapStyleId) ? "#f3f1e6" : "#000000";
 }
 
+const STEP1_GEO_ROUTE_MAIN_WEIGHT = 1;
+const STEP1_GEO_ROUTE_SOFT_WEIGHT = 1.4;
+const STEP1_GEO_ROUTE_MAIN_OPACITY = 1;
+const STEP1_GEO_ROUTE_SOFT_OPACITY = 0.18;
+
+function styleStep1GeoRouteLines(mainWeight = STEP1_GEO_ROUTE_MAIN_WEIGHT, colorOverride = null) {
+  const color = colorOverride || getStep1GeoRouteColor();
+  if (step1GeoRouteLine && typeof step1GeoRouteLine.setStyle === "function") {
+    step1GeoRouteLine.setStyle({ color, weight: mainWeight, opacity: STEP1_GEO_ROUTE_MAIN_OPACITY });
+  }
+  if (step1GeoRouteSoftLine && typeof step1GeoRouteSoftLine.setStyle === "function") {
+    step1GeoRouteSoftLine.setStyle({ color, weight: Math.max(mainWeight, STEP1_GEO_ROUTE_SOFT_WEIGHT), opacity: STEP1_GEO_ROUTE_SOFT_OPACITY });
+  }
+}
+
 function getStep1GeoRouteDotFillStyle() {
   return {
     fillColor: "#f4f2ea",
@@ -6657,20 +6711,39 @@ function updateStep1GeoRouteLine() {
     }
     step1GeoRouteLine = null;
   }
+  if (step1GeoRouteSoftLine) {
+    try {
+      step1GeoMap.removeLayer(step1GeoRouteSoftLine);
+    } catch {
+      // ignore
+    }
+    step1GeoRouteSoftLine = null;
+  }
 
   const pts = getStep1GeoRouteLatLngs();
   if (pts.length < 2) return;
   if (!step1GeoVectorRenderer) step1GeoVectorRenderer = L.svg();
-  step1GeoRouteLine = L.polyline(pts, {
+  step1GeoRouteSoftLine = L.polyline(pts, {
     renderer: step1GeoVectorRenderer,
     className: "lifepathStep2Path",
-    weight: 1,
-    opacity: 1,
+    weight: STEP1_GEO_ROUTE_SOFT_WEIGHT,
+    opacity: STEP1_GEO_ROUTE_SOFT_OPACITY,
     color: getStep1GeoRouteColor(),
     lineCap: "round",
     lineJoin: "round",
   }).addTo(step1GeoMap);
+  step1GeoRouteLine = L.polyline(pts, {
+    renderer: step1GeoVectorRenderer,
+    className: "lifepathStep2Path",
+    weight: STEP1_GEO_ROUTE_MAIN_WEIGHT,
+    opacity: STEP1_GEO_ROUTE_MAIN_OPACITY,
+    color: getStep1GeoRouteColor(),
+    lineCap: "round",
+    lineJoin: "round",
+  }).addTo(step1GeoMap);
+  // Keep both route layers beneath circles while preserving soft-under-main stacking.
   if (typeof step1GeoRouteLine.bringToBack === "function") step1GeoRouteLine.bringToBack();
+  if (typeof step1GeoRouteSoftLine?.bringToBack === "function") step1GeoRouteSoftLine.bringToBack();
 }
 
 function updateStep1GeoMapMarkers() {
@@ -6689,7 +6762,9 @@ function clearStep1GeoMapState() {
   try {
     if (step1GeoMarkerLayer) step1GeoMarkerLayer.clearLayers();
     if (step1GeoRouteLine && step1GeoMap) step1GeoMap.removeLayer(step1GeoRouteLine);
+    if (step1GeoRouteSoftLine && step1GeoMap) step1GeoMap.removeLayer(step1GeoRouteSoftLine);
     step1GeoRouteLine = null;
+    step1GeoRouteSoftLine = null;
     clearStep1FocusMarker();
     step1MapPreEntry = true;
     if (elStep1GeoMap) elStep1GeoMap.classList.add("map-pre-entry");
@@ -8360,9 +8435,20 @@ function updateStep1RingReading() {
     const swForMargin = Number(emotionPath?.getAttribute("stroke-width")) || Number(emotionLayout?.finalStrokes?.[i]) || step1PreviewEmotionStrokeWidthFromRate(rateForMargin);
     const wobbleFitScale = Number(emotionLayout?.wobbleFitScale) || 1;
     const ampForMargin = Math.abs(distortionAmplitudeFromBelonging(rateForMargin, emotionR) * 0.9 * wobbleFitScale);
+    const totalForProfile = Math.max(1, validAddrs.length);
+    const uProfile = totalForProfile <= 1 ? 1 : i / (totalForProfile - 1);
+    const innerF = Math.max(0, Number(EMOTION_BREATH_INNER_FACTOR) || 0);
+    const outerF = Math.max(innerF, Number(EMOTION_BREATH_OUTER_FACTOR) || innerF);
+    const profileExp = Math.max(0.25, Number(EMOTION_BREATH_PROFILE_EXP) || 1);
+    const indexProfile = innerF + (outerF - innerF) * Math.pow(uProfile, profileExp);
+    const rateRounded = Math.max(1, Math.min(10, Math.round(rateForMargin)));
+    const belongingAmpFactor = EMOTION_BREATH_RATE_AMP_TABLE[rateRounded] ?? 0.5;
+    const belongingSpeedFactor = Math.max(0.5, Math.min(2, EMOTION_BREATH_RATE_SPEED_TABLE[rateRounded] ?? 1));
+    const breathScale = 1.5 * wobbleFitScale;
+    const breathAmpUnits = Math.max(0, Number(EMOTION_BREATH_AMPLITUDE_PX) || 0) * indexProfile * belongingAmpFactor * breathScale;
     const groupScale = Number(emotionLayout?.groupScale) || 1;
-    // Margin includes stroke width, distortion amplitude, and breathing room.
-    const margin = Math.max(emotionR * 0.3 + 10, swForMargin + ampForMargin + 8);
+    // Margin includes stroke width, distortion amplitude, and max breathing expansion.
+    const margin = Math.max(emotionR * 0.3 + 10, swForMargin + ampForMargin + breathAmpUnits + 8);
     const cropSize = (emotionR + margin) * 2;
     const emotionScale = 460 / emotionVbW;
     const displaySize = Math.round((emotionR * 2 * groupScale * emotionScale + swForMargin) * printRingSizeScale) + 8;
@@ -8451,17 +8537,6 @@ function updateStep1RingReading() {
     // factor from EMOTION_BREATH_RATE_AMP/SPEED_TABLE, times this ring's
     // inner/outer position in the full set), so a given ring breathes
     // identically here as it does everywhere else, not an approximation.
-    const totalForProfile = Math.max(1, validAddrs.length);
-    const uProfile = totalForProfile <= 1 ? 1 : i / (totalForProfile - 1);
-    const innerF = Math.max(0, Number(EMOTION_BREATH_INNER_FACTOR) || 0);
-    const outerF = Math.max(innerF, Number(EMOTION_BREATH_OUTER_FACTOR) || innerF);
-    const profileExp = Math.max(0.25, Number(EMOTION_BREATH_PROFILE_EXP) || 1);
-    const indexProfile = innerF + (outerF - innerF) * Math.pow(uProfile, profileExp);
-    const rateRounded = Math.max(1, Math.min(10, Math.round(rate)));
-    const belongingAmpFactor = EMOTION_BREATH_RATE_AMP_TABLE[rateRounded] ?? 0.5;
-    const belongingSpeedFactor = Math.max(0.5, Math.min(2, EMOTION_BREATH_RATE_SPEED_TABLE[rateRounded] ?? 1));
-    const breathScale = 1.5 * wobbleFitScale;
-    const breathAmpUnits = Math.max(0, Number(EMOTION_BREATH_AMPLITUDE_PX) || 0) * indexProfile * belongingAmpFactor * breathScale;
     const period = Math.max(600, Number(EMOTION_BREATH_PERIOD_MS) || 4200);
 
     const breathData = { phi, amp, baseR: emotionR, cx: cxR, cy: cyR, idx: i, breathAmpUnits, belongingSpeedFactor, groupScale };
@@ -11125,7 +11200,9 @@ function renderAllMapsCombinedMap() {
     /** @type {L.CircleMarker[]} */
     const highlightedDots = [];
     /** @type {L.Polyline | null} */
-    let highlightedLine = null;
+    let highlightedMainLine = null;
+    /** @type {L.Polyline | null} */
+    let highlightedSoftLine = null;
 
     /** @type {L.LatLng[][]} */
     const segments = [];
@@ -11173,22 +11250,36 @@ function renderAllMapsCombinedMap() {
     if (segments.length) {
       const baseColor = getAllMapsOverlayStrokeColor();
       const overlayColor = yearMode ? yearInactiveColor : (isHighlighted ? highlightColor : (someHighlighted ? dimmedColor : baseColor));
-      const line = L.polyline(segments, {
-        weight: 1,
-        opacity: 1,
+      const softLine = L.polyline(segments, {
+        weight: ALL_MAPS_ROUTE_SOFT_WEIGHT,
+        opacity: ALL_MAPS_ROUTE_SOFT_OPACITY,
         color: overlayColor,
         lineCap: "round",
         lineJoin: "round",
         lifepathAllMapsKey: effectiveKey,
       });
-      allMapsVectorLayer.addLayer(line);
-      if (isHighlighted && typeof line.bringToFront === "function") highlightedLine = line;
+      allMapsVectorLayer.addLayer(softLine);
+
+      const mainLine = L.polyline(segments, {
+        weight: ALL_MAPS_ROUTE_MAIN_WEIGHT,
+        opacity: ALL_MAPS_ROUTE_MAIN_OPACITY,
+        color: overlayColor,
+        lineCap: "round",
+        lineJoin: "round",
+        lifepathAllMapsKey: effectiveKey,
+      });
+      allMapsVectorLayer.addLayer(mainLine);
+      if (isHighlighted) {
+        if (typeof softLine.bringToFront === "function") highlightedSoftLine = softLine;
+        if (typeof mainLine.bringToFront === "function") highlightedMainLine = mainLine;
+      }
     }
 
     // Force the highlighted map to the top of the stack.
     if (isHighlighted) {
       try {
-        if (highlightedLine) highlightedLine.bringToFront();
+        if (highlightedSoftLine) highlightedSoftLine.bringToFront();
+        if (highlightedMainLine) highlightedMainLine.bringToFront();
         for (const d of highlightedDots) d.bringToFront();
       } catch {
         // ignore
@@ -11730,6 +11821,33 @@ let _step1SkipSoundRebuildOnce = false;
 // making the small preview look like it "changed" even though the end
 // result is identical. Skipping it once here avoids that.
 let _step1SkipEmotionRebuildOnce = false;
+
+function resumeStep1EmotionPlaybackFromCache() {
+  const playbackOptions = _step1EmotionLastPlaybackOptions;
+  if (!playbackOptions || !Array.isArray(playbackOptions.rings) || playbackOptions.rings.length === 0) return false;
+
+  const ringsStillMounted = playbackOptions.rings.every((ring) => ring && ring.parentNode);
+  if (!ringsStillMounted) return false;
+
+  try {
+    disarmEmotionBreathing();
+    startEmotionBreathing(playbackOptions);
+  } catch {
+    return false;
+  }
+
+  const skipSound = _step1SkipSoundRebuildOnce;
+  _step1SkipSoundRebuildOnce = false;
+  if (!skipSound) {
+    try {
+      ensureEmotionAudioReady();
+      startEmotionSound(playbackOptions);
+    } catch {
+      // Browser may still require a gesture before audio can start.
+    }
+  }
+  return true;
+}
 
 let _emotionBreathRaf = 0;
 let _emotionBreathStartTime = 0;
@@ -17214,9 +17332,7 @@ if (elStep1BelongNextBtn) {
       clearStep1HomesListFocus();
       setTimeout(() => {
         updateStep1GeoMapMarkers();
-        if (step1GeoRouteLine) {
-          step1GeoRouteLine.setStyle({ color: "#000000", weight: 1.5 });
-        }
+        styleStep1GeoRouteLines(1.5, "#000000");
       }, 300);
     } else {
       // studentName/homesCount now live outside <form id="addressForm">

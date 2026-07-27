@@ -4697,6 +4697,8 @@ input[type="reset"]:hover:not(:disabled) {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  --step1-panel-divider-size: 0.1px;
+  --step1-panel-divider-opacity: 0.4;
 }
 
 #pageStep1 .frame {
@@ -5408,10 +5410,10 @@ input[type="reset"]:hover:not(:disabled) {
      this divider line still renders at its original, unmoved position. */
   left: 0;
   top: 0;
-  width: 0.1px;
+  width: var(--step1-panel-divider-size);
   height: 100%;
   background: #000000;
-  opacity: 0.65;
+  opacity: var(--step1-panel-divider-opacity);
   z-index: 9;
 }
 
@@ -5758,12 +5760,12 @@ input[type="reset"]:hover:not(:disabled) {
   align-items: center;
   gap: 4px;
   width: 100%;
-  height: calc(100% - 44px);
+  height: calc(100% - 34px);
   min-height: 120px;
   overflow-x: scroll;
   overflow-y: hidden;
   padding-bottom: 28px;
-  padding-top: 10px;
+  padding-top: 14px;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -5814,10 +5816,10 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   left: 0;
   top: -30px;
-  width: 0.1px;
+  width: var(--step1-panel-divider-size);
   height: calc(100% + 30px);
   background: #000000;
-  opacity: 0.65;
+  opacity: var(--step1-panel-divider-opacity);
   pointer-events: none;
   z-index: 5;
 }
@@ -5909,7 +5911,7 @@ input[type="reset"]:hover:not(:disabled) {
 #pageStep1 .step1MoveFrequencyLabel {
   left: 560px;
   transform: translateX(-100%);
-  top: var(--step1-header-timeline-top, 206px);
+  top: calc(var(--step1-header-timeline-top, 206px) - 7px);
   /* Exactly matches the 5 section titles (.step1EmotionMapTitle etc.) --
      font, weight, scale-independent size, and (via the finished-state gray
      rule above) color too. */
@@ -5944,7 +5946,7 @@ input[type="reset"]:hover:not(:disabled) {
   display: none;
   position: absolute;
   left: 590px;
-  top: var(--step1-header-timeline-top, 206px);
+  top: calc(var(--step1-header-timeline-top, 206px) - 7px);
   width: 950px;
   height: 24px;
   z-index: 4;
@@ -5993,11 +5995,13 @@ input[type="reset"]:hover:not(:disabled) {
   position: absolute;
   left: 1540px;
   top: calc(var(--step1-dashboard-top, 285px) + 70px);
-  width: 460px;
+  width: 360px;
   height: calc(var(--step1-dashboard-height, 810px) - 70px);
   border-left: none;
   z-index: 3;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #c9c8c1 transparent;
 }
 
 #pageStep1 .step1HomesListTitle::before {
@@ -6005,16 +6009,25 @@ input[type="reset"]:hover:not(:disabled) {
   position: fixed;
   left: 1540px;
   top: calc(var(--step1-dashboard-top, 285px) + 37px);
-  width: 0.1px;
+  width: var(--step1-panel-divider-size);
   height: calc(var(--step1-dashboard-height, 810px) - 37px);
   background: #000000;
-  opacity: 0.65;
+  opacity: var(--step1-panel-divider-opacity);
   z-index: 5;
   pointer-events: none;
 }
 
 #pageStep1 .step1HomesList::-webkit-scrollbar {
-  display: none;
+  width: 6px;
+}
+
+#pageStep1 .step1HomesList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#pageStep1 .step1HomesList::-webkit-scrollbar-thumb {
+  background: #c9c8c1;
+  border-radius: 3px;
 }
 
 #pageStep1 .step1HomesList .homesListItem {
@@ -6743,9 +6756,9 @@ input[type="reset"]:hover:not(:disabled) {
   left: 7px;
   right: -22px;
   top: 100%;
-  height: 0.1px;
+  height: var(--step1-panel-divider-size);
   background: #000000;
-  opacity: 0.65;
+  opacity: var(--step1-panel-divider-opacity);
   pointer-events: none;
   z-index: 5;
 }
@@ -6757,11 +6770,11 @@ input[type="reset"]:hover:not(:disabled) {
      endpoints at their original absolute position after the frame's
      left/width were changed to enlarge it. */
   left: 7px;
-  right: 0;
+  right: 7px;
   top: 100%;
-  height: 0.1px;
+  height: var(--step1-panel-divider-size);
   background: #000000;
-  opacity: 0.65;
+  opacity: var(--step1-panel-divider-opacity);
   pointer-events: none;
   z-index: 5;
 }

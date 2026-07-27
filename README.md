@@ -15,6 +15,10 @@ From this folder:
   - open http://localhost:5173
   - each click on “Save & Clear” appends to `lifepath.sqlite3`
 
+- Normal browser window with auto-sound after browser refresh (Windows Edge/Chrome):
+  - `powershell -ExecutionPolicy Bypass -File tools\start_autosound_browser.ps1`
+  - This opens LifePath in a dedicated normal Edge/Chrome profile with Chromium autoplay enabled.
+
 ### Useful server options
 
 - Bind to a different host/port:
