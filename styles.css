@@ -345,10 +345,11 @@ body {
    flush with the row's, matching every page's copy of this row exactly. */
 .homePageTopActions {
   position: absolute;
-  /* Matches the top-left logo's own calc(34px * var(--step1-scale,1)) on
-     every page that shares this row (Archive, Emotion solo, Emotion
-     expand) -- Welcome and Step1 override back to a flat 34px below, since
-     their own logos are positioned flat too (see each override's comment). */
+  /* Every page that shares this row anchors its top-left logo the same way
+     (flat top:34px inside a scaled ancestor, or calc(34px * scale) flat --
+     both render on-screen at 34*scale), so this single value keeps the row
+     level with the logo -- and with every other page's copy of this same
+     row -- everywhere it appears. */
   top: calc(34px * var(--step1-scale, 1));
   /* Matches .topbar's own right padding (36px 42px 0, used across Step 2,
      Emotion, Welcome, Archive, and All Maps) -- this row is position:fixed
@@ -362,12 +363,10 @@ body {
 }
 
 /* Pinned to the viewport, unaffected by #pageWelcome's own internal scroll
-   (see .homePageInner) -- stays visible on both screens. Flat top:34px,
-   matching #pageWelcome's own logo (which only appears on screen 1, where
-   nothing is scaled). */
+   (see .homePageInner) -- stays visible on both screens. top: inherited
+   from the base rule above. */
 #pageWelcome .homePageTopActions {
   position: fixed;
-  top: 34px;
 }
 
 /* Step 1's own copy of this row lives outside .frame (which the archive/all
@@ -375,13 +374,12 @@ body {
    transform:scale(var(--step1-scale)), so nesting this row inside it would
    double-apply the scale). position:fixed for the same reason as
    #pageWelcome above: guaranteed viewport-relative regardless of ancestor
-   positioning. Its OWN top still needs the same calc(34px * scale) as the
-   base rule though (re-declared here only for the comment): Step 1's logo
+   positioning. top: inherited from the base rule above -- Step 1's own logo
    sits at flat top:34px *inside* .frame, so .frame's ambient scale renders
-   it on-screen at 34*scale, same number this calc produces directly. */
+   it on-screen at 34*scale, same number the base rule's calc produces
+   directly out here. */
 #pageStep1 .homePageTopActions {
   position: fixed;
-  top: calc(34px * var(--step1-scale, 1));
 }
 
 .homePageTopActions button,
@@ -405,6 +403,16 @@ body {
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
   font-weight: 400;
   line-height: 1;
+}
+
+/* "create map", expand/solo pages: shown for row-layout consistency with
+   every other page, but disabled -- these are nested inside a specific
+   map's own view, not a place a new map can be started from. Same
+   disabled-opacity convention as .printModalOptionBtn:disabled. */
+.homeTextActionBtn:disabled {
+  cursor: default;
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 .homePageTopActions button:hover,
@@ -450,55 +458,6 @@ body {
   z-index: 30;
 }
 
-.homePageTagline {
-  margin: 50px 0 0 0;
-  position: relative;
-  left: -90px;
-  max-width: 520px;
-  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 1.35;
-  text-transform: lowercase;
-  color: #000000;
-}
-
-/* #pageWelcome's logo now centers itself directly (see .homePageLogo)
-   rather than through a flex-column wrapper -- so its tagline needs its own
-   fresh, standalone positioning (centered below the logo) instead of the
-   base .homePageTagline rule's flow-column-specific margin/left (that base
-   rule's own font/color still applies here, just not its layout). Fades
-   out on scroll (toggled in app.js). */
-#pageWelcome .homePageTagline {
-  position: absolute;
-  /* Same 53px gap below the logo as before, now measured from the logo's
-     corrected (true-center) position -- see .homePageLogo's own comment. */
-  top: calc(50vh - 36px + 53px);
-  /* .homePageLogo's own left edge: it's centered via left:50% + a 135px
-     width + transform:translateX(-50%), so its left edge sits at
-     50% - 67.5px of their shared containing block (.homePageInner) --
-     must be % here, not vw: vw is viewport-relative regardless of
-     containing block, but #pageWelcome's own 42px side padding shrinks
-     .homePageInner narrower than the viewport, so vw would land 42px off. */
-  left: calc(50% - 67.5px);
-  margin: 0;
-  width: max-content;
-  max-width: 90vw;
-  text-align: left;
-  opacity: 1;
-  transition: opacity 0.5s ease;
-}
-
-.homePageTaglineLine2 {
-  position: relative;
-  top: -4px;
-  display: inline-block;
-}
-
-#pageWelcome .homePageTagline.homeScrollHintHidden {
-  opacity: 0;
-}
-
 /* Static "scroll down to create your map" caption -- replaces the old
    cursor-following "scroll down" hint. Centered horizontally on screen 1;
    anchored 40px above screen 1's own bottom edge (100vh, not
@@ -512,17 +471,13 @@ body {
 #pageWelcome .homeScrollDownText {
   position: absolute;
   top: calc(100vh - 40px - 36px);
-  /* Left-aligned to the logo's own left edge -- same calc(50% - 67.5px)
-     formula as .homePageTagline above (logo is centered via left:50% +
-     135px width + translateX(-50%), so its left edge sits at
-     50% - 67.5px of their shared containing block). */
-  left: calc(50% - 67.5px);
-  transform: translate(0, -100%);
+  left: 50%;
+  transform: translate(-50%, -100%);
   z-index: 1;
   margin: 0;
   width: max-content;
   max-width: 90vw;
-  text-align: left;
+  text-align: center;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
   font-size: 14px;
@@ -1001,6 +956,34 @@ button:hover .btnImgTimeline {
   margin-top: 20px;
 }
 
+/* "back" in the map-details reading panel (Step 2 / emotion expand): a flex
+   child of .step2ReadingInfo/.step1EmotionFullscreenInfo like every row
+   above it, so it naturally flows just below whatever precedes it (the
+   panel's own flex gap is 14px) -- the extra 46px margin here makes that a
+   full 60px (40px + a later +20px bump), while still tracking that
+   preceding row's own height if it wraps to more than one line. */
+.expandInfoBackBtn {
+  align-self: flex-start;
+  margin-top: 46px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Solo ring-reading page has no static "map details" panel to flow this
+   below, so it's pinned to a fixed position instead: left-aligned with the
+   ring-reading detail overlay's own "movement" label (its column uses
+   left:calc(50vw - 30px), see targetSoloTextXForPage() in app.js), 30px
+   above where that would otherwise sit. */
+#pageEmotion .soloInfoBackBtn {
+  position: fixed;
+  left: calc(50vw - 30px);
+  top: calc(50vh + 220px);
+  margin-top: 0;
+  z-index: 2000;
+}
+
 #pageStep2 .step2ReadingInfoStat:empty,
 #pageStep2 .step2ReadingInfoList:empty,
 #pageStep2 .step2ReadingInfoName:empty,
@@ -1265,6 +1248,14 @@ button:hover .btnImgTimeline {
 /* Second line under RING READING: positioned by explicit top (no centering transform). */
 .emotionRingReading.emotionRingHomeNo {
   transform: none;
+}
+
+/* Cursor-following "home XX" label, small ring-reading strip at the bottom
+   of the solo page -- explicit top/left set per pointermove event, no
+   centering transform. */
+.emotionRingReading.emotionSoloStripHover {
+  transform: none;
+  font-size: 13px;
 }
 
 /* Address line: same baseline behavior as HOME NO (explicit top coordinate). */
@@ -1765,8 +1756,16 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 
 
 #pageArchive .archiveSearchWrap {
-  position: static;
-  margin: -25px 0 16px 10px;
+  /* Was position:static -- fine while this row sat below .topbar's own
+     101px-tall opaque background+fill (z-index:1990, masks the archive
+     grid scrolling underneath the logo/nav row), but moving this row up
+     pushed it partly *into* that same 0-101px zone, where the topbar's
+     higher z-index then painted over it. relative + a higher z-index lifts
+     it back above that fill without having to shrink the topbar's own
+     masked area (still needed for the grid). */
+  position: relative;
+  z-index: 1995;
+  margin: -40px 0 16px 10px;
   pointer-events: auto;
 }
 
@@ -2392,6 +2391,83 @@ body.printModalOpen .printModalOverlay {
   display: none;
 }
 
+/* Shown from the moment a postcard is sent to print (see
+   printReviewOption1()/printMapOption() in print-modal.js) -- covers the
+   print-mode CSS transition (basemap/layout swaps, etc.) that would
+   otherwise flash on screen while the browser prepares its own print
+   dialog. Left open after window.print() returns, now offering "keep
+   exploring" / "start over", until the user picks one. A fixed-size card
+   (15x10cm, landscape) centered on screen, not the full viewport --
+   deliberately not matching the postcard's own portrait proportions. */
+.printSendingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 64px;
+  box-sizing: border-box;
+  background: #f4f2ea;
+}
+
+.printSendingOverlay.hidden {
+  display: none;
+}
+
+.printSendingCard {
+  margin: 0;
+  width: 15cm;
+  height: 10cm;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  text-align: center;
+  padding: 24px;
+  box-sizing: border-box;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.printSendingText {
+  margin: 0;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  color: #000000;
+  text-transform: lowercase;
+}
+
+.printSendingActions {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.printSendingActionBtn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #000000;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  text-transform: lowercase;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Screen-only -- never let this print itself if a print/render race ever
+   left it visible when the browser's own print pass actually runs. */
+@media print {
+  .printSendingOverlay {
+    display: none !important;
+  }
+}
+
 .printModalBackdrop {
   position: absolute;
   inset: 0;
@@ -2891,7 +2967,7 @@ html.printOption1Mode #pageStep1 .step1RoutePreview svg {
      that function, which computes the fit against a fixed on-screen-width
      content area centered in the wider print panel, so this only needs the
      plain translate.) */
-  transform: translate(5px, -25px) !important;
+  transform: translate(5px, 5px) !important;
 }
 
 .printOption1PreviewStage #pageStep1 .step1RoutePreview svg line[data-print-route-line="1"],
@@ -3081,6 +3157,13 @@ html.printOption1Mode #pageStep1 .step1EmotionMapTitle {
   width: var(--print-option1-panel-width) !important;
 }
 
+/* Rings only, not the panel box/divider -- raised further within its
+   section (overview postcard). */
+.printOption1PreviewStage #pageStep1 .step1EmotionSvg,
+html.printOption1Mode #pageStep1 .step1EmotionSvg {
+  transform: translateY(40px) !important;
+}
+
 .printOption1PreviewStage #pageStep1 .step1RoutePreview,
 .printOption1PreviewStage #pageStep1 .step1MovementMapTitleCenter,
 html.printOption1Mode #pageStep1 .step1RoutePreview,
@@ -3175,6 +3258,13 @@ html.printOption1Mode #pageStep1 .printOption1StatsValue {
 .printOption1PreviewStage #pageStep1 .printOption1StatsLabel,
 html.printOption1Mode #pageStep1 .printOption1StatsLabel {
   text-align: left !important;
+  /* Fixed label-column width so every row's value lines up at the same x
+     (left-aligned to each other) regardless of that row's own label length
+     -- completes the --print-option1-stats-value-left plan described in
+     the comment above .printOption1Stats' own left/width block: value
+     column starts at 278px, minus the row's 18px flex gap = 260px here. */
+  width: calc(var(--print-option1-stats-value-left) - 18px) !important;
+  flex: none !important;
 }
 
 html.printOption1ManyAddresses .printOption1PreviewStage #pageStep1 .step1HomesList,
@@ -3660,6 +3750,29 @@ img.postcardCardLogo {
   font-weight: 700;
 }
 
+/* Muted/gray icon while the year timeline is collapsed (aria-expanded
+   toggled in updateAllMapsYearSlider()), same black buttons/timeline.png
+   as every other page once expanded -- an explicit hover override is
+   needed too, or the generic "button:hover .btnImgTimeline" rule below
+   would lose to this one on specificity and hovering while collapsed
+   would show no feedback at all. */
+.allMapsTimelineToggle[aria-expanded="false"] .btnImgTimeline {
+  content: url("buttons/timeline-close.png");
+}
+
+.allMapsTimelineToggle[aria-expanded="false"]:hover:not(:disabled) .btnImgTimeline {
+  content: url("buttons/timeline-hover.png");
+}
+
+/* Cream icon while the geographic map/tiles are shown (dark basemap behind
+   it) -- wins over both states above regardless of source order (the extra
+   #pageAllMaps.tiles-visible ID pushes this rule's specificity higher),
+   same "no hover feedback while the map is shown" convention as
+   show-map.png/hide-map.png. */
+#pageAllMaps.tiles-visible .allMapsTimelineToggle .btnImgTimeline {
+  content: url("buttons/timeline-map-on.png");
+}
+
 #pageAllMaps .allMapsYearControls {
   position: relative;
   flex: 1 1 auto;
@@ -3777,7 +3890,12 @@ img.postcardCardLogo {
   pointer-events: none;
 }
 
-/* All Maps basemap toggle, centered on the left edge. */
+/* All Maps basemap toggle, centered on the left edge. Image-based (see
+   updateAllMapsHideMapLabel() in app.js, which swaps both the <img> src
+   and its class between the "show map"/"hide map" states) -- color used to
+   be driven by .dark-map-ui/.tiles-visible text-color rules, now baked
+   into each state's own PNG asset instead (buttons/show-map.png,
+   buttons/hide-map.png, both already pre-colored for their context). */
 #pageAllMaps #allMapsHideMapBtn {
   position: fixed;
   left: 42px;
@@ -3787,21 +3905,19 @@ img.postcardCardLogo {
   transform: translateY(-50%);
   z-index: 2000;
   display: inline-block;
-  font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
-  font-weight: 400;
-  font-size: 14.5px;
-  text-transform: lowercase !important;
-  padding-bottom: 4px;
-  margin-bottom: -4px;
-  text-decoration: underline;
-  text-decoration-thickness: 0.75px;
-  text-underline-offset: 1px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
 }
 
-#pageAllMaps #allMapsHideMapBtn:hover:not(:disabled) {
-  color: #000000;
-  font-family: "NarkissYair-Bold-TRIAL", "NarkissYair Bold TRIAL", sans-serif;
-  font-weight: 700;
+.btnImgShowMap,
+.btnImgHideMap {
+  height: 15px;
+}
+
+button:hover .btnImgShowMap {
+  content: url("buttons/show-map-hover.png");
 }
 
 #pageAllMaps .allMapsList {
@@ -4445,52 +4561,6 @@ input[type="reset"]:hover:not(:disabled) {
   align-items: flex-start;
 }
 
-/* Small X, expand/solo pages -- returns straight to Step 1's data-entry page
-   for the same map, instead of relying on the browser's own Back button.
-   Sits below the archive/all-maps nav row, right-aligned with it (same
-   right inset as .homePageTopActions/.step2Actions), same visual language
-   as .printModalCloseBtn. */
-.expandCloseBtn {
-  position: absolute;
-  /* Same scaled-top formula as the row it sits below (see
-     .homePageTopActions/.allMapsActions/.step2Actions), so the gap between
-     them stays proportional on narrower viewports too. */
-  top: calc(60px * var(--step1-scale, 1));
-  right: 42px;
-  width: 16px;
-  height: 16px;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  z-index: 21;
-}
-
-.expandCloseBtn::before,
-.expandCloseBtn::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 16px;
-  height: 1px;
-  background: #000000;
-  transform-origin: center;
-}
-
-.expandCloseBtn::before {
-  transform: translate(-50%, -50%) rotate(45deg);
-}
-
-.expandCloseBtn::after {
-  transform: translate(-50%, -50%) rotate(-45deg);
-}
-
-.expandCloseBtn:hover::before,
-.expandCloseBtn:hover::after {
-  background: #8e3300;
-}
-
 #pageStep2 .step2Actions .textLink {
   display: inline-block;
   font-family: "NarkissYair-Regular-TRIAL", "NarkissYair Regular TRIAL", sans-serif;
@@ -4585,10 +4655,10 @@ input[type="reset"]:hover:not(:disabled) {
   color: #f2f0e8;
 }
 
-#pageAllMaps.dark-map-ui #allMapsHideMapBtn,
-#pageAllMaps.dark-map-ui #allMapsHideMapBtn:hover:not(:disabled) {
-  color: #f2f0e8;
-}
+/* #allMapsHideMapBtn no longer needs a color rule here (or in the
+   .tiles-visible groups below) -- it's image-based now, pre-colored per
+   state via its own PNG asset (buttons/show-map.png / buttons/hide-map.png,
+   see updateAllMapsHideMapLabel() in app.js). */
 
 /* "show map" (allMapsTilesVisible/.tiles-visible in app.js) recolors
    routes (see getAllMapsOverlayStrokeColor() and friends in app.js), map
@@ -4600,7 +4670,6 @@ input[type="reset"]:hover:not(:disabled) {
 #pageAllMaps.tiles-visible .brand,
 #pageAllMaps.tiles-visible .closeToHomeBtn,
 #pageAllMaps.tiles-visible .allMapsListToggle,
-#pageAllMaps.tiles-visible #allMapsHideMapBtn,
 #pageAllMaps.tiles-visible .allMapsListName,
 #pageAllMaps.tiles-visible .allMapsListNumber {
   color: #f4f2eb;
@@ -4611,8 +4680,7 @@ input[type="reset"]:hover:not(:disabled) {
    hover-to-black rules above, since dark-map-ui only ever applies when
    tiles-visible is also active). */
 #pageAllMaps.tiles-visible .closeToHomeBtn:hover:not(:disabled),
-#pageAllMaps.tiles-visible .allMapsListToggle:hover:not(:disabled),
-#pageAllMaps.tiles-visible #allMapsHideMapBtn:hover:not(:disabled) {
+#pageAllMaps.tiles-visible .allMapsListToggle:hover:not(:disabled) {
   color: #f4f2eb;
 }
 

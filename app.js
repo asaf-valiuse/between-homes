@@ -1091,6 +1091,22 @@ function renderEmotionSoloRingReadingStrip() {
       event.preventDefault();
       selectRing(event.target);
     });
+    // Hover over one of this strip's small rings: show "home XX" right next
+    // to the cursor (see showEmotionSoloStripHover()'s own comment for why
+    // this needs a separate element from #emotionRingHomeNo).
+    host.addEventListener("pointermove", (event) => {
+      const ring = event.target && typeof event.target.closest === "function"
+        ? event.target.closest("svg[data-emotion-solo-reading-index]")
+        : null;
+      if (!ring || !host.contains(ring)) {
+        hideEmotionSoloStripHover();
+        return;
+      }
+      const ringIndex = Number(ring.getAttribute("data-emotion-solo-reading-index"));
+      if (!Number.isFinite(ringIndex)) return;
+      showEmotionSoloStripHover(`home ${String(ringIndex + 1).padStart(2, "0")}`, event.clientX, event.clientY);
+    });
+    host.addEventListener("pointerleave", () => hideEmotionSoloStripHover(), { passive: true });
     if (typeof ResizeObserver === "function") {
       host.__lpRingReadingResizeObserver = new ResizeObserver(() => layoutEmotionSoloRingReadingStrip(host));
       host.__lpRingReadingResizeObserver.observe(host);
@@ -1177,6 +1193,7 @@ function areStep1MapSpecificInteractionsDisabled() {
 function hideEmotionRingSoloTextOverlays() {
   try { hideEmotionRingReading(); } catch { /* ignore */ }
   try { hideEmotionRingHomeNo(); } catch { /* ignore */ }
+  try { hideEmotionSoloStripHover(); } catch { /* ignore */ }
   try { hideEmotionRingAddress(); } catch { /* ignore */ }
   try { hideEmotionRingAttachment(); } catch { /* ignore */ }
   try { hideEmotionRingTemporal(); } catch { /* ignore */ }
@@ -2674,6 +2691,16 @@ function restyleStep2OverlaysForBasemap() {
 
 function restyleAllMapsOverlaysForBasemap() {
   if (!allMapsVectorLayer) return;
+  // This lightweight per-layer restyle only knows each layer's saved-map key
+  // (for highlight/dim), not which individual address/year it represents --
+  // renderAllMapsCombinedMap() is the only place that recomputes per-dot
+  // year-active coloring (see yearActiveColor/yearInactiveColor there), so
+  // defer to a full re-render whenever the year timeline filter is on,
+  // rather than silently dropping back to highlight/dim/base colors here.
+  if (allMapsYearFilterEnabled) {
+    renderAllMapsCombinedMap();
+    return;
+  }
   const baseColor = getAllMapsOverlayStrokeColor();
   const highlightColor = getAllMapsHighlightColor();
   const dimmedColor = getAllMapsDimmedRouteColor();
@@ -3436,6 +3463,75 @@ function ensureEmotionRingHomeNoEl() {
 
 function hideEmotionRingHomeNo() {
   const el = _emotionRingHomeNoEl;
+  if (!el) return;
+  try {
+    el.classList.add("hidden");
+  } catch {
+    // ignore
+  }
+}
+
+// Separate singleton from #emotionRingHomeNo above: that one is a *static*
+// row inside the currently-open ring's fixed detail stack (see
+// setEmotionRingFocus()), so reusing it here would rip it out of that
+// layout every time the mouse moved over the small ring-reading strip at
+// the bottom of the solo page. This one just follows the cursor.
+let _emotionSoloStripHoverEl = null;
+
+function ensureEmotionSoloStripHoverEl() {
+  if (_emotionSoloStripHoverEl) return _emotionSoloStripHoverEl;
+  try {
+    const el = document.createElement("div");
+    el.id = "emotionSoloStripHover";
+    el.className = "emotionRingReading emotionSoloStripHover hidden";
+    el.textContent = "";
+    document.body.appendChild(el);
+    _emotionSoloStripHoverEl = el;
+    return el;
+  } catch {
+    return null;
+  }
+}
+
+// Same viewport-edge clamping approach as showEmotionRingHomeNo(), just
+// anchored to the live cursor position (with a small offset) instead of a
+// fixed layout point.
+function showEmotionSoloStripHover(text, clientX, clientY) {
+  const el = ensureEmotionSoloStripHoverEl();
+  if (!el) return;
+  try {
+    el.style.visibility = "hidden";
+    el.textContent = String(text || "");
+    el.classList.remove("hidden");
+
+    const vw = Math.max(1, Number(window.innerWidth || 1));
+    const vh = Math.max(1, Number(window.innerHeight || 1));
+    const margin = 8;
+    const offset = 14;
+
+    let left = Math.round(Number(clientX) || 0) + offset;
+    let top = Math.round(Number(clientY) || 0) + offset;
+
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+
+    const r = el.getBoundingClientRect();
+    if (r.right > vw - margin) left = Math.round((Number(clientX) || 0) - offset - r.width);
+    if (r.bottom > vh - margin) top = Math.round((Number(clientY) || 0) - offset - r.height);
+    if (left < margin) left = margin;
+    if (top < margin) top = margin;
+
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+
+    el.style.visibility = "";
+  } catch {
+    // ignore
+  }
+}
+
+function hideEmotionSoloStripHover() {
+  const el = _emotionSoloStripHoverEl;
   if (!el) return;
   try {
     el.classList.add("hidden");
@@ -5024,6 +5120,7 @@ const elSavedMapsEmpty = document.getElementById("savedMapsEmpty");
 
 const elAllMapsMap = document.getElementById("allMapsMap");
 const elAllMapsHideMapBtn = document.getElementById("allMapsHideMapBtn");
+const elAllMapsHideMapImg = document.getElementById("allMapsHideMapImg");
 const elAllMapsEditBtn = document.getElementById("allMapsEditBtn");
 const elAllMapsCountLabel = document.getElementById("allMapsCountLabel");
 const elAllMapsZoomLabel = document.getElementById("allMapsZoomLabel");
@@ -7481,6 +7578,7 @@ function updateStep1RoutePreview() {
           dot.setAttribute("data-address-index", String(last.addressIndex));
           dot.setAttribute("data-home-label", last.homeLabel || "");
           dot.setAttribute("data-address-label", last.addressLabel || "");
+          dot.setAttribute("data-in-israel", last.inIsrael ? "1" : "0");
           dot.style.pointerEvents = "all";
           svg.appendChild(dot);
           const dotStart = performance.now();
@@ -7514,6 +7612,7 @@ function updateStep1RoutePreview() {
     dot.setAttribute("data-address-index", String(c.addressIndex));
     dot.setAttribute("data-home-label", c.homeLabel || "");
     dot.setAttribute("data-address-label", c.addressLabel || "");
+    dot.setAttribute("data-in-israel", c.inIsrael ? "1" : "0");
     dot.style.pointerEvents = "all";
     svg.appendChild(dot);
   }
@@ -10762,8 +10861,16 @@ function updateAllMapsCountLabel(visibleCount) {
 }
 
 function updateAllMapsHideMapLabel() {
-  if (!elAllMapsHideMapBtn) return;
-  elAllMapsHideMapBtn.textContent = allMapsTilesVisible ? "hide map" : "show map";
+  if (!elAllMapsHideMapImg) return;
+  if (allMapsTilesVisible) {
+    elAllMapsHideMapImg.src = "buttons/hide-map.png";
+    elAllMapsHideMapImg.alt = "hide map";
+    elAllMapsHideMapImg.className = "btnImg btnImgHideMap";
+  } else {
+    elAllMapsHideMapImg.src = "buttons/show-map.png";
+    elAllMapsHideMapImg.alt = "show map";
+    elAllMapsHideMapImg.className = "btnImg btnImgShowMap";
+  }
 }
 
 function setAllMapsTilesVisible(enabled) {
@@ -10961,8 +11068,6 @@ const HOME_SCROLL_HINT_OFFSET_Y = 4;
 function updateHomeScrollHint() {
   if (!elPageWelcome) return;
   const scrolled = elPageWelcome.scrollTop > 0;
-  const tagline = document.getElementById("homePageTagline");
-  if (tagline) tagline.classList.toggle("homeScrollHintHidden", scrolled);
   const scrollDownText = document.getElementById("homeScrollDownText");
   if (scrollDownText) scrollDownText.classList.toggle("homeScrollHintHidden", scrolled);
 }
@@ -11194,7 +11299,10 @@ function renderAllMapsCombinedMap() {
     const someHighlighted = Boolean(allMapsHighlightedKey);
     const highlightColor = getAllMapsHighlightColor();
     const dimmedColor = getAllMapsDimmedRouteColor();
-    const yearActiveColor = "#000000";
+    // #f3f1e6 only while the geographic map/tiles are shown (dark basemap
+    // behind it) -- black stays correct against the default light
+    // background, but would be nearly invisible against a dark one.
+    const yearActiveColor = allMapsTilesVisible ? "#f3f1e6" : "#000000";
     const yearInactiveColor = "#b6b4aa";
 
     /** @type {L.CircleMarker[]} */

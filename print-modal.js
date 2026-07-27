@@ -1,4 +1,7 @@
 const elPrintModalOverlay = document.getElementById("printModalOverlay");
+const elPrintSendingOverlay = document.getElementById("printSendingOverlay");
+const elPrintSendingKeepExploringBtn = document.getElementById("printSendingKeepExploringBtn");
+const elPrintSendingStartOverBtn = document.getElementById("printSendingStartOverBtn");
 const elPrintModalCloseBtn = document.getElementById("printModalCloseBtn");
 const elPrintOption1Btn = document.getElementById("printOption1Btn");
 const elPrintOption2Btn = document.getElementById("printOption2Btn");
@@ -46,6 +49,41 @@ function closePrintModal() {
   clearPrintMovementRouteLinesForRoot();
   clearPrintOption1Preview();
   clearPrintMapOptionPreview();
+}
+
+// Shown from the moment a postcard is sent to print, and left open (with
+// its "keep exploring" / "start over" actions) after window.print() returns
+// (dialog dismissed either way -- printed or canceled) until the user picks
+// one of them.
+function showPrintSendingOverlay() {
+  if (!elPrintSendingOverlay) return;
+  elPrintSendingOverlay.classList.remove("hidden");
+  elPrintSendingOverlay.setAttribute("aria-hidden", "false");
+}
+
+function hidePrintSendingOverlay() {
+  if (!elPrintSendingOverlay) return;
+  elPrintSendingOverlay.classList.add("hidden");
+  elPrintSendingOverlay.setAttribute("aria-hidden", "true");
+}
+
+// "keep exploring": dismiss the overlay and return to the map data page.
+if (elPrintSendingKeepExploringBtn) {
+  elPrintSendingKeepExploringBtn.addEventListener("click", () => {
+    hidePrintSendingOverlay();
+    showPage("step1");
+  });
+}
+
+// "start over": clear the review-map refresh marker (so the reload below
+// lands on the home page instead of re-opening this map, mirroring what a
+// plain refresh would restore -- see clearReviewMapRefreshMarker() in
+// app.js) and hard-refresh the site.
+if (elPrintSendingStartOverBtn) {
+  elPrintSendingStartOverBtn.addEventListener("click", () => {
+    if (typeof clearReviewMapRefreshMarker === "function") clearReviewMapRefreshMarker();
+    window.location.reload();
+  });
 }
 
 let printOption1PreviewPageHome = null;
@@ -428,7 +466,16 @@ function addPrintMovementRouteLines(svg) {
 
 function fitPrintMovementMapViewBox(svg) {
   if (!svg) return;
-  const dots = Array.from(svg.querySelectorAll("circle[data-step1-route-dot='1']"));
+  const allDots = Array.from(svg.querySelectorAll("circle[data-step1-route-dot='1']"));
+  // Fit to Israel-based addresses only when there are any -- same
+  // Israel-first, fall-back-to-everything convention used everywhere else
+  // (updateStep1RoutePreview()'s own viewPts, fitStep1GeoMapToAllAddresses(),
+  // etc.), so a map with homes spread across multiple countries prints
+  // zoomed into Israel instead of zoomed out to fit the whole spread.
+  // Off-Israel dots are still drawn (data-in-israel="0", not filtered out
+  // of the SVG itself), just excluded from this fit calculation.
+  const israelDots = allDots.filter((dot) => dot.getAttribute("data-in-israel") === "1");
+  const dots = israelDots.length > 0 ? israelDots : allDots;
   const bounds = dots.reduce((result, dot) => {
     const cx = Number(dot.getAttribute("cx"));
     const cy = Number(dot.getAttribute("cy"));
@@ -805,6 +852,7 @@ function cleanupPrintMapOptionMode() {
 function printReviewOption1() {
   if (!isPrintOption1Available()) return;
   closePrintModal();
+  showPrintSendingOverlay();
   printOption1InProgress = true;
   document.documentElement.classList.add("printOption1Mode");
   document.body.classList.add("printOption1Mode");
@@ -847,7 +895,10 @@ function printMapOption(kind) {
   // but nothing ever re-rendered them, since window.print() blocks and
   // cleanupPrintMapOptionMode() below only removes CSS classes).
   closePrintModal();
-  if (!renderPrintMapOptionPreview(resolvedKind)) return;
+  if (!renderPrintMapOptionPreview(resolvedKind)) {
+    return;
+  }
+  showPrintSendingOverlay();
   document.documentElement.classList.add("printMapOptionMode");
   document.body.classList.add("printMapOptionMode");
 
