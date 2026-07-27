@@ -345,8 +345,16 @@ body {
    flush with the row's, matching every page's copy of this row exactly. */
 .homePageTopActions {
   position: absolute;
-  top: 34px;
-  right: 40px;
+  /* Matches the top-left logo's own calc(34px * var(--step1-scale,1)) on
+     every page that shares this row (Archive, Emotion solo, Emotion
+     expand) -- Welcome and Step1 override back to a flat 34px below, since
+     their own logos are positioned flat too (see each override's comment). */
+  top: calc(34px * var(--step1-scale, 1));
+  /* Matches .topbar's own right padding (36px 42px 0, used across Step 2,
+     Emotion, Welcome, Archive, and All Maps) -- this row is position:fixed
+     wherever it appears though, so it never actually inherits that padding
+     from any ancestor and needs the same 42px spelled out here directly. */
+  right: 42px;
   z-index: 20;
   display: flex;
   align-items: flex-start;
@@ -354,21 +362,26 @@ body {
 }
 
 /* Pinned to the viewport, unaffected by #pageWelcome's own internal scroll
-   (see .homePageInner) -- stays visible on both screens. */
+   (see .homePageInner) -- stays visible on both screens. Flat top:34px,
+   matching #pageWelcome's own logo (which only appears on screen 1, where
+   nothing is scaled). */
 #pageWelcome .homePageTopActions {
   position: fixed;
+  top: 34px;
 }
 
 /* Step 1's own copy of this row lives outside .frame (which the archive/all
    maps/about buttons must NOT inherit -- .frame is wrapped in
-   transform:scale(var(--step1-scale)), which would otherwise shrink this
-   row's flat top:34/right:40 along with everything else in the frame,
-   landing it off the home page's own unscaled position on any viewport
-   narrower than the 1920px design width). position:fixed for the same
-   reason as #pageWelcome above: guaranteed viewport-relative regardless of
-   ancestor positioning. */
+   transform:scale(var(--step1-scale)), so nesting this row inside it would
+   double-apply the scale). position:fixed for the same reason as
+   #pageWelcome above: guaranteed viewport-relative regardless of ancestor
+   positioning. Its OWN top still needs the same calc(34px * scale) as the
+   base rule though (re-declared here only for the comment): Step 1's logo
+   sits at flat top:34px *inside* .frame, so .frame's ambient scale renders
+   it on-screen at 34*scale, same number this calc produces directly. */
 #pageStep1 .homePageTopActions {
   position: fixed;
+  top: calc(34px * var(--step1-scale, 1));
 }
 
 .homePageTopActions button,
@@ -499,16 +512,20 @@ body {
 #pageWelcome .homeScrollDownText {
   position: absolute;
   top: calc(100vh - 40px - 36px);
-  left: 50%;
-  transform: translate(-50%, -100%);
+  /* Left-aligned to the logo's own left edge -- same calc(50% - 67.5px)
+     formula as .homePageTagline above (logo is centered via left:50% +
+     135px width + translateX(-50%), so its left edge sits at
+     50% - 67.5px of their shared containing block). */
+  left: calc(50% - 67.5px);
+  transform: translate(0, -100%);
   z-index: 1;
   margin: 0;
   width: max-content;
   max-width: 90vw;
-  text-align: center;
-  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  text-align: left;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 15px;
+  font-size: 14px;
   text-transform: lowercase;
   color: #000000;
   opacity: 1;
@@ -735,6 +752,20 @@ body {
   height: calc(17.1864px * var(--step1-scale, 1));
 }
 
+/* print/edit read 1px smaller than their row's shared height above. */
+.homePageTopActions .btnImgPrint,
+.homePageTopActions .btnImgEdit {
+  height: calc(18.1864px * var(--step1-scale, 1));
+}
+
+/* create map, +1px too -- appears on multiple pages/containers (Welcome,
+   Archive, Step 1 all use .homePageTopActions; All Maps uses its own
+   .allMapsActions), so both selectors need it to stay consistent everywhere. */
+.homePageTopActions .btnImgCreateMap,
+#pageAllMaps .allMapsActions .btnImgCreateMap {
+  height: calc(18.1864px * var(--step1-scale, 1));
+}
+
 /* Step 1's own buttons live inside #pageStep1 .frame, which is itself
    wrapped in transform: scale(var(--step1-scale)) (see #pageStep1 .frame
    below) -- so they need the flat, unscaled design-pixel height here; the
@@ -774,6 +805,18 @@ button:hover .btnImgAddHome {
 button:hover .btnImgFinish {
   content: url("buttons/finish-hover.png");
 }
+button:hover .btnImgCreateMap {
+  content: url("buttons/create-map-hover.png");
+}
+button:hover .btnImgEdit {
+  content: url("buttons/edit-hover.png");
+}
+button:hover .btnImgPrint {
+  content: url("buttons/print-hover.png");
+}
+button:hover .btnImgTimeline {
+  content: url("buttons/timeline-hover.png");
+}
 
 /* "Before" states: shown while the button's own .active gate (set by JS
    once its required data is filled in) hasn't been added yet. Scoped to
@@ -788,6 +831,19 @@ button:hover .btnImgFinish {
 }
 #pageStep1 #addHomeBtn:not(.active) .btnImgFinish {
   content: url("buttons/finish-before.png");
+}
+
+/* "You're already here" state: the archive/all-maps nav buttons appear on
+   every page (welcome/archive/all-maps/step1), but each page's own copy of
+   the button that points at *itself* swaps to this muted "page" label
+   instead of its normal icon, same idea as a disabled/current-location
+   indicator. Every other page's copy of the same button (which navigates
+   away) is unaffected. Not gated on :hover -- reads as fully inert. */
+#pageArchive [data-nav="archive"] .btnImgArchive {
+  content: url("buttons/archive-page.png");
+}
+#pageAllMaps [data-nav="allmaps"] .btnImgAllMaps {
+  content: url("buttons/all-maps-page.png");
 }
 
 #pageEmotion .emotionMapTitle {
@@ -2611,14 +2667,29 @@ body.printModalOpen .printModalOverlay {
 
 .printMapOptionName {
   position: absolute;
-  left: 0;
-  bottom: 36px;
+  /* Below the logo (left:36/top:36, height:66), aligned to its left edge --
+     was bottom-left of the whole card. */
+  left: 36px;
+  top: 118px;
   width: 260px;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
-  font-size: 44px;
+  font-size: 26px;
   line-height: 1.15;
   color: #000000;
   text-transform: none;
+  text-align: left;
+  z-index: 3;
+}
+
+.printMapOptionBelonging {
+  position: absolute;
+  left: 36px;
+  bottom: 36px;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-size: 26px;
+  line-height: 1;
+  color: #000000;
+  text-transform: lowercase;
   z-index: 3;
 }
 
@@ -3385,12 +3456,12 @@ img.postcardCardLogo {
 
 #pageAllMaps .allMapsActions {
   position: fixed;
-  right: 40px;
-  /* Matches the home page's "about" button exactly (.homePageTopActions):
-     same flat, unscaled top -- not calc(34px * scale), which (unlike the
-     home page's own top-actions row) drifts apart from it on any viewport
-     narrower than the 1920px design width. */
-  top: 34px;
+  right: 42px;
+  /* Matches this page's own top-left logo (.step2LogoText), which uses the
+     same calc(34px * var(--step1-scale,1)) -- a flat top here would drift
+     apart from the logo on any viewport narrower than the 1920px design
+     width. */
+  top: calc(34px * var(--step1-scale, 1));
   z-index: 2200;
   display: flex;
   gap: 24px;
@@ -4365,11 +4436,59 @@ input[type="reset"]:hover:not(:disabled) {
    tuned for other content in that header, not this row). */
 #pageStep2 .step2Actions {
   position: absolute;
-  top: 34px;
-  right: 40px;
+  /* Matches this page's own top-left logo (.step2LogoText), which uses the
+     same calc(34px * var(--step1-scale,1)). */
+  top: calc(34px * var(--step1-scale, 1));
+  right: 42px;
   display: flex;
   gap: 24px;
   align-items: flex-start;
+}
+
+/* Small X, expand/solo pages -- returns straight to Step 1's data-entry page
+   for the same map, instead of relying on the browser's own Back button.
+   Sits below the archive/all-maps nav row, right-aligned with it (same
+   right inset as .homePageTopActions/.step2Actions), same visual language
+   as .printModalCloseBtn. */
+.expandCloseBtn {
+  position: absolute;
+  /* Same scaled-top formula as the row it sits below (see
+     .homePageTopActions/.allMapsActions/.step2Actions), so the gap between
+     them stays proportional on narrower viewports too. */
+  top: calc(60px * var(--step1-scale, 1));
+  right: 42px;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 21;
+}
+
+.expandCloseBtn::before,
+.expandCloseBtn::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 1px;
+  background: #000000;
+  transform-origin: center;
+}
+
+.expandCloseBtn::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.expandCloseBtn::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.expandCloseBtn:hover::before,
+.expandCloseBtn:hover::after {
+  background: #8e3300;
 }
 
 #pageStep2 .step2Actions .textLink {
@@ -4717,6 +4836,13 @@ input[type="reset"]:hover:not(:disabled) {
   display: none;
 }
 
+/* Maps opened from the Archive are read-only -- no "edit" trigger. Higher-
+   specificity ID selector so this wins over .step1FinishedOnlyBtn's own
+   display:inline-block. */
+#pageStep1.step1-finished-state.step1-archive-loaded #step1EditFinishedBtn {
+  display: none;
+}
+
 /* While reviewing/re-editing homes after finish (see step1EditAfterFinish()),
    the top-right toolbar is just "back" (cancels the review, discarding the
    currently-open ring) -- print/all maps and the "edit" trigger (redundant,
@@ -4968,14 +5094,9 @@ input[type="reset"]:hover:not(:disabled) {
   color: #87857c;
 }
 
-#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1EmotionMapTitle,
-#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1MovementMapTitleCenter,
-#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1RingReadingTitle,
-#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1TimeBelongingTitle,
-#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1HomesListTitle,
-#pageStep1.step1-finished-state.step1-archive-loaded:not(.step1-edit-mode) .step1MoveFrequencyLabel {
-  color: #000000;
-}
+/* Archive-loaded maps used to force these back to black -- now left to fall
+   through to the plain .step1-finished-state gray rule above, so a map
+   opened from the Archive reads identically to one that just got finished. */
 
 #pageStep1 .step1EmotionMapTitle {
   position: absolute;

@@ -4885,6 +4885,8 @@ const elStep1TopAllMapsBtn = document.getElementById("step1TopAllMapsBtn");
 // step1-finished-state stays on, so share/print/start over stay visible.
 function step1EditAfterFinish() {
   if (!elPageStep1) return;
+  // Maps opened from the Archive are read-only.
+  if (isStep1ArchiveLoadedView()) return;
   step1EditModeAfterFinishActive = true;
   if (typeof shrinkStep1DashboardAnimated === "function") shrinkStep1DashboardAnimated();
   updateStep1TopProgress();
@@ -5636,6 +5638,25 @@ function showPage(which, opts) {
   if (pageKey !== "step1" && elPageStep1 && !elPageStep1.classList.contains("hidden")) {
     clearStep1MapCreatedOnce();
     _step1SkipEmotionRebuildOnce = true;
+  }
+
+  // Leaving Step 1 for Archive, All Maps, or the Welcome page itself (e.g.
+  // via the "create map" nav buttons) must never leave a previously-viewed
+  // (archive-loaded) or in-progress map's data lingering behind -- otherwise
+  // a later "create map" click would surface the old student's
+  // name/homes-count/addresses instead of a genuinely blank map. The logo
+  // handler already calls resetForNextStudent() itself before navigating
+  // here too; calling it again on that path is harmless.
+  if (
+    (pageKey === "archive" || pageKey === "allmaps" || pageKey === "welcome") &&
+    elPageStep1 &&
+    !elPageStep1.classList.contains("hidden")
+  ) {
+    try {
+      resetForNextStudent();
+    } catch {
+      // ignore
+    }
   }
 
   // Leaving the solo ring page: its own dedicated sound (started by
@@ -8262,8 +8283,15 @@ function updateStep1RingReading() {
     || document.body.classList.contains("printOption1ManyAddresses")
     || Boolean(elStep1RingReadingContent.closest("#printOption1PreviewStage"));
   const printRingSizeScale = isPrintOption1RingLayout ? 1.18 : 1;
+  // While a ring's belonging rate is being dragged live (edit mode, before
+  // save), the emotion map previews the new value via step1PendingPreviewAddress
+  // -- fold that same in-progress value into this ring's key/rate so ring
+  // reading's shape tracks the live drag instead of only updating on save.
+  const previewIdx = getStep1CurrentPreviewIndex();
+  const pendingRate = step1PendingPreviewAddress ? Number(step1PendingPreviewAddress.belonging_rate) : NaN;
+  const hasPendingRate = Number.isFinite(pendingRate);
   const renderKey = validAddrs
-    .map((addr) => [addr.id, addr.lat, addr.lon, addr.belonging_rate, addr.startYear].join("|"))
+    .map((addr, idx) => [addr.id, addr.lat, addr.lon, (hasPendingRate && idx === previewIdx) ? pendingRate : addr.belonging_rate, addr.startYear].join("|"))
     .join(";") + `|print-ring-scale:${printRingSizeScale}`;
 
   if (validAddrs.length === 0) {
@@ -8307,7 +8335,16 @@ function updateStep1RingReading() {
     // Crop a square around this ring in emotion map coordinates.
     const addr = validAddrs[i];
     const emotionPath = emotionPaths[i] || null;
-    const rateForMargin = Number(emotionLayout?.baseStrokeRates?.[i]) || normalizeBelongingRate(addr.belonging_rate, stableBelongingRateFromId(addr.id));
+    // Always the live rate, never emotionLayout's cached baseStrokeRates: that
+    // snapshot is only refreshed on a full renderStep1EmotionMap() pass, so
+    // after a single-ring edit (same address count, only the rate changed)
+    // it still holds the pre-edit value -- preferring it here kept ring
+    // reading's wobble amplitude locked to the old rate indefinitely. While
+    // this specific ring is mid-drag (not yet saved), use the same pending
+    // preview rate the emotion map itself is already previewing.
+    const rateForMargin = (hasPendingRate && i === previewIdx)
+      ? normalizeBelongingRate(pendingRate, stableBelongingRateFromId(addr.id))
+      : normalizeBelongingRate(addr.belonging_rate, stableBelongingRateFromId(addr.id));
     const emotionR = Number(emotionLayout?.targetRadii?.[i]) || gap * (i + 1);
     const swForMargin = Number(emotionPath?.getAttribute("stroke-width")) || Number(emotionLayout?.finalStrokes?.[i]) || step1PreviewEmotionStrokeWidthFromRate(rateForMargin);
     const wobbleFitScale = Number(emotionLayout?.wobbleFitScale) || 1;
@@ -10125,8 +10162,13 @@ function populateStep1EmotionFullscreenSvg() {
 
   // (Re)start the ambient breathing + ring sounds in case the browser
   // blocked autoplay earlier, or a prior solo-mode visit stopped it — this
-  // guarantees both are running before we snapshot the map.
-  renderStep1EmotionMap();
+  // guarantees both are running before we snapshot the map. forceSound is
+  // required: without it, startEmotionSound() (gated by
+  // EMOTION_SOUND_ENABLED=false) would tear down and NOT rebuild
+  // _emotionSoundRings, permanently silencing an archive-loaded map's sound
+  // and defeating armEmotionSoundGestureFallback() for the rest of the
+  // session (it no-ops once the rings are null).
+  renderStep1EmotionMap({ forceSound: true });
 
   // A dedicated page, not the ring-reading solo page: just show the current
   // Step 1 emotion map preview blown up and centered, by copying its
@@ -10165,8 +10207,9 @@ if (elStep1EmotionFullscreenBtn) {
     // ambient breathing + ring sounds in case the browser blocked autoplay
     // earlier — this guarantees both are running before we snapshot the map
     // for fromRect below. populateStep1EmotionFullscreenSvg() calls this
-    // again too, but that repeat call is a no-op here.
-    renderStep1EmotionMap();
+    // again too, but that repeat call is a no-op here. forceSound:true for
+    // the same reason as populateStep1EmotionFullscreenSvg()'s own call.
+    renderStep1EmotionMap({ forceSound: true });
 
     const smallRingsGroup = elStep1EmotionSvg ? elStep1EmotionSvg.querySelector('[data-layer="step1-emotion-rings"]') : null;
     const fromRect = smallRingsGroup ? smallRingsGroup.getBoundingClientRect() : (elStep1EmotionSvg ? elStep1EmotionSvg.getBoundingClientRect() : null);
@@ -16490,6 +16533,9 @@ function handleStep1RingClick(ringIdx) {
 
 function openStep1HomeEditMode(ringIdx) {
   if (ringIdx < 0 || ringIdx >= (Array.isArray(addresses) ? addresses.length : 0)) return;
+  // Maps opened from the Archive are read-only -- no editing, from any entry
+  // point (the now-hidden "edit" button, or clicking a ring/home directly).
+  if (isStep1ArchiveLoadedView()) return;
 
   const addr = addresses[ringIdx];
   if (!addr) return;
@@ -17250,6 +17296,22 @@ function wireGlobalNavButtons() {
   }
 }
 wireGlobalNavButtons();
+
+// Small "X" on the expand pages (movement map, emotion map) and the solo
+// ring page: returns straight to Step 1's data-entry page for the same map,
+// instead of relying on the browser's own Back button (previously the only
+// way out, especially for solo -- see showPage()'s own teardown comments).
+function wireExpandCloseButtons() {
+  const els = Array.from(document.querySelectorAll(".backToStep1Btn"));
+  for (const el of els) {
+    if (el.dataset.backToStep1Wired === "1") continue;
+    el.dataset.backToStep1Wired = "1";
+    el.addEventListener("click", () => {
+      showPage("step1");
+    });
+  }
+}
+wireExpandCloseButtons();
 
 // Back buttons removed; the LifePath logo acts as home navigation.
 
@@ -18410,6 +18472,10 @@ if (elBelongingInline) {
       if (!rateUnchanged) {
         updateCurrentEmotionRingStroke(newRate);
         updateAllEmotionRingAngles();
+        // Keep ring reading's shape tracking this same live drag -- it reads
+        // step1PendingPreviewAddress.belonging_rate (just updated above) for
+        // whichever ring getStep1CurrentPreviewIndex() points at.
+        updateStep1RingReading();
       }
       updateStep1FocusCircleStroke(newRate);
       updateStep1GeoMapMarkers();
@@ -19889,6 +19955,10 @@ function resetForNextStudent() {
   // Clear Step 1 name + editing pointers.
   try {
     if (elStudentName) elStudentName.value = "";
+    // homesCount lives on the home page, outside <form id="addressForm"> --
+    // elForm.reset() below no longer reaches it, so it needs an explicit
+    // clear (see resetStep1HouseList()'s matching comment).
+    if (elHomesCount) elHomesCount.value = "";
   } catch {
     // ignore
   }

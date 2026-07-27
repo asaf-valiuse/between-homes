@@ -6,14 +6,14 @@
     <title>LifePath</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="styles.css?v=2026-07-25-solo-signature-visible" />
+    <link rel="stylesheet" href="styles.css?v=2026-07-26-logo-align" />
   </head>
   <body>
     <main class="app">
       <!-- Page 1: Home + map name entry -->
       <section id="pageWelcome" class="page hidden homePage" aria-label="Home">
         <div class="homePageTopActions" aria-label="Home page actions">
-          <button type="button" id="homeCreateMapBtn" class="homeTextActionBtn">create map</button>
+          <button type="button" id="homeCreateMapBtn" class="homeTextActionBtn"><img class="btnImg btnImgCreateMap" src="buttons/create-map.png" alt="create map" /></button>
           <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
           <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="allmaps"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
         </div>
@@ -46,7 +46,7 @@
       <section id="pageArchive" class="page hidden" aria-label="Archive">
         <header class="topbar">
           <div class="homePageTopActions" aria-label="Site navigation">
-            <button type="button" class="homeTextActionBtn globalNavBtn" data-nav="welcome" data-nav-scroll="screen2">create map</button>
+            <button type="button" class="homeTextActionBtn globalNavBtn" data-nav="welcome" data-nav-scroll="screen2"><img class="btnImg btnImgCreateMap" src="buttons/create-map.png" alt="create map" /></button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="allmaps"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
           </div>
@@ -67,7 +67,7 @@
       <section id="pageAllMaps" class="page hidden" aria-label="All maps">
         <header class="topbar">
           <div class="allMapsActions">
-            <button type="button" class="homeTextActionBtn globalNavBtn" data-nav="welcome" data-nav-scroll="screen2">create map</button>
+            <button type="button" class="homeTextActionBtn globalNavBtn" data-nav="welcome" data-nav-scroll="screen2"><img class="btnImg btnImgCreateMap" src="buttons/create-map.png" alt="create map" /></button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="allmaps"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
           </div>
@@ -81,7 +81,7 @@
           <div id="allMapsCountLabel" class="allMapsCount" aria-hidden="true"></div>
           <button type="button" id="allMapsHideMapBtn" class="textLink">show map</button>
           <div id="allMapsInfoPanel" class="allMapsInfoPanel" aria-label="Filter maps by year">
-            <button type="button" id="allMapsTimelineToggleBtn" class="allMapsTimelineToggle" aria-expanded="false" aria-controls="allMapsYearControls">timeline</button>
+            <button type="button" id="allMapsTimelineToggleBtn" class="allMapsTimelineToggle" aria-expanded="false" aria-controls="allMapsYearControls"><img class="btnImg btnImgTimeline" src="buttons/timeline.png" alt="timeline" /></button>
             <div id="allMapsYearControls" class="allMapsYearControls hidden" aria-hidden="true">
               <div class="allMapsYearSliderHeader">
                 <span id="allMapsYearSliderValue" class="allMapsYearSliderValue"></span>
@@ -101,8 +101,9 @@
       <!-- Page 2: Map editor/viewer -->
       <section id="pageStep1" class="page hidden" aria-label="Map editor and viewer">
         <div class="homePageTopActions" aria-label="Site navigation">
-          <button type="button" id="step1PrintBtn" class="step1TopActionBtn step1FinishedOnlyBtn">print</button>
-          <button type="button" id="step1EditFinishedBtn" class="step1TopActionBtn step1FinishedOnlyBtn">edit</button>
+          <button type="button" id="step1PrintBtn" class="step1TopActionBtn step1FinishedOnlyBtn"><img class="btnImg btnImgPrint" src="buttons/print.png" alt="print" /></button>
+          <button type="button" id="step1EditFinishedBtn" class="step1TopActionBtn step1FinishedOnlyBtn"><img class="btnImg btnImgEdit" src="buttons/edit.png" alt="edit" /></button>
+          <button type="button" class="homeTextActionBtn globalNavBtn" data-nav="welcome" data-nav-scroll="screen2"><img class="btnImg btnImgCreateMap" src="buttons/create-map.png" alt="create map" /></button>
           <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
           <button type="button" id="step1TopAllMapsBtn" class="step1TopActionBtn"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
         </div>
@@ -239,6 +240,7 @@
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="allmaps"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
           </div>
+          <button type="button" class="expandCloseBtn backToStep1Btn" aria-label="Close"></button>
         </header>
 
         <div class="step1EmotionFullscreenBody">
@@ -272,6 +274,7 @@
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="allmaps"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
           </div>
+          <button type="button" class="expandCloseBtn backToStep1Btn" aria-label="Close"></button>
         </header>
 
   <img class="step2LogoText appLogoImage" src="logo.png" alt="LifePath" />
@@ -328,6 +331,7 @@
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
             <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="allmaps"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
           </div>
+          <button type="button" class="expandCloseBtn backToStep1Btn" aria-label="Close"></button>
         </header>
 
         <div class="emotionWrap" aria-label="Emotion map rings">
@@ -388,6 +392,7 @@
                     <img class="printMapOptionLogo" src="logo.png" alt="LifePath" />
                     <div id="printMapOptionMapHost" class="printMapOptionMapHost" aria-hidden="true"></div>
                     <div id="printMapOptionName" class="printMapOptionName"></div>
+                    <div id="printMapOptionBelonging" class="printMapOptionBelonging"></div>
                   </div>
                 </div>
               </div>
@@ -426,9 +431,9 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-      <script src="app.js?v=2026-07-25-preview-dot-click-removed"></script>
+      <script src="app.js?v=2026-07-25-ring-reading-sync"></script>
       <script src="archive.js?v=2026-07-24-archive-split"></script>
-      <script src="print-modal.js?v=2026-07-25-emotion-scale-110"></script>
+      <script src="print-modal.js?v=2026-07-25-cancel-fix-distance"></script>
       <script src="postcard.js?v=2026-07-24-postcard-wiring-split"></script>
   </body>
 </html>

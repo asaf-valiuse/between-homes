@@ -21,6 +21,7 @@ const elPrintMapOptionPreviewStage = document.getElementById("printMapOptionPrev
 const elPrintMapOptionCard = document.getElementById("printMapOptionCard");
 const elPrintMapOptionMapHost = document.getElementById("printMapOptionMapHost");
 const elPrintMapOptionName = document.getElementById("printMapOptionName");
+const elPrintMapOptionBelonging = document.getElementById("printMapOptionBelonging");
 
 function openPrintModal() {
   if (!elPrintModalOverlay) return;
@@ -590,6 +591,14 @@ function setCloneRouteAspectMode(root) {
   if (svg) svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 }
 
+// Same averaging formula as getPrintOption1Statistics()'s "Avarag belonging".
+function getPrintMapOptionAverageBelonging() {
+  const items = getPrintOption1DisplayAddresses();
+  const belongingValues = items.map((item) => normalizeBelongingRate(item.belonging_rate, stableBelongingRateFromId(item.id)));
+  if (!belongingValues.length) return null;
+  return belongingValues.reduce((sum, value) => sum + value, 0) / belongingValues.length;
+}
+
 function renderPrintMapOptionPreview(kind) {
   if (!elPrintMapOptionMapHost || !elPrintMapOptionCard || !elPrintMapOptionName) return false;
   const sourceSvg = kind === "movement" ? null : getPrintMapOptionSourceSvg(kind);
@@ -600,6 +609,11 @@ function renderPrintMapOptionPreview(kind) {
 
   elPrintMapOptionMapHost.replaceChildren(printSvg);
   elPrintMapOptionName.textContent = getPrintMapOptionDisplayName();
+  if (elPrintMapOptionBelonging) {
+    elPrintMapOptionBelonging.textContent = kind === "movement"
+      ? `total distance ${typeof formatCumulativeDistanceForAddresses === "function" ? formatCumulativeDistanceForAddresses(getPrintOption1DisplayAddresses()) : "--"}`
+      : `avarage belonging ${formatPrintStatNumber(getPrintMapOptionAverageBelonging())}`;
+  }
   elPrintMapOptionCard.classList.toggle("printMapOptionEmotional", kind === "emotional");
   elPrintMapOptionCard.classList.toggle("printMapOptionMovement", kind === "movement");
   printMapOptionKind = kind;
@@ -825,8 +839,15 @@ function printReviewOption1() {
 
 function printMapOption(kind) {
   const resolvedKind = kind || printMapOptionKind;
-  clearPrintOptionThumbnails();
-  if (!resolvedKind || !renderPrintMapOptionPreview(resolvedKind)) return;
+  if (!resolvedKind) return;
+  // Close the modal (like printReviewOption1() already does) instead of just
+  // wiping the option thumbnails in place -- otherwise, if the user cancels
+  // the native print dialog instead of printing, the modal is left open
+  // behind it with its thumbnails permanently blank (they were cleared here
+  // but nothing ever re-rendered them, since window.print() blocks and
+  // cleanupPrintMapOptionMode() below only removes CSS classes).
+  closePrintModal();
+  if (!renderPrintMapOptionPreview(resolvedKind)) return;
   document.documentElement.classList.add("printMapOptionMode");
   document.body.classList.add("printMapOptionMode");
 
