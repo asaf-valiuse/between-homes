@@ -2,6 +2,10 @@ const elPrintModalOverlay = document.getElementById("printModalOverlay");
 const elPrintSendingOverlay = document.getElementById("printSendingOverlay");
 const elPrintSendingKeepExploringBtn = document.getElementById("printSendingKeepExploringBtn");
 const elPrintSendingStartOverBtn = document.getElementById("printSendingStartOverBtn");
+const elPrintSendingMapName = document.getElementById("printSendingMapName");
+const elPrintSendingHomeCount = document.getElementById("printSendingHomeCount");
+const elPrintSendingDistance = document.getElementById("printSendingDistance");
+const elPrintSendingAvgBelonging = document.getElementById("printSendingAvgBelonging");
 const elPrintModalCloseBtn = document.getElementById("printModalCloseBtn");
 const elPrintOption1Btn = document.getElementById("printOption1Btn");
 const elPrintOption2Btn = document.getElementById("printOption2Btn");
@@ -51,12 +55,34 @@ function closePrintModal() {
   clearPrintMapOptionPreview();
 }
 
+// Same map name / homes count / distance / belonging figures shown on the
+// printed postcards themselves (see getPrintOption1Statistics() and
+// getPrintMapOptionAverageBelonging() below), just laid out as a plain stat
+// stack (label markup lives in index.html; only the value spans are filled
+// in here) instead of a postcard-style card.
+function renderPrintSendingStats() {
+  const items = getPrintOption1DisplayAddresses();
+  const mapName = String(elStudentName?.value || currentLoadedMapDisplayName || "").trim() || "LifePath";
+  const avgBelonging = typeof formatAverageBelongingForAddresses === "function"
+    ? formatAverageBelongingForAddresses(items)
+    : "";
+  const distance = typeof formatCumulativeDistanceForAddresses === "function"
+    ? formatCumulativeDistanceForAddresses(items)
+    : "--";
+
+  if (elPrintSendingMapName) elPrintSendingMapName.textContent = mapName;
+  if (elPrintSendingHomeCount) elPrintSendingHomeCount.textContent = String(items.length);
+  if (elPrintSendingDistance) elPrintSendingDistance.textContent = distance;
+  if (elPrintSendingAvgBelonging) elPrintSendingAvgBelonging.textContent = avgBelonging || "--";
+}
+
 // Shown from the moment a postcard is sent to print, and left open (with
 // its "keep exploring" / "start over" actions) after window.print() returns
 // (dialog dismissed either way -- printed or canceled) until the user picks
 // one of them.
 function showPrintSendingOverlay() {
   if (!elPrintSendingOverlay) return;
+  renderPrintSendingStats();
   elPrintSendingOverlay.classList.remove("hidden");
   elPrintSendingOverlay.setAttribute("aria-hidden", "false");
 }
@@ -68,9 +94,25 @@ function hidePrintSendingOverlay() {
 }
 
 // "keep exploring": dismiss the overlay and return to the map data page.
+// window.print()'s native dialog commonly leaves the emotion map's ambient
+// AudioContext/ring loops suspended (paused by the browser for the
+// duration of the print UI, same as backgrounding the tab) without ever
+// resuming on its own, so retryEmotionSoundPlayback() (same fallback used
+// elsewhere for browser-blocked autoplay) resumes it here, synchronously
+// within this real click so autoplay policy doesn't block it.
+// showPage("step1") below still triggers its own renderStep1EmotionMap()
+// rebuild a moment later (via a setTimeout, since Step 1 was never actually
+// left/hidden behind the print overlay) -- past that setTimeout, we're no
+// longer inside the click's gesture, so *its* attempt to stop-then-restart
+// the sound session can silently lose the autoplay race and leave it dead.
+// _step1SkipSoundRebuildOnce (the same flag used when returning from the
+// solo ring page) tells that rebuild to leave the session we just resumed
+// alone instead of tearing it down again.
 if (elPrintSendingKeepExploringBtn) {
   elPrintSendingKeepExploringBtn.addEventListener("click", () => {
     hidePrintSendingOverlay();
+    if (typeof retryEmotionSoundPlayback === "function") retryEmotionSoundPlayback();
+    _step1SkipSoundRebuildOnce = true;
     showPage("step1");
   });
 }

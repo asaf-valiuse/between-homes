@@ -6,7 +6,7 @@
     <title>LifePath</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="styles.css?v=2026-07-27-sending-actions" />
+    <link rel="stylesheet" href="styles.css?v=2026-07-28-sending-left-bigger" />
   </head>
   <body>
     <main class="app">
@@ -407,14 +407,34 @@
       <!-- Shown from the moment a postcard is sent to print, covering the
            print-mode CSS transition instead of letting it flash on screen,
            and left open afterwards (with the two actions below) until the
-           user picks where to go next. Screen-only, see @media print in
-           styles.css. -->
+           user picks where to go next. Same backdrop-over-page structure as
+           printModalOverlay/printModalBackdrop/printModalPanel above -- the
+           map data page stays visible (dimmed) underneath. Screen-only, see
+           @media print in styles.css. -->
       <div id="printSendingOverlay" class="printSendingOverlay hidden" aria-hidden="true">
+        <div class="printSendingBackdrop" aria-hidden="true"></div>
         <div class="printSendingCard">
-          <p class="printSendingText">Your postcard is on its way</p>
+          <p class="printSendingTitle">Your map is complete.<br />Take a closer look, or start over.</p>
+          <div class="printSendingStats">
+            <div class="printSendingStatRow printSendingMapNameRow">
+              <span id="printSendingMapName" class="printSendingStatValue"></span>
+            </div>
+            <div class="printSendingStatRow">
+              <span class="printSendingStatLabel">count of homes</span>
+              <span id="printSendingHomeCount" class="printSendingStatValue"></span>
+            </div>
+            <div class="printSendingStatRow">
+              <span class="printSendingStatLabel">total distance</span>
+              <span id="printSendingDistance" class="printSendingStatValue"></span>
+            </div>
+            <div class="printSendingStatRow">
+              <span class="printSendingStatLabel">average belonging</span>
+              <span id="printSendingAvgBelonging" class="printSendingStatValue"></span>
+            </div>
+          </div>
           <div class="printSendingActions">
-            <button type="button" id="printSendingKeepExploringBtn" class="printSendingActionBtn">keep exploring</button>
-            <button type="button" id="printSendingStartOverBtn" class="printSendingActionBtn">start over</button>
+            <button type="button" id="printSendingKeepExploringBtn" class="printSendingActionBtn"><img class="btnImg btnImgKeepExploring" src="buttons/keep exploring.png" alt="keep exploring" /></button>
+            <button type="button" id="printSendingStartOverBtn" class="printSendingActionBtn"><img class="btnImg btnImgStartOver" src="buttons/start over.png" alt="start over" /></button>
           </div>
         </div>
       </div>
@@ -449,9 +469,9 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-      <script src="app.js?v=2026-07-27-print-movement-israel"></script>
+      <script src="app.js?v=2026-07-28-idle-auto-reset"></script>
       <script src="archive.js?v=2026-07-24-archive-split"></script>
-      <script src="print-modal.js?v=2026-07-27-sending-actions"></script>
+      <script src="print-modal.js?v=2026-07-28-sound-no-restop"></script>
       <script src="postcard.js?v=2026-07-24-postcard-wiring-split"></script>
   </body>
 </html>

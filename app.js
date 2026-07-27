@@ -5246,6 +5246,17 @@ function updateStep1Scale() {
   const gapToLabel = 178 - HEADER_ZONE_TOP; // 70
   const gapToTimeline = 206 - (178 + HEADER_LABEL_H); // 5
   const gapToDashboard = dashboardTopBase - (206 + HEADER_TIMELINE_H); // 55
+  // No years entered anywhere: the move-frequency label and its (already
+  // empty -- see updateStep1JourneyTimeline()'s own withYears check) timeline
+  // are hidden entirely (see the "step1-no-years" rules in styles.css), not
+  // just squeezed down to a floor gap like the block below does for the
+  // normal case -- so instead of feeding through that same derated formula
+  // (tuned for "still showing both rows, just tighter"), the whole header
+  // zone between the name/progress row and the dashboard is fair game, down
+  // to a single minimal breathing gap before the dashboard itself.
+  const step1NoYears = typeof step1HasAnyYears === "function" && !step1HasAnyYears();
+  document.documentElement.classList.toggle("step1-no-years", step1NoYears);
+  const maxHeaderReclaimNoYears = Math.max(0, dashboardTopBase - HEADER_ZONE_TOP - MIN_GAP_DASHBOARD);
   const headerSlack = (gapToLabel - MIN_GAP_LABEL)
     + (gapToTimeline - MIN_GAP_TIMELINE)
     + (gapToDashboard - MIN_GAP_DASHBOARD);
@@ -5266,12 +5277,18 @@ function updateStep1Scale() {
     // Final applied growth bumped 30% bigger than the computed target above,
     // then a further 10% on top of that (the label/timeline positions below
     // derive from this same `compression`, via `t`, so they rise to match).
-    const compression = Math.max(0, grownHeightTarget - dashboardHeightBase) * 1.3 * 1.1;
+    let compression = Math.max(0, grownHeightTarget - dashboardHeightBase) * 1.3 * 1.1;
     const t = headerSlack > 0 ? Math.min(1, compression / headerSlack) : 0;
     const newGapToLabel = gapToLabel - (gapToLabel - MIN_GAP_LABEL) * t;
     const newGapToTimeline = gapToTimeline - (gapToTimeline - MIN_GAP_TIMELINE) * t;
     headerLabelTop = HEADER_ZONE_TOP + newGapToLabel;
     headerTimelineTop = headerLabelTop + HEADER_LABEL_H + newGapToTimeline;
+    // No years: the label/timeline row positions computed just above no
+    // longer matter (both are hidden), so take the full header-zone reclaim
+    // instead of whatever the shared derated formula happened to produce --
+    // never less than the normal case, since maxHeaderReclaimNoYears is by
+    // construction the bigger number.
+    if (step1NoYears) compression = Math.max(compression, maxHeaderReclaimNoYears);
     dashboardHeight = dashboardHeightBase + compression;
     dashboardTop = dashboardBottom - dashboardHeight;
     // Manual fine-tune on top of the computed layout: label up 30px
@@ -6387,7 +6404,11 @@ function getAllMapsYearRange(items) {
     }
   }
   if (!years.length) return null;
-  return { min: Math.min(...years), max: Math.max(...years) };
+  // Right end fixed at 2026, same "current" convention as
+  // updateStep1JourneyTimeline()'s own endYear -- not derived from the
+  // data's own latest start year, so the slider always reaches up to now
+  // even if every saved map's most recent move predates it.
+  return { min: Math.min(...years), max: 2026 };
 }
 
 function updateAllMapsYearSlider(items) {
@@ -6549,6 +6570,14 @@ function getStep1DisplayAddresses() {
 
 function getStep1DisplayValidAddresses() {
   return getStep1DisplayAddresses().filter((a) => a && a.valid !== false);
+}
+
+// Same "has a parseable start year" test as updateStep1JourneyTimeline()'s
+// own withYears filter -- kept in sync with it deliberately, since this is
+// used to decide whether that timeline (and the "move frequency" label
+// above it) has anything to show at all.
+function step1HasAnyYears() {
+  return getStep1DisplayValidAddresses().some((addr) => Number.isFinite(parseInt(String(addr?.startYear || ""), 10)));
 }
 
 function getStep1CurrentPreviewIndex() {
@@ -16142,27 +16171,42 @@ if (!restoreReviewMapAfterRefresh()) {
   showPage(refreshPage, { history: "replace" });
 }
 
+// Shared by the logo's own click/keydown handlers below and by the idle
+// auto-reset timer (see armAppIdleAutoReset()) -- both are "abandon
+// whatever's on screen and start fresh at the home page" resets.
+function resetProcessAndGoHome() {
+  try {
+    // stopStep1EntrySound()'s own comment already flags this exact gap:
+    // it was only ever called on finishing a map, never on "start over" --
+    // so the per-ring ambient loops (and, if the logo was clicked from the
+    // solo ring page, that ring's own dedicated sound) kept playing
+    // underneath the reset map / welcome page indefinitely.
+    stopStep1EntrySound();
+    stopEmotionSoundForSoloRing();
+    resetForNextStudent();
+    setStatus("");
+    setAddressStatus("");
+  } catch {
+    // ignore
+  }
+  // None of these overlays live inside the .page elements showPage() below
+  // toggles, so left open (e.g. the idle timer firing while the print modal
+  // or the post-print "keep exploring" overlay is still up) they'd otherwise
+  // keep sitting on top of the freshly-shown welcome page.
+  try {
+    if (typeof closePrintModal === "function") closePrintModal();
+    if (typeof hidePrintSendingOverlay === "function") hidePrintSendingOverlay();
+    if (typeof closePostcardPreview === "function") closePostcardPreview();
+  } catch {
+    // ignore
+  }
+  step2OpenedFromArchive = false;
+  setStep2CloseReturnPage("step1");
+  showPage("welcome");
+}
+
 function wireHomeLogoNavigation() {
   const els = Array.from(document.querySelectorAll(".brand, .life-path, .appLogoImage"));
-  const resetProcessAndGoHome = () => {
-    try {
-      // stopStep1EntrySound()'s own comment already flags this exact gap:
-      // it was only ever called on finishing a map, never on "start over" --
-      // so the per-ring ambient loops (and, if the logo was clicked from the
-      // solo ring page, that ring's own dedicated sound) kept playing
-      // underneath the reset map / welcome page indefinitely.
-      stopStep1EntrySound();
-      stopEmotionSoundForSoloRing();
-      resetForNextStudent();
-      setStatus("");
-      setAddressStatus("");
-    } catch {
-      // ignore
-    }
-    step2OpenedFromArchive = false;
-    setStep2CloseReturnPage("step1");
-    showPage("welcome");
-  };
 
   for (const el of els) {
     // Avoid double-wiring.
@@ -16189,6 +16233,28 @@ function wireHomeLogoNavigation() {
 }
 
 wireHomeLogoNavigation();
+
+// Kiosk-style idle reset: 5 minutes with no interaction at all (no click,
+// no mouse movement, no key/touch/scroll) auto-triggers the exact same
+// reset-and-go-home as clicking the logo, so an abandoned session doesn't
+// sit on screen indefinitely for whoever walks up next.
+const APP_IDLE_RESET_MS = 5 * 60 * 1000;
+let _appIdleResetTimer = 0;
+
+function scheduleAppIdleAutoReset() {
+  if (_appIdleResetTimer) window.clearTimeout(_appIdleResetTimer);
+  _appIdleResetTimer = window.setTimeout(resetProcessAndGoHome, APP_IDLE_RESET_MS);
+}
+
+function armAppIdleAutoReset() {
+  const activityEvents = ["mousemove", "mousedown", "click", "wheel", "keydown", "touchstart", "pointerdown"];
+  for (const evt of activityEvents) {
+    document.addEventListener(evt, scheduleAppIdleAutoReset, { passive: true });
+  }
+  scheduleAppIdleAutoReset();
+}
+
+armAppIdleAutoReset();
 
 
 

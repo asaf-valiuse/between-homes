@@ -485,10 +485,24 @@ body {
   color: #000000;
   opacity: 1;
   transition: opacity 0.5s ease;
+  animation: homeScrollDownTextBob 2.6s ease-in-out infinite;
 }
 
 #pageWelcome .homeScrollDownText.homeScrollHintHidden {
   opacity: 0;
+}
+
+/* Very gentle up/down float, layered on top of the element's own
+   translate(-50%, -100%) positioning above -- each keyframe repeats that
+   base transform and only adds a few px of Y drift so the caption keeps its
+   anchor point instead of jumping. */
+@keyframes homeScrollDownTextBob {
+  0%, 100% {
+    transform: translate(-50%, calc(-100% - 4px));
+  }
+  50% {
+    transform: translate(-50%, calc(-100% + 4px));
+  }
 }
 
 
@@ -2068,19 +2082,6 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
     transform-origin: top left;
   }
 
-  html.printMapOptionMode::before {
-    content: "";
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 10cm;
-    height: 15cm;
-    border: 1px solid #000000;
-    box-sizing: border-box;
-    z-index: 999999;
-    pointer-events: none;
-  }
-
   /* Print-only: postcard logo should be black */
   body.postcardPrintMode .postcardCardLogo {
     color: #000000 !important;
@@ -2396,26 +2397,31 @@ body.printModalOpen .printModalOverlay {
    print-mode CSS transition (basemap/layout swaps, etc.) that would
    otherwise flash on screen while the browser prepares its own print
    dialog. Left open after window.print() returns, now offering "keep
-   exploring" / "start over", until the user picks one. A fixed-size card
-   (15x10cm, landscape) centered on screen, not the full viewport --
-   deliberately not matching the postcard's own portrait proportions. */
+   exploring" / "start over", until the user picks one. Same
+   backdrop-over-page + centered-panel structure as .printModalOverlay /
+   .printModalBackdrop / .printModalPanel below -- the map data page stays
+   visible (dimmed) underneath instead of being fully covered. */
 .printSendingOverlay {
   position: fixed;
   inset: 0;
   z-index: 5000;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 64px;
-  box-sizing: border-box;
-  background: #f4f2ea;
 }
 
 .printSendingOverlay.hidden {
   display: none;
 }
 
+.printSendingBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+}
+
 .printSendingCard {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   margin: 0;
   width: 15cm;
   height: 10cm;
@@ -2423,41 +2429,88 @@ body.printModalOpen .printModalOverlay {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
   gap: 22px;
-  text-align: center;
-  padding: 24px;
+  text-align: left;
+  /* Shifted in from the card's own top-left corner (not flush against it)
+     -- more top/left padding than right/bottom. */
+  padding: 56px 24px 32px 56px;
   box-sizing: border-box;
   border: 1px solid rgba(0, 0, 0, 0.2);
+  background: #f4f2ea;
 }
 
-.printSendingText {
+.printSendingTitle {
   margin: 0;
-  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 1.5;
   color: #000000;
   text-transform: lowercase;
+}
+
+.printSendingStats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.printSendingStatRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1.3;
+}
+
+.printSendingStatLabel {
+  /* Fixed width (not sized to its own text) so every value span below
+     starts at the same x position, forming a left-aligned column. */
+  flex: 0 0 140px;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+  color: #000000;
+  text-transform: lowercase;
+}
+
+.printSendingStatValue {
+  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+  color: #000000;
+  text-transform: lowercase;
+}
+
+/* The name row has no label span (see index.html) -- its value sits flush
+   at the row's own left edge, i.e. aligned with the labels column, not
+   indented into the values column like every other row. */
+.printSendingMapNameRow {
+  gap: 0;
 }
 
 .printSendingActions {
   display: flex;
   align-items: center;
   gap: 28px;
+  /* Pushed to the card's bottom edge regardless of how tall the stats
+     block above ends up, then nudged back up 20px off that edge. Left-
+     aligned with the rest of the card's text (the card's own default
+     align-items: flex-start already does this -- no align-self override). */
+  margin-top: auto;
+  margin-bottom: 20px;
 }
 
 .printSendingActionBtn {
   border: 0;
   padding: 0;
   background: transparent;
-  color: #000000;
-  font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
-  font-size: 14px;
-  line-height: 1;
-  text-transform: lowercase;
-  text-decoration: underline;
   cursor: pointer;
+}
+
+button:hover .btnImgKeepExploring {
+  content: url("buttons/keep exploring hover.png");
 }
 
 /* Screen-only -- never let this print itself if a print/render race ever
@@ -6023,6 +6076,17 @@ input[type="reset"]:hover:not(:disabled) {
 
 #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1JourneyTimeline {
   display: block;
+}
+
+/* No home has a start year entered at all -- updateStep1JourneyTimeline()
+   already renders an empty timeline in this case, but the "move frequency"
+   caption above it stayed regardless, floating over nothing. Hidden here
+   (higher specificity than the two finished-state exposure rules above, so
+   this wins), with the freed row height reclaimed as extra dashboard growth
+   in updateStep1Scale() (see step1HasAnyYears() in app.js). */
+html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1MoveFrequencyLabel,
+html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1JourneyTimeline {
+  display: none;
 }
 
 #pageStep1 .step1JourneyTimeline svg {
