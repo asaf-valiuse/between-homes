@@ -18006,19 +18006,23 @@ async function verifyCurrentCity() {
   const found = items.find((candidate) =>
     isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
     && nominatimItemMatchesCountryExactly(candidate, country)
-    && nominatimItemMatchesCityExactly(candidate, city));
-  if (found) {
+    && (nominatimItemMatchesCityExactly(candidate, city) || nominatimItemMatchesCity(candidate, city, null)));
+  const fallbackCountryMatch = items.find((candidate) =>
+    isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
+    && nominatimItemMatchesCountryExactly(candidate, country));
+  const accepted = found || fallbackCountryMatch;
+  if (accepted) {
     if (elCity) elCity.classList.remove("address-error");
     if (!street) {
       setStep1PreviewAddressFromGeo({ country, city, state: getValue("state"), street, number }, {
-        lat: Number(found.lat),
-        lon: Number(found.lon),
-        displayName: String(found.display_name || [city, country].filter(Boolean).join(", ")),
+        lat: Number(accepted.lat),
+        lon: Number(accepted.lon),
+        displayName: String(accepted.display_name || [city, country].filter(Boolean).join(", ")),
         matchLevel: "city",
         source: "google",
       }, { renderMarkers: false });
     }
-    return found;
+    return accepted;
   }
 
   markAddressFieldError("City");
@@ -18292,9 +18296,50 @@ function getNominatimItemStreetTokens(item) {
     .filter(Boolean);
 }
 
+function isUsCountryToken(value) {
+  const token = normalizeTextForMatch(value);
+  return token === "usa"
+    || token === "us"
+    || token === "unitedstates"
+    || token === "unitedstatesofamerica"
+    || token === "ארצותהברית";
+}
+
+function parseCountryAndStateFromCountryField(value) {
+  const raw = tidyToken(value);
+  if (!raw) return { country: "", state: "" };
+
+  const compact = raw.replace(/\s+/g, " ").trim();
+  const commaParts = compact.split(",").map((part) => tidyToken(part)).filter(Boolean);
+
+  if (commaParts.length >= 2) {
+    const first = commaParts[0];
+    const last = commaParts[commaParts.length - 1];
+    if (isUsCountryToken(first) && !isUsCountryToken(last)) {
+      return { country: first, state: commaParts.slice(1).join(" ") };
+    }
+    if (isUsCountryToken(last) && !isUsCountryToken(first)) {
+      return { country: last, state: commaParts.slice(0, -1).join(" ") };
+    }
+  }
+
+  const usPrefix = compact.match(/^(usa|us|united states(?: of america)?)\s+(.+)$/i);
+  if (usPrefix) return { country: usPrefix[1], state: tidyToken(usPrefix[2]) };
+
+  const usSuffix = compact.match(/^(.+?)\s+(usa|us|united states(?: of america)?)$/i);
+  if (usSuffix) return { country: usSuffix[2], state: tidyToken(usSuffix[1]) };
+
+  return { country: compact, state: "" };
+}
+
 const EXACT_GEOCODE_MATCH_ALIASES = {
   "ישראל": ["israel"],
+  "ארצותהברית": ["unitedstates", "usa", "us"],
   "yshral": ["israel"],
+  "usa": ["unitedstates", "unitedstatesofamerica", "us"],
+  "us": ["usa", "unitedstates", "unitedstatesofamerica"],
+  "unitedstates": ["usa", "us", "unitedstatesofamerica"],
+  "unitedstatesofamerica": ["unitedstates", "usa", "us"],
   "אלונים": ["alonim"],
   "קיבוץאלונים": ["alonim"],
   "telavivyafo": ["telaviv"],
@@ -18372,7 +18417,8 @@ function anyTokenExactlyMatches(tokens, wantedValue) {
 }
 
 function nominatimItemMatchesCountryExactly(item, wantedCountry = "") {
-  return anyTokenExactlyMatches(getNominatimItemCountryTokens(item), wantedCountry);
+  const parsed = parseCountryAndStateFromCountryField(wantedCountry);
+  return anyTokenExactlyMatches(getNominatimItemCountryTokens(item), parsed.country || wantedCountry);
 }
 
 function nominatimItemMatchesCityExactly(item, wantedCity = "") {
@@ -18385,7 +18431,7 @@ function nominatimItemMatchesStreetExactly(item, wantedStreet = "") {
 
 function nominatimItemMatchesAddressFieldsExactly(item, addr) {
   return nominatimItemMatchesCountryExactly(item, addr?.country)
-    && nominatimItemMatchesCityExactly(item, addr?.city)
+    && (nominatimItemMatchesCityExactly(item, addr?.city) || nominatimItemMatchesCity(item, addr?.city, null))
     && nominatimItemMatchesStreetExactly(item, addr?.street);
 }
 
@@ -18439,16 +18485,20 @@ async function resolveStep1CityFocus() {
     const item = items.find((candidate) =>
       isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
       && nominatimItemMatchesCountryExactly(candidate, country)
-      && nominatimItemMatchesCityExactly(candidate, city));
-    if (!item) return null;
+      && (nominatimItemMatchesCityExactly(candidate, city) || nominatimItemMatchesCity(candidate, city, null)));
+    const fallbackCountryMatch = items.find((candidate) =>
+      isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
+      && nominatimItemMatchesCountryExactly(candidate, country));
+    const accepted = item || fallbackCountryMatch;
+    if (!accepted) return null;
     step1ResolvedCityFocus = {
       key: cityKey,
       city,
       country,
-      lat: Number(item.lat),
-      lon: Number(item.lon),
+      lat: Number(accepted.lat),
+      lon: Number(accepted.lon),
       boundingBox: null,
-      displayName: String(item.display_name || [city, country].filter(Boolean).join(", ")),
+      displayName: String(accepted.display_name || [city, country].filter(Boolean).join(", ")),
     };
     return step1ResolvedCityFocus;
   } catch (e) {
@@ -18704,11 +18754,13 @@ function buildGoogleGeocodeQueriesForAddress(address, options = {}) {
   const streetLine = tidyToken(includeNumber
     ? (address?._origStreetAndNumber || [address?.street, address?.number].filter(Boolean).join(" "))
     : address?.street);
+  const parsedCountry = parseCountryAndStateFromCountryField(address?.country);
+  const queryState = tidyToken(address?.state) || parsedCountry.state;
   const cityVariants = getGoogleGeocodeQueryPlaceVariants(address?.city);
-  const countryVariants = getGoogleGeocodeQueryPlaceVariants(address?.country);
+  const countryVariants = getGoogleGeocodeQueryPlaceVariants(parsedCountry.country || address?.country);
   const queries = [];
   const addQuery = (city, country) => {
-    const q = [streetLine, city, address?.state, country].filter(Boolean).join(", ");
+    const q = [streetLine, city, queryState, country].filter(Boolean).join(", ");
     if (q && !queries.includes(q)) queries.push(q);
   };
   const cities = cityVariants.length ? cityVariants : [tidyToken(address?.city)];
