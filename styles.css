@@ -480,7 +480,7 @@ body {
   text-align: center;
   font-family: "NarkissBlock-Regular-TRIAL", sans-serif;
   font-weight: 400;
-  font-size: 14px;
+  font-size: 16px;
   text-transform: lowercase;
   color: #000000;
   opacity: 1;
@@ -1844,12 +1844,12 @@ body.homeFlowScrolled #pageWelcome .welcomeScrollHint {
 }
 
 #pageArchive .archiveItem:hover {
-  background: #eeeeee !important;
+  background: #edeae2 !important;
 }
 
 #pageArchive .archiveItem:hover .archivePreview,
 #pageArchive .archiveItem:hover .archiveThumb {
-  background: #eeeeee !important;
+  background: #edeae2 !important;
 }
 
 #pageArchive .archivePreview {
