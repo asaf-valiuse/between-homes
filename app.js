@@ -18003,14 +18003,7 @@ async function verifyCurrentCity() {
   const items = await fetchGoogleGeocodeItemsForAddress(address, { includeNumber: false }).catch(() => []);
   if (requestSeq !== verifyCityRequestSeq) return null;
 
-  const found = items.find((candidate) =>
-    isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
-    && nominatimItemMatchesCountryExactly(candidate, country)
-    && (nominatimItemMatchesCityExactly(candidate, city) || nominatimItemMatchesCity(candidate, city, null)));
-  const fallbackCountryMatch = items.find((candidate) =>
-    isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
-    && nominatimItemMatchesCountryExactly(candidate, country));
-  const accepted = found || fallbackCountryMatch;
+  const accepted = selectHighConfidenceCityCandidate(items, country, city, 0.95);
   if (accepted) {
     if (elCity) elCity.classList.remove("address-error");
     if (!street) {
@@ -18435,6 +18428,95 @@ function nominatimItemMatchesAddressFieldsExactly(item, addr) {
     && nominatimItemMatchesStreetExactly(item, addr?.street);
 }
 
+function levenshteinDistance(a, b) {
+  const left = String(a || "");
+  const right = String(b || "");
+  const m = left.length;
+  const n = right.length;
+  if (!m) return n;
+  if (!n) return m;
+
+  const prev = new Array(n + 1);
+  const curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    const chLeft = left.charCodeAt(i - 1);
+    for (let j = 1; j <= n; j++) {
+      const cost = chLeft === right.charCodeAt(j - 1) ? 0 : 1;
+      const del = prev[j] + 1;
+      const ins = curr[j - 1] + 1;
+      const sub = prev[j - 1] + cost;
+      curr[j] = Math.min(del, ins, sub);
+    }
+    for (let j = 0; j <= n; j++) prev[j] = curr[j];
+  }
+  return prev[n];
+}
+
+function stringSimilarityRatio(a, b) {
+  const left = String(a || "");
+  const right = String(b || "");
+  const maxLen = Math.max(left.length, right.length);
+  if (!maxLen) return 1;
+  const dist = levenshteinDistance(left, right);
+  return 1 - (dist / maxLen);
+}
+
+function getBestCitySimilarityForCandidate(candidate, wantedCity) {
+  const wantedBase = normalizeTextForMatch(wantedCity);
+  if (!wantedBase) return 1;
+  const wantedLatin = normalizeTextForMatch(toEnglishLike(wantedCity));
+  const wantedValues = Array.from(new Set([wantedBase, wantedLatin].filter(Boolean)));
+  const tokenValues = getNominatimItemCityTokens(candidate)
+    .flatMap((token) => [normalizeTextForMatch(token), normalizeTextForMatch(toEnglishLike(token))])
+    .filter(Boolean);
+
+  let best = 0;
+  for (const wanted of wantedValues) {
+    for (const token of tokenValues) {
+      const score = stringSimilarityRatio(wanted, token);
+      if (score > best) best = score;
+      if (best >= 0.999) return best;
+    }
+  }
+  return best;
+}
+
+function highConfidenceCityCandidate(candidate, wantedCountry, wantedCity, minSimilarity = 0.95) {
+  if (!candidate) return false;
+  if (!isFinite(Number(candidate?.lat)) || !isFinite(Number(candidate?.lon))) return false;
+  if (!nominatimItemMatchesCountryExactly(candidate, wantedCountry)) return false;
+  if (nominatimItemMatchesCityExactly(candidate, wantedCity) || nominatimItemMatchesCity(candidate, wantedCity, null)) return true;
+  return getBestCitySimilarityForCandidate(candidate, wantedCity) >= minSimilarity;
+}
+
+function isConfidentGoogleCityType(candidate) {
+  const t = String(candidate?.type || "").trim().toLowerCase();
+  return t === "locality" || t === "postal_town" || t === "administrative_area_level_3" || t === "city" || t === "town";
+}
+
+function selectHighConfidenceCityCandidate(items, wantedCountry, wantedCity, minSimilarity = 0.95) {
+  const candidates = (Array.isArray(items) ? items : []).filter((candidate) =>
+    isFinite(Number(candidate?.lat))
+    && isFinite(Number(candidate?.lon))
+    && nominatimItemMatchesCountryExactly(candidate, wantedCountry));
+  if (!candidates.length) return null;
+
+  const direct = candidates.find((candidate) =>
+    nominatimItemMatchesCityExactly(candidate, wantedCity) || nominatimItemMatchesCity(candidate, wantedCity, null));
+  if (direct) return direct;
+
+  const similar = candidates.find((candidate) => getBestCitySimilarityForCandidate(candidate, wantedCity) >= minSimilarity);
+  if (similar) return similar;
+
+  if (candidates.length === 1 && String(candidates[0]?.source || "").toLowerCase() === "google" && isConfidentGoogleCityType(candidates[0])) {
+    return candidates[0];
+  }
+  return null;
+}
+
 function nominatimItemMatchesCity(item, wantedCity = "", cityFocus = step1ResolvedCityFocus) {
   const city = normalizeTextForMatch(wantedCity);
   if (!city) return true;
@@ -18482,14 +18564,7 @@ async function resolveStep1CityFocus() {
   try {
     const items = await fetchGoogleGeocodeItemsForAddress({ country, city, state: getValue("state"), street: "", number: "" }, { includeNumber: false });
     if (seq !== _cityFocusSeq) return step1ResolvedCityFocus;
-    const item = items.find((candidate) =>
-      isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
-      && nominatimItemMatchesCountryExactly(candidate, country)
-      && (nominatimItemMatchesCityExactly(candidate, city) || nominatimItemMatchesCity(candidate, city, null)));
-    const fallbackCountryMatch = items.find((candidate) =>
-      isFinite(Number(candidate?.lat)) && isFinite(Number(candidate?.lon))
-      && nominatimItemMatchesCountryExactly(candidate, country));
-    const accepted = item || fallbackCountryMatch;
+    const accepted = selectHighConfidenceCityCandidate(items, country, city, 0.95);
     if (!accepted) return null;
     step1ResolvedCityFocus = {
       key: cityKey,
