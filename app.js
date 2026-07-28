@@ -18736,15 +18736,25 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 4500) {
 }
 
 function getGoogleGeocodeQueryPlaceVariants(value) {
+  const collapseHebrewDoubleYodAndVav = (text) => {
+    const t = tidyToken(text);
+    if (!t || !/[\u0590-\u05FF]/.test(t)) return [];
+    const collapsed = t.replace(/י{2,}/g, "י").replace(/ו{2,}/g, "ו");
+    return (collapsed && collapsed !== t) ? [collapsed] : [];
+  };
+
   const variants = new Set();
   const raw = tidyToken(value);
   const stripped = tidyToken(withoutHebrewSettlementPrefix(raw));
   [raw, stripped].forEach((item) => {
     if (!item) return;
-    variants.add(item);
-    const key = normalizeTextForMatch(item);
-    const aliases = GOOGLE_GEOCODE_PLACE_QUERY_ALIASES[key];
-    if (Array.isArray(aliases)) aliases.forEach((alias) => variants.add(tidyToken(alias)));
+    [item, ...collapseHebrewDoubleYodAndVav(item)].forEach((candidate) => {
+      if (!candidate) return;
+      variants.add(candidate);
+      const key = normalizeTextForMatch(candidate);
+      const aliases = GOOGLE_GEOCODE_PLACE_QUERY_ALIASES[key];
+      if (Array.isArray(aliases)) aliases.forEach((alias) => variants.add(tidyToken(alias)));
+    });
   });
   return Array.from(variants).filter(Boolean);
 }
