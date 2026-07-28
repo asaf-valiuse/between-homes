@@ -2418,6 +2418,162 @@ function refreshSavedMapsUis() {
   } catch {
     // ignore
   }
+  try {
+    renderManagementPage();
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchServerMapsExportPayload() {
+  const res = await fetch("/api/maps/export", { cache: "no-store" });
+  if (!res.ok) return null;
+  const json = await res.json();
+  if (!json || typeof json !== "object" || !json.ok) return null;
+  return json;
+}
+
+async function postDeleteMapsByIds(ids) {
+  const list = Array.isArray(ids)
+    ? ids.map((x) => String(x || "").trim()).filter(Boolean)
+    : [];
+  if (!list.length) return { ok: false, error: "missing_ids" };
+
+  const res = await fetch("/api/maps/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: list }),
+  });
+
+  let json = null;
+  try {
+    json = await res.json();
+  } catch {
+    json = null;
+  }
+  if (!res.ok) {
+    return json && typeof json === "object" ? json : { ok: false, error: "delete_failed" };
+  }
+  return json && typeof json === "object" ? json : { ok: true, deleted: 0, requested: list.length };
+}
+
+function setManagementStatus(message, isError = false) {
+  if (!elManagementStatus) return;
+  elManagementStatus.textContent = String(message || "").trim();
+  elManagementStatus.classList.toggle("isError", Boolean(isError));
+}
+
+function formatManagementSavedAt(value) {
+  const s = String(value || "").trim();
+  if (!s) return "-";
+  const d = new Date(s);
+  if (!Number.isFinite(d.getTime())) return s;
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${yy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+function renderManagementPage() {
+  if (!elManagementTableBody || !elManagementEmpty || !elManagementSelectAll) return;
+
+  if (elManagementSortSelect && elManagementSortSelect.value !== managementSortMode) {
+    elManagementSortSelect.value = managementSortMode;
+  }
+
+  const maps = Array.isArray(getSavedMaps()) ? getSavedMaps().slice() : [];
+  maps.sort((a, b) => {
+    const aName = String(formatStep2SignatureDisplayName(a?.fullName || "") || a?.label || "Unnamed");
+    const bName = String(formatStep2SignatureDisplayName(b?.fullName || "") || b?.label || "Unnamed");
+    const byName = aName.localeCompare(bName, undefined, { sensitivity: "base" });
+    const ta = Date.parse(String(a?.savedAt || a?.updatedAt || ""));
+    const tb = Date.parse(String(b?.savedAt || b?.updatedAt || ""));
+
+    if (managementSortMode === "name-desc") {
+      if (byName !== 0) return -byName;
+    } else if (managementSortMode === "saved-desc") {
+      if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return tb - ta;
+      if (Number.isFinite(ta) && !Number.isFinite(tb)) return -1;
+      if (!Number.isFinite(ta) && Number.isFinite(tb)) return 1;
+      if (byName !== 0) return byName;
+    } else if (managementSortMode === "saved-asc") {
+      if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return ta - tb;
+      if (Number.isFinite(ta) && !Number.isFinite(tb)) return -1;
+      if (!Number.isFinite(ta) && Number.isFinite(tb)) return 1;
+      if (byName !== 0) return byName;
+    } else {
+      if (byName !== 0) return byName;
+    }
+
+    if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return tb - ta;
+    if (Number.isFinite(ta) && !Number.isFinite(tb)) return -1;
+    if (!Number.isFinite(ta) && Number.isFinite(tb)) return 1;
+    return 0;
+  });
+
+  const validIds = new Set(maps.map((x) => String(x?.id || "").trim()).filter(Boolean));
+  for (const id of Array.from(managementSelectedMapIds)) {
+    if (!validIds.has(id)) managementSelectedMapIds.delete(id);
+  }
+
+  elManagementTableBody.innerHTML = "";
+  elManagementEmpty.classList.toggle("hidden", maps.length > 0);
+
+  for (const snap of maps) {
+    const id = String(snap?.id || "").trim();
+    if (!id) continue;
+    const tr = document.createElement("tr");
+
+    const tdSelect = document.createElement("td");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = managementSelectedMapIds.has(id);
+    cb.addEventListener("change", () => {
+      if (cb.checked) managementSelectedMapIds.add(id);
+      else managementSelectedMapIds.delete(id);
+      renderManagementPage();
+    });
+    tdSelect.appendChild(cb);
+
+    const tdName = document.createElement("td");
+    tdName.textContent = String(formatStep2SignatureDisplayName(snap?.fullName || "") || snap?.label || "Unnamed");
+
+    const tdHomes = document.createElement("td");
+    const homesCount = Number.isFinite(Number(snap?.count)) ? Math.max(0, Math.floor(Number(snap.count))) : (Array.isArray(snap?.addresses) ? snap.addresses.length : 0);
+    tdHomes.textContent = String(homesCount);
+
+    const tdSaved = document.createElement("td");
+    tdSaved.textContent = formatManagementSavedAt(snap?.savedAt || snap?.updatedAt || "");
+
+    const tdAction = document.createElement("td");
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "managementDeleteOneBtn";
+    delBtn.textContent = "delete";
+    delBtn.addEventListener("click", async () => {
+      const ok = window.confirm("Delete this map?");
+      if (!ok) return;
+      setManagementStatus("Deleting...");
+      const result = await postDeleteMapsByIds([id]);
+      if (!result || result.ok !== true) {
+        setManagementStatus("Delete failed.", true);
+        return;
+      }
+      managementSelectedMapIds.delete(id);
+      await refreshServerMapsCache();
+      setManagementStatus("Map deleted.");
+    });
+    tdAction.appendChild(delBtn);
+
+    tr.append(tdSelect, tdName, tdHomes, tdSaved, tdAction);
+    elManagementTableBody.appendChild(tr);
+  }
+
+  const selectableCount = maps.filter((x) => String(x?.id || "").trim()).length;
+  elManagementSelectAll.checked = selectableCount > 0 && managementSelectedMapIds.size === selectableCount;
+  elManagementSelectAll.indeterminate = managementSelectedMapIds.size > 0 && managementSelectedMapIds.size < selectableCount;
 }
 
 async function bootstrapServerBackedState() {
@@ -3340,6 +3496,7 @@ const elPageEmotion = document.getElementById("pageEmotion");
 const elPageStep1EmotionFullscreen = document.getElementById("pageStep1EmotionFullscreen");
 const elPageAllMaps = document.getElementById("pageAllMaps");
 const elPageArchive = document.getElementById("pageArchive");
+const elPageManagement = document.getElementById("pageManagement");
 const elBackToWelcomeBtn = document.getElementById("backToWelcomeBtn");
 const elCreateLifePathBtn = document.getElementById("createLifePathBtn");
 const elBackToStep1Btn = document.getElementById("backToStep1Btn");
@@ -3353,6 +3510,23 @@ const elHomeSummary = document.getElementById("homeSummary");
 const elEmotionTitle = document.getElementById("emotionTitle");
 
 const elEmotionSvg = document.getElementById("emotionSvg");
+
+const MANAGEMENT_ACCESS_NAME = "kukilida";
+const elManagementRefreshBtn = document.getElementById("managementRefreshBtn");
+const elManagementExportBtn = document.getElementById("managementExportBtn");
+const elManagementDeleteSelectedBtn = document.getElementById("managementDeleteSelectedBtn");
+const elManagementDeleteUnselectedBtn = document.getElementById("managementDeleteUnselectedBtn");
+const elManagementSelectAll = document.getElementById("managementSelectAll");
+const elManagementTableBody = document.getElementById("managementTableBody");
+const elManagementEmpty = document.getElementById("managementEmpty");
+const elManagementStatus = document.getElementById("managementStatus");
+const elManagementSortSelect = document.getElementById("managementSortSelect");
+const managementSelectedMapIds = new Set();
+let managementSortMode = "name-asc";
+
+function isManagementAccessName(name) {
+  return String(name || "").trim().toLowerCase() === MANAGEMENT_ACCESS_NAME;
+}
 
 let _emotionHomeTooltipEl = null;
 let _emotionHomeTooltipCleanup = null;
@@ -5759,6 +5933,14 @@ function showPage(which, opts) {
   const options = opts && typeof opts === "object" ? opts : {};
   const pageKey = normalizeAppPageKey(which);
 
+  if (pageKey === "management") {
+    const enteredName = String(elStudentName?.value || "").trim();
+    if (!isManagementAccessName(enteredName)) {
+      showPage("welcome", options);
+      return;
+    }
+  }
+
   if (pageKey === "welcome" && serverStateLoaded && !_restoringReviewMapAfterRefresh) {
     clearReviewMapRefreshMarker();
   }
@@ -5777,6 +5959,7 @@ function showPage(which, opts) {
     { key: "step1EmotionFullscreen", el: elPageStep1EmotionFullscreen },
     { key: "allmaps", el: elPageAllMaps },
     { key: "archive", el: elPageArchive },
+    { key: "management", el: elPageManagement },
   ];
 
   const isHomeFlow = pageKey === "step1";
@@ -6019,6 +6202,14 @@ function showPage(which, opts) {
   if (pageKey === "archive") {
     setTimeout(() => {
       renderArchiveGrid();
+      void refreshServerMapsCache();
+    }, 0);
+  }
+
+  if (pageKey === "management") {
+    setTimeout(() => {
+      renderManagementPage();
+      setManagementStatus("");
       void refreshServerMapsCache();
     }, 0);
   }
@@ -16288,9 +16479,11 @@ const elStep1NextBtn = document.getElementById("step1NextBtn");
 
 function updateStep1NextBtnState() {
   if (!elStep1NextBtn) return;
-  const nameOk = Boolean(String(elStudentName?.value || "").trim());
+  const enteredName = String(elStudentName?.value || "").trim();
+  const nameOk = Boolean(enteredName);
   const homesOk = Boolean(String(elHomesCount?.value || "").trim());
-  elStep1NextBtn.classList.toggle("active", nameOk && homesOk);
+  const managementAccess = isManagementAccessName(enteredName);
+  elStep1NextBtn.classList.toggle("active", nameOk && (homesOk || managementAccess));
 }
 
 const elStartYear = document.getElementById("startYear");
@@ -17022,6 +17215,14 @@ function step1TransitionPhase(removePhase, addPhase, callback) {
 if (elStep1NextBtn) {
   elStep1NextBtn.addEventListener("click", () => {
     if (!elStep1NextBtn.classList.contains("active")) return;
+    const enteredName = String(elStudentName?.value || "").trim();
+    if (isManagementAccessName(enteredName)) {
+      managementSelectedMapIds.clear();
+      showPage("management");
+      renderManagementPage();
+      setManagementStatus("");
+      return;
+    }
     // This button now lives on the home page (screen 2), not on #pageStep1
     // itself -- navigate there first, then transition straight into the
     // address-entry phase (Step 1's own name/count intro screen no longer
@@ -17597,6 +17798,111 @@ function wireGlobalNavButtons() {
   }
 }
 wireGlobalNavButtons();
+
+if (elManagementRefreshBtn) {
+  elManagementRefreshBtn.addEventListener("click", async () => {
+    setManagementStatus("Refreshing...");
+    const ok = await refreshServerMapsCache();
+    renderManagementPage();
+    setManagementStatus(ok ? "Refreshed." : "Could not refresh maps.", !ok);
+  });
+}
+
+if (elManagementExportBtn) {
+  elManagementExportBtn.addEventListener("click", async () => {
+    setManagementStatus("Preparing export...");
+    const payload = await fetchServerMapsExportPayload();
+    if (!payload) {
+      setManagementStatus("Export failed.", true);
+      return;
+    }
+    const stamp = new Date().toISOString().slice(0, 10);
+    const text = JSON.stringify(payload, null, 2);
+    downloadJson(text, `lifepath-all-maps-${stamp}.json`);
+    setManagementStatus("Export downloaded.");
+  });
+}
+
+if (elManagementSelectAll) {
+  elManagementSelectAll.addEventListener("change", () => {
+    const maps = Array.isArray(getSavedMaps()) ? getSavedMaps() : [];
+    if (elManagementSelectAll.checked) {
+      managementSelectedMapIds.clear();
+      for (const snap of maps) {
+        const id = String(snap?.id || "").trim();
+        if (id) managementSelectedMapIds.add(id);
+      }
+    } else {
+      managementSelectedMapIds.clear();
+    }
+    renderManagementPage();
+  });
+}
+
+if (elManagementSortSelect) {
+  elManagementSortSelect.addEventListener("change", () => {
+    const next = String(elManagementSortSelect.value || "name-asc").trim();
+    managementSortMode = next || "name-asc";
+    renderManagementPage();
+  });
+}
+
+if (elManagementDeleteSelectedBtn) {
+  elManagementDeleteSelectedBtn.addEventListener("click", async () => {
+    const ids = Array.from(managementSelectedMapIds);
+    if (!ids.length) {
+      setManagementStatus("Select at least one map.", true);
+      return;
+    }
+    const ok = window.confirm(`Delete ${ids.length} selected map(s)?`);
+    if (!ok) return;
+
+    setManagementStatus("Deleting selected maps...");
+    const result = await postDeleteMapsByIds(ids);
+    if (!result || result.ok !== true) {
+      setManagementStatus("Delete failed.", true);
+      return;
+    }
+
+    managementSelectedMapIds.clear();
+    await refreshServerMapsCache();
+    setManagementStatus(`Deleted ${Number(result.deleted) || 0} map(s).`);
+  });
+}
+
+if (elManagementDeleteUnselectedBtn) {
+  elManagementDeleteUnselectedBtn.addEventListener("click", async () => {
+    const maps = Array.isArray(getSavedMaps()) ? getSavedMaps() : [];
+    const allIds = maps.map((snap) => String(snap?.id || "").trim()).filter(Boolean);
+    const selectedSet = new Set(Array.from(managementSelectedMapIds).map((x) => String(x || "").trim()).filter(Boolean));
+    const idsToDelete = allIds.filter((id) => !selectedSet.has(id));
+
+    if (!allIds.length) {
+      setManagementStatus("No maps found.", true);
+      return;
+    }
+
+    if (!idsToDelete.length) {
+      setManagementStatus("Nothing to delete. All maps are selected.", true);
+      return;
+    }
+
+    const keepCount = allIds.length - idsToDelete.length;
+    const ok = window.confirm(`Delete ${idsToDelete.length} unselected map(s) and keep ${keepCount} selected map(s)?`);
+    if (!ok) return;
+
+    setManagementStatus("Deleting unselected maps...");
+    const result = await postDeleteMapsByIds(idsToDelete);
+    if (!result || result.ok !== true) {
+      setManagementStatus("Delete failed.", true);
+      return;
+    }
+
+    for (const id of idsToDelete) managementSelectedMapIds.delete(id);
+    await refreshServerMapsCache();
+    setManagementStatus(`Deleted ${Number(result.deleted) || 0} unselected map(s).`);
+  });
+}
 
 // Small "X" on the expand pages (movement map, emotion map) and the solo
 // ring page: returns straight to Step 1's data-entry page for the same map,

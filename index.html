@@ -97,6 +97,56 @@
         </div>
       </section>
 
+      <!-- Page 5: Management (restricted) -->
+      <section id="pageManagement" class="page hidden" aria-label="Management">
+        <header class="topbar">
+          <div class="homePageTopActions" aria-label="Site navigation">
+            <button type="button" class="homeTextActionBtn globalNavBtn" data-nav="welcome" data-nav-scroll="screen2"><img class="btnImg btnImgCreateMap" src="buttons/create-map.png" alt="create map" /></button>
+            <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="archive"><img class="btnImg btnImgArchive" src="buttons/archive.png" alt="archive" /></button>
+            <button type="button" class="step1TopActionBtn globalNavBtn" data-nav="allmaps"><img class="btnImg btnImgAllMaps" src="buttons/all-maps.png" alt="all maps" /></button>
+          </div>
+        </header>
+
+        <img class="step2LogoText appLogoImage" src="logo.png" alt="LifePath" />
+
+        <div class="managementBody">
+          <div class="managementHeaderRow">
+            <h2 class="managementTitle">Management</h2>
+            <div id="managementStatus" class="managementStatus" role="status" aria-live="polite"></div>
+          </div>
+
+          <div class="managementActions">
+            <button type="button" id="managementRefreshBtn" class="managementBtn">refresh</button>
+            <button type="button" id="managementExportBtn" class="managementBtn">export all maps json</button>
+            <button type="button" id="managementDeleteSelectedBtn" class="managementBtn managementDangerBtn">delete selected</button>
+            <button type="button" id="managementDeleteUnselectedBtn" class="managementBtn managementDangerBtn">delete unselected</button>
+            <label class="managementSortLabel" for="managementSortSelect">sort</label>
+            <select id="managementSortSelect" class="managementSortSelect" aria-label="Sort maps">
+              <option value="name-asc">name a-z</option>
+              <option value="name-desc">name z-a</option>
+              <option value="saved-desc">saved newest</option>
+              <option value="saved-asc">saved oldest</option>
+            </select>
+          </div>
+
+          <div id="managementEmpty" class="managementEmpty hidden">No saved maps found.</div>
+          <div class="managementTableWrap">
+            <table class="managementTable" aria-label="All saved maps list">
+              <thead>
+                <tr>
+                  <th><input id="managementSelectAll" type="checkbox" aria-label="Select all maps" /></th>
+                  <th>name</th>
+                  <th>homes</th>
+                  <th>saved</th>
+                  <th>action</th>
+                </tr>
+              </thead>
+              <tbody id="managementTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <!-- Page 2: Map editor/viewer -->
       <section id="pageStep1" class="page hidden" aria-label="Map editor and viewer">
         <div class="homePageTopActions" aria-label="Site navigation">

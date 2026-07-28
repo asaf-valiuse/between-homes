@@ -821,6 +821,56 @@ def _rebuild_maps_in_db(*, overwrite: bool = False) -> dict:
     return {"ok": True, "built": built, "skipped": skipped}
 
 
+def _delete_maps_by_ids(map_ids: list[str]) -> dict:
+    ids = [str(x or "").strip() for x in (map_ids or []) if str(x or "").strip()]
+    if not ids:
+        return {"ok": False, "error": "missing_ids"}
+
+    unique_ids = list(dict.fromkeys(ids))
+    deleted_count = 0
+
+    _init_db()
+    with _connect_db() as conn:
+        placeholders = ",".join("?" for _ in unique_ids)
+        cur = conn.execute(f"DELETE FROM signatures WHERE id IN ({placeholders})", unique_ids)
+        try:
+            deleted_count = int(cur.rowcount or 0)
+        except Exception:
+            deleted_count = 0
+
+        row = conn.execute("SELECT state_json FROM app_state WHERE id = 1").fetchone()
+        state = _default_state()
+        if row and row[0]:
+            try:
+                parsed = json.loads(row[0])
+                if isinstance(parsed, dict):
+                    state = parsed
+            except Exception:
+                state = _default_state()
+
+        if isinstance(state.get("savedMaps"), list):
+            id_set = set(unique_ids)
+            state["savedMaps"] = [
+                snap for snap in state.get("savedMaps", [])
+                if not (isinstance(snap, dict) and str(snap.get("id") or "").strip() in id_set)
+            ]
+
+        if isinstance(state.get("allMapsHidden"), list):
+            id_set = set(unique_ids)
+            state["allMapsHidden"] = [
+                x for x in state.get("allMapsHidden", [])
+                if str(x or "").strip() not in id_set
+            ]
+
+        state["updatedAt"] = _now_iso()
+        conn.execute(
+            "INSERT OR REPLACE INTO app_state (id, state_json) VALUES (1, ?)",
+            (json.dumps(state, ensure_ascii=False),),
+        )
+
+    return {"ok": True, "deleted": deleted_count, "requested": len(unique_ids)}
+
+
 def _write_store(store: dict) -> None:
     _init_db()
     signatures = store.get("signatures")
@@ -978,7 +1028,15 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path not in ("/api/signatures", "/api/overpass", "/api/nominatim", "/api/google_geocode", "/api/state", "/api/maps/rebuild"):
+        if parsed.path not in (
+            "/api/signatures",
+            "/api/overpass",
+            "/api/nominatim",
+            "/api/google_geocode",
+            "/api/state",
+            "/api/maps/rebuild",
+            "/api/maps/delete",
+        ):
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
             return
 
@@ -1164,6 +1222,17 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, result)
             return
 
+        if parsed.path == "/api/maps/delete":
+            ids_raw = payload.get("ids") if isinstance(payload, dict) else None
+            if not isinstance(ids_raw, list):
+                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "missing_ids"})
+                return
+            with _lock:
+                result = _delete_maps_by_ids([str(x or "") for x in ids_raw])
+            status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
+            self._send_json(status, result)
+            return
+
         signature = payload.get("signature")
         if not isinstance(signature, dict):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "missing_signature"})
@@ -1260,6 +1329,21 @@ class Handler(SimpleHTTPRequestHandler):
                 with _connect_db() as conn:
                     maps = _list_maps_from_signatures(conn)
             self._send_json(HTTPStatus.OK, {"ok": True, "maps": maps})
+            return
+
+        if parsed.path == "/api/maps/export":
+            with _lock:
+                _init_db()
+                with _connect_db() as conn:
+                    maps = _list_maps_from_signatures(conn)
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "exportedAt": _now_iso(),
+                    "savedMaps": maps,
+                },
+            )
             return
 
         if parsed.path == "/api/state":

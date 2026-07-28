@@ -7340,3 +7340,136 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
   margin-top: 4px;
   min-height: 16px;
 }
+
+#pageManagement {
+  position: relative;
+  height: 100vh;
+  background: #f4f2ea;
+  padding: 34px 36px 30px;
+}
+
+#pageManagement .topbar {
+  position: absolute;
+  top: 34px;
+  right: 36px;
+  z-index: 5;
+}
+
+.managementBody {
+  max-width: 1220px;
+  margin: 110px auto 0;
+  border: 1px solid #d4d2c7;
+  background: #f7f5ed;
+  padding: 24px;
+}
+
+.managementHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.managementTitle {
+  margin: 0;
+  font-family: "NarkissBlock-Light-TRIAL", sans-serif;
+  font-size: 28px;
+  font-weight: 400;
+  color: #000000;
+}
+
+.managementStatus {
+  min-height: 20px;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-size: 13px;
+  color: #1b6b3f;
+}
+
+.managementStatus.isError {
+  color: #9c2400;
+}
+
+.managementActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.managementSortLabel {
+  align-self: center;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-size: 13px;
+  color: #000000;
+  margin-left: 8px;
+}
+
+.managementSortSelect {
+  border: 1px solid #000000;
+  background: #f4f2ea;
+  color: #000000;
+  padding: 7px 10px;
+  min-width: 140px;
+}
+
+.managementBtn {
+  border: 1px solid #000000;
+  background: #f4f2ea;
+  color: #000000;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.managementDangerBtn,
+.managementDeleteOneBtn {
+  border-color: #7a1e00;
+  color: #7a1e00;
+  background: #fff7f3;
+}
+
+.managementEmpty {
+  margin: 14px 0;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-size: 14px;
+  color: #666156;
+}
+
+.managementTableWrap {
+  max-height: 58vh;
+  overflow: auto;
+  border: 1px solid #ddd9cd;
+}
+
+.managementTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-size: 13px;
+}
+
+.managementTable th,
+.managementTable td {
+  border-bottom: 1px solid #e2dfd4;
+  text-align: left;
+  padding: 8px;
+  color: #000000;
+}
+
+.managementTable th {
+  position: sticky;
+  top: 0;
+  background: #efece2;
+  z-index: 1;
+}
+
+@media (max-width: 900px) {
+  .managementBody {
+    margin-top: 100px;
+    padding: 16px;
+  }
+
+  .managementTable {
+    font-size: 12px;
+  }
+}
