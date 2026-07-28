@@ -7164,7 +7164,34 @@ function fitStep1GeoMapToIsraelBoundaries(options) {
   setTimeout(applyFit, 120);
 }
 
-function updateStep1GeoMapView() {}
+function updateStep1GeoMapView() {
+  ensureStep1GeoMap();
+  if (!step1GeoMap) return;
+
+  const pts = getStep1GeoRouteLatLngs();
+  if (!pts.length) {
+    fitStep1GeoMapToIsraelBoundaries({ animate: false });
+    return;
+  }
+
+  // While editing an existing home or previewing a not-yet-saved address,
+  // keep the map focused on that specific home/address instead of auto-fitting.
+  if (isStep1EditModeActive() || step1PendingPreviewAddress) {
+    return;
+  }
+
+  if (pts.length === 1) {
+    step1MapPreEntry = false;
+    if (elStep1GeoMap) elStep1GeoMap.classList.remove("map-pre-entry");
+    if (elPageStep1) elPageStep1.classList.remove("map-colors-dark");
+    step1GeoMap.invalidateSize(true);
+    step1GeoMap.setView(pts[0], 15.5, { animate: false });
+    return;
+  }
+
+  // On normal entry flow (new home saved), zoom out to include the full route.
+  fitStep1GeoMapToAllAddresses({ animate: false });
+}
 
 function focusStep1GeoMapAt(lat, lon, zoom, options) {
   const opts = options && typeof options === "object" ? options : {};
