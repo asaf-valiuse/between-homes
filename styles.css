@@ -6681,6 +6681,16 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
   position: relative;
   top: 0;
   left: 0;
+  width: 100%;
+  padding-right: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#pageStep1 .startYearGroup > .text-wrapper-2,
+#pageStep1 .belongingInlineGroup > .text-wrapper-2 {
+  font-size: calc(14px / var(--step1-scale, 1));
 }
 
 /* Address input lines — fit in the horizontal row, thin and uniform */
@@ -6718,6 +6728,79 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
 #pageStep1 .div-5 > .group-2:nth-child(5) {
   position: relative;
   left: -160px;
+}
+
+#pageStep1 .locationGroup {
+  grid-column: 1 / span 2;
+  position: relative;
+  left: -35px;
+}
+
+#pageStep1 .locationGroup > .figma-line-input {
+  width: 285px !important;
+}
+
+#pageStep1 .streetGroup {
+  position: relative;
+  left: -140px;
+}
+
+#pageStep1 .startYearGroup {
+  position: relative;
+  left: -210px;
+}
+
+#pageStep1 .belongingInlineGroup {
+  position: relative;
+  left: -160px;
+}
+
+#pageStep1 .locationSuggestions {
+  position: absolute;
+  top: 58px;
+  left: 0;
+  width: 285px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #f4f2ea;
+  border: 0.5px solid rgba(0, 0, 0, 0.22);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+  z-index: 120;
+}
+
+#pageStep1 .locationSuggestions.hidden {
+  display: none;
+}
+
+#pageStep1 .locationSuggestionItem {
+  width: 100%;
+  border: 0;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif;
+  font-size: 15px;
+  color: #111111;
+}
+
+#pageStep1 .locationSuggestionItem:last-child {
+  border-bottom: 0;
+}
+
+#pageStep1 .locationSuggestionItem.active,
+#pageStep1 .locationSuggestionItem:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+#pageStep1 #locationSearch.figma-line-input::placeholder {
+  font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
+  font-weight: 400;
+  font-size: 18px;
+  color: #c3c1b7;
+  text-transform: none;
+  opacity: 1;
 }
 
 /* "What year" field spans the left column only, on its own row.
@@ -6943,6 +7026,124 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
 /* Remove last margin for last input group */
 #pageStep1 .div-5 > .group-2:last-child {
   margin-bottom: 0;
+}
+
+/* Step1 input rows: normalize to a clean 4-column row so fields never overlap. */
+#pageStep1 .div-5 {
+  grid-template-columns:
+    minmax(220px, 1.25fr)
+    minmax(120px, 0.8fr)
+    minmax(165px, 1fr)
+    minmax(190px, 1.25fr)
+    minmax(220px, 1.15fr)
+    minmax(300px, 1.6fr);
+  column-gap: 14px;
+  align-items: start;
+}
+
+#pageStep1 .div-5 > .group-2 {
+  left: 0 !important;
+}
+
+#pageStep1 .locationGroup {
+  grid-column: 1;
+  width: 100%;
+}
+
+#pageStep1 .streetGroup {
+  display: none;
+}
+
+#pageStep1 .startYearGroup {
+  grid-column: 5;
+  width: 100%;
+}
+
+#pageStep1 .belongingInlineGroup {
+  grid-column: 6;
+  width: 100%;
+}
+
+#pageStep1 .step1ReadOnlyAddressRow {
+  display: contents;
+}
+
+#pageStep1 .step1ReadOnlyAddressGroup {
+  margin-bottom: 0;
+}
+
+#pageStep1 .step1ReadOnlyAddressGroup > .text-wrapper-2 {
+  color: #c3c1b7;
+}
+
+#pageStep1 .step1ReadOnlyAddressGroup > .figma-line-input {
+  color: #000000;
+  caret-color: transparent;
+  pointer-events: none;
+}
+
+#pageStep1 .step1ReadOnlyAddressGroup > .figma-line-input:focus {
+  outline: none;
+}
+
+#pageStep1 .step1ReadOnlyCountryGroup {
+  grid-column: 2;
+}
+
+#pageStep1 .step1ReadOnlyStateCityGroup {
+  grid-column: 3;
+}
+
+#pageStep1 .step1ReadOnlyStreetGroup {
+  grid-column: 4;
+}
+
+#pageStep1.step1-edit-mode.step1-address-locked .div-5 {
+  grid-template-columns:
+    minmax(120px, 0.8fr)
+    minmax(170px, 1.05fr)
+    minmax(210px, 1.3fr)
+    minmax(210px, 1.2fr)
+    minmax(280px, 1.65fr);
+  column-gap: 16px;
+}
+
+#pageStep1.step1-edit-mode.step1-address-locked .step1ReadOnlyCountryGroup {
+  grid-column: 1;
+}
+
+#pageStep1.step1-edit-mode.step1-address-locked .step1ReadOnlyStateCityGroup {
+  grid-column: 2;
+}
+
+#pageStep1.step1-edit-mode.step1-address-locked .step1ReadOnlyStreetGroup {
+  grid-column: 3;
+}
+
+#pageStep1.step1-edit-mode.step1-address-locked .startYearGroup {
+  grid-column: 4;
+}
+
+#pageStep1.step1-edit-mode.step1-address-locked .belongingInlineGroup {
+  grid-column: 5;
+}
+
+#pageStep1 .group-2 > .figma-line-input {
+  width: 100% !important;
+}
+
+#pageStep1 .locationGroup > .figma-line-input,
+#pageStep1 .locationSuggestions {
+  width: 100% !important;
+}
+
+#pageStep1 .belongingInlineGroup .figma-range-inline {
+  width: calc(100% - 116px);
+  top: 44px;
+}
+
+#pageStep1 .belongingInlineGroup .addHomeBtn {
+  right: 0;
 }
 
 #pageStep1 .rate-your-sense-of {
@@ -7185,6 +7386,99 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
   pointer-events: auto;
   background: transparent;
   z-index: 0;
+}
+
+#pageStep1 .step1StreetViewHost {
+  position: absolute;
+  top: 30px;
+  left: 0;
+  width: 100%;
+  height: calc(100% - 30px);
+  z-index: 4;
+  background: #000;
+}
+
+#pageStep1 .step1StreetViewHost.hidden {
+  display: none;
+}
+
+#pageStep1 .step1StreetViewCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#pageStep1 .step1StreetViewDetails {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  max-width: calc(100% - 74px);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  font-family: "80-kb-Sharp", Helvetica, sans-serif;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 6;
+}
+
+#pageStep1 .step1StreetViewDetails.hidden {
+  display: none;
+}
+
+#pageStep1 .step1GeoModeBtn {
+  position: absolute;
+  top: 42px;
+  right: 10px;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  z-index: 8;
+  backdrop-filter: blur(2px);
+}
+
+#pageStep1 .step1GeoModeBtn .btnImg {
+  width: 26px;
+  height: 26px;
+  display: block;
+  object-fit: contain;
+  margin: 8px;
+}
+
+#pageStep1 .step1GeoModeBtnIcon {
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: relative;
+}
+
+#pageStep1 .step1GeoModeBtnIcon .geoModeIcon {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 26px;
+  height: 26px;
+  fill: #f4f2ea;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+#pageStep1 .step1GeoModeBtn.map-mode .geoModeIconMap,
+#pageStep1 .step1GeoModeBtn.street-mode .geoModeIcon3d {
+  opacity: 1;
+  transform: scale(1);
 }
 
 #pageStep1 .step1GeoMapName {

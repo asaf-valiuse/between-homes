@@ -2224,6 +2224,11 @@ let belongingLabelShown = false;
 const elForm = document.getElementById("addressForm");
 const elList = document.getElementById("addressList");
 const elStep1GeoMap = document.getElementById("step1GeoMap");
+const elStep1GeoModeBtn = document.getElementById("step1GeoModeBtn");
+const elStep1GeoModeBtnIcon = document.getElementById("step1GeoModeBtnIcon");
+const elStep1StreetViewHost = document.getElementById("step1StreetViewHost");
+const elStep1StreetViewCanvas = document.getElementById("step1StreetViewCanvas");
+const elStep1StreetViewDetails = document.getElementById("step1StreetViewDetails");
 const elStep1GeoMapName = document.getElementById("step1GeoMapName");
 const elStep1EmotionSvg = document.getElementById("step1EmotionSvg");
 const elStatus = document.getElementById("status");
@@ -2646,6 +2651,17 @@ const BASEMAP_STYLES = [
     },
   },
   {
+    id: "street",
+    label: "Street",
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    options: {
+      maxZoom: 20,
+      noWrap: true,
+      detectRetina: false,
+      attribution: "© OpenStreetMap contributors",
+    },
+  },
+  {
     id: "toner-lite",
     label: "Toner Lines + Labels",
     urls: [
@@ -3006,6 +3022,11 @@ function scheduleLineArtUpdate(targetMap, layerGroup, state) {
 }
 
 let basemapStyleId = normalizeBasemapStyleId(getBasemapStyleIdFromStorage());
+let step1StreetViewMode = false;
+let step1GoogleMapsConfigPromise = null;
+let step1GoogleMapsScriptPromise = null;
+let step1StreetViewPanorama = null;
+let step1ArchiveSelectedHomeIdx = -1;
 
 // Load server-backed archive state (and migrate from localStorage once).
 bootstrapServerBackedState();
@@ -5304,12 +5325,260 @@ const elAllMapsYearControls = document.getElementById("allMapsYearControls");
 const elAllMapsYearSlider = document.getElementById("allMapsYearSlider");
 const elAllMapsYearSliderValue = document.getElementById("allMapsYearSliderValue");
 
+const elLocationSearch = document.getElementById("locationSearch");
+const elLocationSuggestions = document.getElementById("locationSuggestions");
 const elCountry = document.getElementById("country");
 const elCity = document.getElementById("city");
 const elStreet = document.getElementById("street");
 const elNumber = document.getElementById("number");
+const elStep1ReadOnlyCountry = document.getElementById("step1ReadOnlyCountry");
+const elStep1ReadOnlyStateCity = document.getElementById("step1ReadOnlyStateCity");
+const elStep1ReadOnlyStreet = document.getElementById("step1ReadOnlyStreet");
+const elStep1LocationGroup = document.querySelector("#pageStep1 .locationGroup");
+const elStep1StreetGroup = document.querySelector("#pageStep1 .streetGroup");
+const elStep1ReadOnlyAddressRow = document.querySelector("#pageStep1 .step1ReadOnlyAddressRow");
 const elBelongingRate = document.getElementById("belonging_rate");
 const elBelongingValueLabel = document.getElementById("belongingValueLabel");
+
+let locationSuggestDebounceId = 0;
+let locationSuggestSeq = 0;
+let locationSuggestionItems = [];
+let locationSuggestionActiveIndex = -1;
+
+function setCountryCityFromLocationSelection(country, city, state = "") {
+  if (elCountry) elCountry.value = String(country || "").trim();
+  if (elCity) elCity.value = String(city || "").trim();
+  const elState = document.getElementById("state");
+  if (elState) elState.value = String(state || "").trim();
+  syncStep1ReadOnlyAddressFieldsFromCurrentValues();
+}
+
+function syncStep1ReadOnlyAddressFieldsFromCurrentValues() {
+  const country = String(elCountry?.value || "").trim();
+  const city = String(elCity?.value || "").trim();
+  const state = String(document.getElementById("state")?.value || "").trim();
+  const streetAndNumberEl = document.getElementById("streetAndNumber");
+  const streetLine = String(streetAndNumberEl?.value || [elStreet?.value, elNumber?.value].filter(Boolean).join(" ") || "").trim();
+  const cityState = [city, state].filter(Boolean).join(", ");
+  const hasSelection = Boolean(String(elLocationSearch?.value || "").trim() && (city || streetLine));
+  if (elStep1ReadOnlyCountry) elStep1ReadOnlyCountry.value = hasSelection ? country : "";
+  if (elStep1ReadOnlyStateCity) elStep1ReadOnlyStateCity.value = hasSelection ? cityState : "";
+  if (elStep1ReadOnlyStreet) elStep1ReadOnlyStreet.value = hasSelection ? streetLine : "";
+}
+
+function parseLocationSearchText(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return { city: "", country: "", state: "" };
+  const parts = raw.split(",").map((part) => String(part || "").trim()).filter(Boolean);
+
+  const looksLikeStreetLine = (text) => {
+    const t = String(text || "").trim();
+    if (!t) return false;
+    if (/\d/.test(t)) return true;
+    return /\b(st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|way|pl|place|ct|court|hwy|highway)\b/i.test(t);
+  };
+
+  const looksLikeStateToken = (text) => {
+    const t = String(text || "").trim();
+    if (!t) return false;
+    if (/^[A-Za-z]{2,3}$/.test(t)) return true; // GA, NY, USA-style short region tokens
+    if (/\b(state|county|province|region)\b/i.test(t)) return true;
+    if (/\b(?:georgia|california|arizona|texas|florida|ohio|illinois|colorado|washington|virginia|new york|new jersey)\b/i.test(t)) return true;
+    return false;
+  };
+
+  if (parts.length < 2) return { city: "", country: "", state: "", streetLine: "" };
+  if (parts.length >= 4) {
+    return {
+      streetLine: parts.slice(0, -3).join(", "),
+      city: parts[parts.length - 3],
+      state: parts[parts.length - 2],
+      country: parts[parts.length - 1],
+    };
+  }
+  if (parts.length === 3) {
+    // Common format: "city, state, country" (e.g. "duluth, ga, usa").
+    if (!looksLikeStreetLine(parts[0]) && looksLikeStateToken(parts[1])) {
+      return {
+        streetLine: "",
+        city: parts[0],
+        state: parts[1],
+        country: parts[2],
+      };
+    }
+    return {
+      streetLine: parts[0],
+      city: parts[1],
+      state: "",
+      country: parts[2],
+    };
+  }
+  return {
+    city: parts[0],
+    country: parts[parts.length - 1],
+    state: "",
+    streetLine: "",
+  };
+}
+
+function syncLocationInputFromCountryCity() {
+  if (!elLocationSearch) return;
+  const country = String(elCountry?.value || "").trim();
+  const city = String(elCity?.value || "").trim();
+  elLocationSearch.value = city ? [city, country].filter(Boolean).join(", ") : "";
+}
+
+function clearLocationSuggestions() {
+  locationSuggestionItems = [];
+  locationSuggestionActiveIndex = -1;
+  if (elLocationSuggestions) {
+    elLocationSuggestions.innerHTML = "";
+    elLocationSuggestions.classList.add("hidden");
+  }
+}
+
+function renderLocationSuggestions() {
+  if (!elLocationSuggestions) return;
+  if (!locationSuggestionItems.length) {
+    clearLocationSuggestions();
+    return;
+  }
+  elLocationSuggestions.innerHTML = "";
+  locationSuggestionItems.forEach((item, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `locationSuggestionItem${idx === locationSuggestionActiveIndex ? " active" : ""}`;
+    btn.setAttribute("role", "option");
+    btn.textContent = String(item.display || [item.city, item.country].filter(Boolean).join(", ") || "").trim();
+    btn.addEventListener("mousedown", (ev) => {
+      ev.preventDefault();
+      applyLocationSuggestion(item);
+    });
+    elLocationSuggestions.appendChild(btn);
+  });
+  elLocationSuggestions.classList.remove("hidden");
+}
+
+function applyLocationSuggestion(item) {
+  if (!item) return;
+  let parsedStreetSelection = { street: "", number: "" };
+  setCountryCityFromLocationSelection(item.country, item.city, item.state);
+  if (elStreetAndNumber) {
+    if (item.streetLine) {
+      elStreetAndNumber.value = item.streetLine;
+      parsedStreetSelection = syncStreetAndNumberFields();
+    } else {
+      elStreetAndNumber.value = "";
+      if (elStreet) elStreet.value = "";
+      if (elNumber) elNumber.value = "";
+    }
+  }
+  if (elLocationSearch) {
+    const selectedLabel = String(item.display || "").trim();
+    elLocationSearch.value = selectedLabel || [item.streetLine, item.city, item.country].filter(Boolean).join(", ");
+    elLocationSearch.classList.remove("address-error");
+  }
+  clearLocationSuggestions();
+  handleAddressFieldInput();
+  updateStep1AddrNextBtnState();
+
+  const selectedLat = Number(item.lat);
+  const selectedLon = Number(item.lon);
+  if (isFinite(selectedLat) && isFinite(selectedLon)) {
+    const previewAddress = {
+      country: String(item.country || "").trim(),
+      city: String(item.city || "").trim(),
+      state: String(item.state || "").trim(),
+      street: String(parsedStreetSelection.street || item.streetLine || "").trim(),
+      number: String(parsedStreetSelection.number || "").trim(),
+      _origStreetAndNumber: String(item.streetLine || "").trim(),
+    };
+    setStep1PreviewAddressFromGeo(previewAddress, {
+      lat: selectedLat,
+      lon: selectedLon,
+      displayName: String(item.display || [item.streetLine, item.city, item.state, item.country].filter(Boolean).join(", ")).trim(),
+      matchLevel: item.streetLine ? "address" : "city",
+      source: "google",
+    }, { renderMarkers: false });
+    focusStep1GeoMapAt(selectedLat, selectedLon, item.streetLine ? 17 : 14, { animate: true });
+  }
+
+  if (item.streetLine) {
+    verifyCurrentAddress();
+    scheduleStreetMapFocus();
+  } else {
+    verifyCurrentCity();
+    void focusCityOnGeoMap({ duration: 1.2 });
+  }
+
+  if (step1StreetViewMode) {
+    void updateStep1StreetViewForAddress({
+      lat: isFinite(selectedLat) ? selectedLat : undefined,
+      lon: isFinite(selectedLon) ? selectedLon : undefined,
+      country: String(item.country || "").trim(),
+      city: String(item.city || "").trim(),
+      state: String(item.state || "").trim(),
+      street: String(parsedStreetSelection.street || item.streetLine || "").trim(),
+      number: String(parsedStreetSelection.number || "").trim(),
+      _origCountry: String(item.country || "").trim(),
+      _origCity: String(item.city || "").trim(),
+      _origStreetAndNumber: String(item.streetLine || "").trim(),
+    });
+  }
+}
+
+async function selectFirstLocationSuggestionFromInput() {
+  let first = locationSuggestionItems[0] || null;
+  if (!first) {
+    const raw = String(elLocationSearch?.value || "").trim();
+    if (raw.length >= 2) {
+      const suggestions = await fetchLocationSuggestions(raw).catch(() => []);
+      locationSuggestionItems = Array.isArray(suggestions) ? suggestions : [];
+      locationSuggestionActiveIndex = locationSuggestionItems.length ? 0 : -1;
+      renderLocationSuggestions();
+      first = locationSuggestionItems[0] || null;
+    }
+  }
+  if (!first) return false;
+  applyLocationSuggestion(first);
+  return true;
+}
+
+async function fetchLocationSuggestions(queryText) {
+  const q = String(queryText || "").trim();
+  if (!q) return [];
+  const payload = await fetchJsonWithTimeout("/api/google_geocode", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ params: { q } }),
+  }, 4500);
+  const data = payload?.ok && Array.isArray(payload.data) ? payload.data : [];
+  const out = [];
+  const seen = new Set();
+  for (const item of data) {
+    const street = String(item?.address?.road || item?.address?.pedestrian || item?.address?.footway || item?.address?.path || item?.address?.residential || "").trim();
+    const number = String(item?.address?.house_number || "").trim();
+    const streetLine = [street, number].filter(Boolean).join(" ").trim();
+    const city = String(item?.address?.city || item?.address?.town || item?.address?.village || item?.address?.municipality || item?.address?.suburb || "").trim();
+    const country = String(item?.address?.country || "").trim();
+    if (!city || !country) continue;
+    const state = String(item?.address?.state || "").trim();
+    const key = `${streetLine}|${city}|${state}|${country}|${String(item?.display_name || "")}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      streetLine,
+      city,
+      country,
+      state,
+      lat: Number(item?.lat),
+      lon: Number(item?.lon),
+      display: String(item?.display_name || [streetLine, city, state, country].filter(Boolean).join(", ")).trim(),
+    });
+    if (out.length >= 8) break;
+  }
+  return out;
+}
 
 function sanitizeEnglishOnlyName(raw) {
   // Allow English and Hebrew letters (plus spaces and basic name punctuation).
@@ -6496,6 +6765,9 @@ function loadSavedMapSnapshotIntoEditingState(snapshot, archiveDisplayName = "")
 
 function openSavedMapSnapshotFinishedFromArchive(snapshot, archiveDisplayName = "") {
   if (!snapshot) return;
+  setStep1ReadOnlyEditAddressFields(false, null);
+  step1ArchiveSelectedHomeIdx = -1;
+  setStep1StreetViewDetailsText("");
   rememberReviewMapForRefresh(snapshot, archiveDisplayName);
   resetStep1AfterCreateSaveArmed = false;
   resetStep1AfterCreateSavePending = false;
@@ -6818,12 +7090,13 @@ function ensureStep1GeoMap() {
     maxZoom: 18,
   });
 
-  // Use the dark basemap for the data-entry map.
+  // Step1 always keeps the selected basemap; Street View is shown as an overlay.
   step1GeoTileLayer = createBasemapTileLayer(basemapStyleId);
   if (step1GeoTileLayer) {
     step1GeoTileLayer.addTo(step1GeoMap);
   }
   applyBasemapStyleClasses();
+  syncStep1GeoModeButtonUi();
 
   // Start with faded map before any addresses are entered.
   if (addresses.length === 0) {
@@ -6838,6 +7111,297 @@ function ensureStep1GeoMap() {
   updateStep1GeoMapMarkers();
   // Kick off background coord refresh after a short settle delay.
   setTimeout(refreshAddressCoords, 800);
+}
+
+function syncStep1GeoModeButtonUi() {
+  if (!elStep1GeoModeBtn) return;
+  const toStreetView = !step1StreetViewMode;
+  elStep1GeoModeBtn.setAttribute("aria-label", toStreetView ? "switch to street view" : "switch to black map view");
+  elStep1GeoModeBtn.classList.toggle("map-mode", step1StreetViewMode);
+  elStep1GeoModeBtn.classList.toggle("street-mode", !step1StreetViewMode);
+  if (elStep1GeoModeBtnIcon) {
+    elStep1GeoModeBtnIcon.setAttribute("data-mode", step1StreetViewMode ? "map" : "street");
+  }
+}
+
+async function getStep1GoogleMapsConfig() {
+  if (step1GoogleMapsConfigPromise) return step1GoogleMapsConfigPromise;
+  step1GoogleMapsConfigPromise = fetchJsonWithTimeout("/api/google_maps_config", {
+    method: "GET",
+    timeoutMs: 7000,
+  }).then((payload) => {
+    const apiKey = String(payload?.apiKey || "").trim();
+    if (!apiKey) throw new Error("google_maps_api_key_missing");
+    return {
+      apiKey,
+      language: String(payload?.language || "en").trim() || "en",
+      region: String(payload?.region || "").trim(),
+    };
+  }).catch((err) => {
+    step1GoogleMapsConfigPromise = null;
+    throw err;
+  });
+  return step1GoogleMapsConfigPromise;
+}
+
+async function ensureGoogleMapsApiLoaded(config) {
+  if (window.google && window.google.maps && window.google.maps.StreetViewPanorama) {
+    return;
+  }
+  if (!step1GoogleMapsScriptPromise) {
+    step1GoogleMapsScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      const params = new URLSearchParams({ key: String(config?.apiKey || "") });
+      const language = String(config?.language || "").trim();
+      const region = String(config?.region || "").trim();
+      if (language) params.set("language", language);
+      if (region) params.set("region", region);
+      script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve();
+      script.onerror = () => {
+        step1GoogleMapsScriptPromise = null;
+        reject(new Error("google_maps_script_failed"));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  await step1GoogleMapsScriptPromise;
+}
+
+async function ensureStep1StreetViewPanorama(config) {
+  if (!elStep1StreetViewCanvas) throw new Error("streetview_host_missing");
+  await ensureGoogleMapsApiLoaded(config);
+  if (!step1StreetViewPanorama) {
+    step1StreetViewPanorama = new window.google.maps.StreetViewPanorama(elStep1StreetViewCanvas, {
+      disableDefaultUI: true,
+      addressControl: false,
+      fullscreenControl: false,
+      linksControl: true,
+      clickToGo: true,
+      zoomControl: true,
+      motionTracking: false,
+      enableCloseButton: false,
+      showRoadLabels: false,
+      visible: true,
+      pov: { heading: 0, pitch: 0 },
+    });
+  }
+  return step1StreetViewPanorama;
+}
+
+async function resolveStep1StreetViewLocation() {
+  const previewLat = Number(step1PendingPreviewAddress?.lat);
+  const previewLon = Number(step1PendingPreviewAddress?.lon);
+  if (isFinite(previewLat) && isFinite(previewLon)) return { lat: previewLat, lon: previewLon };
+
+  const focus = await resolveStep1CityFocus();
+  const cityLat = Number(focus?.lat);
+  const cityLon = Number(focus?.lon);
+  if (isFinite(cityLat) && isFinite(cityLon)) return { lat: cityLat, lon: cityLon };
+
+  const center = step1GeoMap && typeof step1GeoMap.getCenter === "function" ? step1GeoMap.getCenter() : null;
+  const centerLat = Number(center?.lat);
+  const centerLon = Number(center?.lng);
+  if (isFinite(centerLat) && isFinite(centerLon)) return { lat: centerLat, lon: centerLon };
+  return null;
+}
+
+function findStreetViewPanoramaNear(location, radiusMeters = 1200) {
+  return new Promise((resolve, reject) => {
+    if (!(window.google && window.google.maps && window.google.maps.StreetViewService)) {
+      reject(new Error("streetview_service_unavailable"));
+      return;
+    }
+    const svc = new window.google.maps.StreetViewService();
+    svc.getPanorama({
+      location: { lat: Number(location.lat), lng: Number(location.lon) },
+      radius: Number(radiusMeters),
+      source: window.google.maps.StreetViewSource.OUTDOOR,
+    }, (data, status) => {
+      if (status === "OK" && data && data.location && data.location.latLng) {
+        resolve(data);
+      } else {
+        reject(new Error(`streetview_not_found:${String(status || "unknown")}`));
+      }
+    });
+  });
+}
+
+function forceStep1StreetViewResizeSoon(panorama) {
+  if (!(window.google?.maps?.event) || !panorama) return;
+  window.requestAnimationFrame(() => {
+    try {
+      window.google.maps.event.trigger(panorama, "resize");
+    } catch (_) {}
+  });
+}
+
+function getStep1StreetLineTextForAddress(address) {
+  if (!address || typeof address !== "object") return "";
+  const fromOrig = tidyToken(address._origStreetAndNumber || "");
+  if (fromOrig) return fromOrig;
+  return tidyToken([address._origStreet || address.street, address._origNumber || address.number].filter(Boolean).join(" "));
+}
+
+function getStep1StreetViewDetailsTextForAddress(address, homeIdx) {
+  const streetLine = getStep1StreetLineTextForAddress(address);
+  if (!streetLine) return "";
+  const city = tidyToken(address?._origCity || address?.city);
+  const country = tidyToken(address?._origCountry || address?.country);
+  const fullAddress = [streetLine, city, country].filter(Boolean).join(", ");
+  const homeNum = Number.isFinite(Number(homeIdx)) && Number(homeIdx) >= 0
+    ? String(Number(homeIdx) + 1)
+    : "";
+  return homeNum ? `home #${homeNum}, ${fullAddress}` : fullAddress;
+}
+
+function setStep1StreetViewDetailsText(text) {
+  if (!elStep1StreetViewDetails) return;
+  const value = String(text || "").trim();
+  elStep1StreetViewDetails.textContent = value;
+  elStep1StreetViewDetails.classList.toggle("hidden", !value);
+}
+
+function getStep1ArchiveStreetViewTarget() {
+  if (!isStep1ArchiveLoadedView() || !Array.isArray(addresses) || !addresses.length) return null;
+  const idx = (Number.isFinite(step1ArchiveSelectedHomeIdx) && step1ArchiveSelectedHomeIdx >= 0 && step1ArchiveSelectedHomeIdx < addresses.length)
+    ? step1ArchiveSelectedHomeIdx
+    : 0;
+  const address = addresses[idx];
+  if (!address) return null;
+  return { idx, address };
+}
+
+async function renderStep1StreetViewAtLocation(location, options = {}) {
+  const opts = options && typeof options === "object" ? options : {};
+  const cfg = await getStep1GoogleMapsConfig();
+  if (elStep1StreetViewHost) elStep1StreetViewHost.classList.remove("hidden");
+  const panorama = await ensureStep1StreetViewPanorama(cfg);
+  const panoData = await findStreetViewPanoramaNear(location, 1200);
+  panorama.setPano(String(panoData?.location?.pano || ""));
+  panorama.setPov({ heading: 0, pitch: 0 });
+  panorama.setZoom(0);
+  panorama.setVisible(true);
+  forceStep1StreetViewResizeSoon(panorama);
+  setStep1StreetViewDetailsText(opts.detailsText || "");
+}
+
+async function resolveStep1StreetViewLocationForAddress(address) {
+  const lat = Number(address?.lat);
+  const lon = Number(address?.lon);
+  if (isFinite(lat) && isFinite(lon)) return { lat, lon };
+
+  const country = String(address?._origCountry || address?.country || "").trim();
+  const city = String(address?._origCity || address?.city || "").trim();
+  const state = String(address?.state || "").trim();
+  const street = String(address?._origStreet || address?.street || "").trim();
+  const number = String(address?._origNumber || address?.number || "").trim();
+  if (!country || !city) return null;
+
+  if (street && number) {
+    try {
+      const exact = await geocodeStep1FullAddressInOrder({ country, city, state, street, number, _origStreetAndNumber: String(address?._origStreetAndNumber || "").trim() });
+      if (isFinite(Number(exact?.lat)) && isFinite(Number(exact?.lon))) {
+        return { lat: Number(exact.lat), lon: Number(exact.lon) };
+      }
+    } catch {}
+  }
+
+  if (street) {
+    try {
+      const streetGeo = await resolveStep1StreetFocus({ country, city, state, street, number: "" });
+      if (isFinite(Number(streetGeo?.lat)) && isFinite(Number(streetGeo?.lon))) {
+        return { lat: Number(streetGeo.lat), lon: Number(streetGeo.lon) };
+      }
+    } catch {}
+  }
+
+  try {
+    const entrance = await resolveCityEntranceCandidate(country, city, state);
+    if (isFinite(Number(entrance?.lat)) && isFinite(Number(entrance?.lon))) {
+      return { lat: Number(entrance.lat), lon: Number(entrance.lon) };
+    }
+  } catch {}
+
+  try {
+    const focus = await resolveStep1CityFocus();
+    if (isFinite(Number(focus?.lat)) && isFinite(Number(focus?.lon))) {
+      return { lat: Number(focus.lat), lon: Number(focus.lon) };
+    }
+  } catch {}
+  return null;
+}
+
+async function updateStep1StreetViewForAddress(address, homeIdx = -1) {
+  if (!step1StreetViewMode) return;
+  const detailsText = getStep1StreetViewDetailsTextForAddress(address, homeIdx);
+  if (!detailsText) {
+    await setStep1GeoStreetMode(false);
+    return;
+  }
+  const location = await resolveStep1StreetViewLocationForAddress(address);
+  if (!location) return;
+  try {
+    await renderStep1StreetViewAtLocation(location, { detailsText });
+  } catch (err) {
+    console.warn("[streetView] retarget failed", err);
+  }
+}
+
+async function setStep1GeoStreetMode(enabled) {
+  const next = Boolean(enabled);
+  if (step1StreetViewMode === next) {
+    syncStep1GeoModeButtonUi();
+    return;
+  }
+
+  if (next) {
+    try {
+      let location = null;
+      let detailsText = "";
+      const archiveTarget = getStep1ArchiveStreetViewTarget();
+      if (archiveTarget) {
+        detailsText = getStep1StreetViewDetailsTextForAddress(archiveTarget.address, archiveTarget.idx);
+        if (!detailsText) {
+          await setStep1GeoStreetMode(false);
+          return;
+        }
+        location = await resolveStep1StreetViewLocationForAddress(archiveTarget.address);
+      }
+      if (!location) {
+        location = await resolveStep1StreetViewLocation();
+      }
+      if (!location) {
+        showToast("Select a location first to open Street View.");
+        return;
+      }
+      await renderStep1StreetViewAtLocation(location, { detailsText });
+      step1StreetViewMode = true;
+    } catch (err) {
+      console.warn("[streetView] failed", err);
+      if (elStep1StreetViewHost) elStep1StreetViewHost.classList.add("hidden");
+      showToast("Street View is currently unavailable.");
+      return;
+    }
+  } else {
+    step1StreetViewMode = false;
+    if (elStep1StreetViewHost) elStep1StreetViewHost.classList.add("hidden");
+    setStep1StreetViewDetailsText("");
+    if (step1StreetViewPanorama && typeof step1StreetViewPanorama.setVisible === "function") {
+      step1StreetViewPanorama.setVisible(false);
+    }
+  }
+
+  syncStep1GeoModeButtonUi();
+}
+
+if (elStep1GeoModeBtn) {
+  syncStep1GeoModeButtonUi();
+  elStep1GeoModeBtn.addEventListener("click", () => {
+    void setStep1GeoStreetMode(!step1StreetViewMode);
+  });
 }
 
 let step1SummaryPhaseActive = false;
@@ -8942,6 +9506,8 @@ function armStep1HomesListInteraction() {
   const itemFromHomeNumber = (target) => {
     try {
       if (!target || typeof target.closest !== "function") return null;
+      const anyItem = target.closest(".homesListItem[data-home-idx]");
+      if (isStep1ArchiveLoadedView() && anyItem) return anyItem;
       const num = target.closest(".homesListNum.filled");
       return num ? num.closest(".homesListItem[data-home-idx]") : null;
     } catch {
@@ -8987,15 +9553,22 @@ function armStep1HomesListInteraction() {
     if (!isStep1EditModeActive()) clearStep1HomesListFocus();
   }, { passive: true });
 
-  elStep1HomesList.addEventListener("click", (e) => {
-    if (isStep1DataEntryFinished()) {
-      clearStep1HomesListFocus();
-      return;
-    }
+  elStep1HomesList.addEventListener("click", async (e) => {
     const item = itemFromHomeNumber(e.target);
     if (!item) return;
     const idx = parseInt(item.getAttribute("data-home-idx") || "-1", 10);
     if (idx < 0) return;
+    if (isStep1ArchiveLoadedView()) {
+      setStep1HomesListFocus(idx);
+      step1ArchiveSelectedHomeIdx = idx;
+      const addr = Array.isArray(addresses) ? addresses[idx] : null;
+      if (addr && step1StreetViewMode) await updateStep1StreetViewForAddress(addr, idx);
+      return;
+    }
+    if (isStep1DataEntryFinished()) {
+      clearStep1HomesListFocus();
+      return;
+    }
     openStep1HomeEditMode(idx);
   });
 }
@@ -17048,7 +17621,7 @@ function handleStep1RingClick(ringIdx) {
       if (elStep1AddrNextBtn) elStep1AddrNextBtn.click();
       return;
     }
-    if (elCity) elCity.focus({ preventScroll: true });
+    if (elLocationSearch) elLocationSearch.focus({ preventScroll: true });
     return;
   }
   openStep1HomeEditMode(ringIdx);
@@ -17069,6 +17642,7 @@ function openStep1HomeEditMode(ringIdx) {
 
   if (elCountry) elCountry.value = addr._origCountry || addr.country || "";
   if (elCity) elCity.value = addr._origCity || addr.city || "";
+  syncLocationInputFromCountryCity();
   const origStreetAndNumber = addr._origStreetAndNumber
     || [addr._origStreet || addr.street, addr._origNumber || addr.number].filter(Boolean).join(" ");
   if (elStreetAndNumber) elStreetAndNumber.value = origStreetAndNumber;
@@ -17099,6 +17673,8 @@ function openStep1HomeEditMode(ringIdx) {
     ...addr,
     belonging_rate: normalizeBelongingRate(addr.belonging_rate),
   };
+
+  setStep1ReadOnlyEditAddressFields(true, addr);
 
   enterStep1EditMode(ringIdx);
   if (isFinite(addr.lat) && isFinite(addr.lon)) {
@@ -17304,14 +17880,58 @@ function updateStep1AddrNextBtnState() {
   }
   const countryForHint = String(elCountry?.value || "").trim();
   const addressHintPlaceholder = countryForHint === "ישראל" ? "בעברית" : "English";
-  if (elCity) elCity.placeholder = addressHintPlaceholder;
+  if (elLocationSearch) elLocationSearch.placeholder = "your Home#1 address:";
   const elStreetAndNumberField = document.getElementById("streetAndNumber");
   if (elStreetAndNumberField) elStreetAndNumberField.placeholder = addressHintPlaceholder;
+  syncStep1ReadOnlyAddressFieldsFromCurrentValues();
   if (typeof updateAddHomeBtnState === "function") updateAddHomeBtnState();
+}
+
+function setStep1ReadOnlyEditAddressFields(locked, addr) {
+  const isLocked = Boolean(locked);
+  if (elPageStep1) elPageStep1.classList.toggle("step1-address-locked", isLocked);
+
+  if (elStep1LocationGroup) elStep1LocationGroup.style.display = isLocked ? "none" : "";
+  if (elStep1StreetGroup) elStep1StreetGroup.style.display = isLocked ? "none" : "";
+  if (elStep1ReadOnlyAddressRow) elStep1ReadOnlyAddressRow.style.display = "";
+
+  if (elLocationSearch) {
+    elLocationSearch.disabled = isLocked;
+    elLocationSearch.readOnly = isLocked;
+  }
+  if (elStreetAndNumber) {
+    elStreetAndNumber.disabled = isLocked;
+    elStreetAndNumber.readOnly = isLocked;
+  }
+
+  if (!isLocked) {
+    if (elStep1ReadOnlyCountry) elStep1ReadOnlyCountry.value = "";
+    if (elStep1ReadOnlyStateCity) elStep1ReadOnlyStateCity.value = "";
+    if (elStep1ReadOnlyStreet) elStep1ReadOnlyStreet.value = "";
+    syncStep1ReadOnlyAddressFieldsFromCurrentValues();
+    return;
+  }
+
+  const source = addr && typeof addr === "object" ? addr : {};
+  const country = String(source._origCountry || source.country || "").trim();
+  const city = String(source._origCity || source.city || "").trim();
+  const state = String(source.state || "").trim();
+  const streetLine = String(
+    source._origStreetAndNumber
+    || [source._origStreet || source.street, source._origNumber || source.number].filter(Boolean).join(" ")
+    || ""
+  ).trim();
+  const stateCity = [city, state].filter(Boolean).join(", ");
+
+  if (elStep1ReadOnlyCountry) elStep1ReadOnlyCountry.value = country;
+  if (elStep1ReadOnlyStateCity) elStep1ReadOnlyStateCity.value = stateCity;
+  if (elStep1ReadOnlyStreet) elStep1ReadOnlyStreet.value = streetLine;
 }
 
 function enterStep1EditMode(idx) {
   _step1EditingIdx = idx;
+  const selected = (Array.isArray(addresses) && idx >= 0 && idx < addresses.length) ? addresses[idx] : null;
+  if (selected) setStep1ReadOnlyEditAddressFields(true, selected);
   if (elPageStep1) elPageStep1.classList.add("step1-edit-mode");
   armStep1EditFieldActivation();
   clearStep1EditFieldActive();
@@ -17336,6 +17956,7 @@ function enterStep1EditMode(idx) {
 function exitStep1EditMode(opts) {
   const options = opts && typeof opts === "object" ? opts : {};
   _step1EditingIdx = -1;
+  setStep1ReadOnlyEditAddressFields(false, null);
   if (elPageStep1) elPageStep1.classList.remove("step1-edit-mode");
   clearStep1EditFieldActive();
   if (elStep1AddrNextBtn) elStep1AddrNextBtn.textContent = "NEXT";
@@ -17357,6 +17978,93 @@ if (elStartYear) {
   elStartYear.addEventListener("focus", () => { void focusStep1MapFromYearFocus(); });
 }
 
+if (elLocationSearch) {
+  elLocationSearch.addEventListener("input", () => {
+    if (isStep1EditModeActive() && elPageStep1?.classList.contains("step1-address-locked")) return;
+    const raw = String(elLocationSearch.value || "").trim();
+    setCountryCityFromLocationSelection("", "", "");
+    handleAddressFieldInput();
+    updateStep1AddrNextBtnState();
+    if (locationSuggestDebounceId) window.clearTimeout(locationSuggestDebounceId);
+    locationSuggestDebounceId = window.setTimeout(async () => {
+      const seq = ++locationSuggestSeq;
+      if (!raw || raw.length < 2) {
+        clearLocationSuggestions();
+        return;
+      }
+      const suggestions = await fetchLocationSuggestions(raw).catch(() => []);
+      if (seq !== locationSuggestSeq) return;
+      locationSuggestionItems = Array.isArray(suggestions) ? suggestions : [];
+      locationSuggestionActiveIndex = locationSuggestionItems.length ? 0 : -1;
+      renderLocationSuggestions();
+    }, 140);
+  });
+
+  elLocationSearch.addEventListener("keydown", async (e) => {
+    if (isStep1EditModeActive() && elPageStep1?.classList.contains("step1-address-locked")) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      if (!locationSuggestionItems.length) return;
+      e.preventDefault();
+      locationSuggestionActiveIndex = Math.min(locationSuggestionItems.length - 1, locationSuggestionActiveIndex + 1);
+      renderLocationSuggestions();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      if (!locationSuggestionItems.length) return;
+      e.preventDefault();
+      locationSuggestionActiveIndex = Math.max(0, locationSuggestionActiveIndex - 1);
+      renderLocationSuggestions();
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const selected = await selectFirstLocationSuggestionFromInput();
+      if (selected) return;
+      if (hasStep1FullAddressInput()) verifyCurrentAddress();
+      else if (hasStep1CountryAndCityInput()) verifyCurrentCity();
+      return;
+    }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const selected = await selectFirstLocationSuggestionFromInput();
+      if (!selected) {
+        if (hasStep1FullAddressInput()) verifyCurrentAddress();
+        else if (hasStep1CountryAndCityInput()) verifyCurrentCity();
+      }
+      if (elStartYear && typeof elStartYear.focus === "function") {
+        elStartYear.focus({ preventScroll: true });
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      clearLocationSuggestions();
+    }
+  });
+
+  elLocationSearch.addEventListener("blur", () => {
+    if (isStep1EditModeActive() && elPageStep1?.classList.contains("step1-address-locked")) return;
+    window.setTimeout(() => {
+      clearLocationSuggestions();
+      if (!hasStep1CountryAndCityInput()) {
+        const parsed = parseLocationSearchText(elLocationSearch.value);
+        if (parsed.city && parsed.country) {
+          setCountryCityFromLocationSelection(parsed.country, parsed.city, parsed.state);
+          if (parsed.streetLine && elStreetAndNumber) {
+            elStreetAndNumber.value = parsed.streetLine;
+            syncStreetAndNumberFields();
+          }
+        }
+      }
+      updateStep1AddrNextBtnState();
+      if (hasStep1FullAddressInput()) verifyCurrentAddress();
+      else if (hasStep1CountryAndCityInput()) verifyCurrentCity();
+    }, 90);
+  });
+}
+
 // Set the initial City / Street,number placeholder without calling
 // updateStep1AddrNextBtnState() this early (it also calls
 // updateAddHomeBtnState(), which reads elAddHomeBtn — a const declared
@@ -17364,15 +18072,20 @@ if (elStartYear) {
 (function initAddressHintPlaceholder() {
   const countryForHint = String(elCountry?.value || "").trim();
   const hint = countryForHint === "ישראל" ? "בעברית" : "English";
-  if (elCity) elCity.placeholder = hint;
+  if (elLocationSearch) elLocationSearch.placeholder = "your Home#1 address:";
   const streetAndNumberField = document.getElementById("streetAndNumber");
   if (streetAndNumberField) streetAndNumberField.placeholder = hint;
+  syncLocationInputFromCountryCity();
+  syncStep1ReadOnlyAddressFieldsFromCurrentValues();
 })();
 
 // Address NEXT → save address, then next home or finish
 if (elStep1AddrNextBtn) {
   elStep1AddrNextBtn.addEventListener("click", async () => {
     if (!elStep1AddrNextBtn.classList.contains("active")) return;
+    if (step1StreetViewMode) {
+      await setStep1GeoStreetMode(false);
+    }
     if (!currentAddressVerified || !step1PendingPreviewAddress) {
       // Verification hasn't completed yet — register interest and let it auto-proceed when done.
       if (_step1NextAfterVerify) return; // already waiting; don't restart the verification chain
@@ -17528,6 +18241,8 @@ if (elStep1AddrNextBtn) {
       // no more need to save/restore their values around it.
       elForm.reset();
       if (elCountry) elCountry.value = "ישראל";
+      if (elCity) elCity.value = "";
+      syncLocationInputFromCountryCity();
       resetStep1BelongingSliderToDefault();
       finishStep1AddressFieldsClearAnimation();
 
@@ -17549,7 +18264,7 @@ if (elStep1AddrNextBtn) {
 
       updateStep1AddrNextBtnState();
       updateStep1Headers();
-      if (!lastHome && !isAfterFinishEdit && elCity) elCity.focus({ preventScroll: true });
+      if (!lastHome && !isAfterFinishEdit && elLocationSearch) elLocationSearch.focus({ preventScroll: true });
     }
   });
 }
@@ -17743,6 +18458,8 @@ if (elStep1BelongNextBtn) {
       await animateStep1AddressFieldsClear();
       elForm.reset();
       if (elCountry) elCountry.value = "ישראל";
+      if (elCity) elCity.value = "";
+      syncLocationInputFromCountryCity();
       finishStep1AddressFieldsClearAnimation();
 
       updateBelongNextBtnLabel();
@@ -17750,7 +18467,7 @@ if (elStep1BelongNextBtn) {
 
       // Switch back to address phase for the next home
       step1TransitionPhase("step1-belonging-phase", "step1-address-phase", () => {
-        if (elCountry) elCountry.focus({ preventScroll: true });
+        if (elLocationSearch) elLocationSearch.focus({ preventScroll: true });
       });
     }
   });
@@ -18007,12 +18724,17 @@ async function verifyCurrentCity() {
   if (accepted) {
     if (elCity) elCity.classList.remove("address-error");
     if (!street) {
-      setStep1PreviewAddressFromGeo({ country, city, state: getValue("state"), street, number }, {
+      const entrance = await resolveCityEntranceCandidate(country, city, getValue("state")).catch(() => null);
+      if (requestSeq !== verifyCityRequestSeq) return null;
+      const focusGeo = entrance || {
         lat: Number(accepted.lat),
         lon: Number(accepted.lon),
         displayName: String(accepted.display_name || [city, country].filter(Boolean).join(", ")),
         matchLevel: "city",
         source: "google",
+      };
+      setStep1PreviewAddressFromGeo({ country, city, state: getValue("state"), street, number }, {
+        ...focusGeo,
       }, { renderMarkers: false });
     }
     return accepted;
@@ -18120,7 +18842,7 @@ function scheduleVerifyCurrentAddress(delayMs = 130) {
 
 function clearAddressFieldErrors() {
   const streetAndNumberEl = document.getElementById("streetAndNumber");
-  [elCountry, elCity, elStreet, elNumber, streetAndNumberEl].forEach((el) => {
+  [elLocationSearch, elCountry, elCity, elStreet, elNumber, streetAndNumberEl].forEach((el) => {
     if (el) el.classList.remove("address-error");
   });
 }
@@ -18134,7 +18856,7 @@ function markAddressFieldError(field) {
   // input (#streetAndNumber) -- elStreet/elNumber themselves are hidden,
   // so marking those wouldn't show anything.
   const streetAndNumberEl = document.getElementById("streetAndNumber");
-  const map = { "Country": elCountry, "City": elCity, "Street": streetAndNumberEl, "Home number": streetAndNumberEl };
+  const map = { "Country": elLocationSearch || elCountry, "City": elLocationSearch || elCity, "Street": streetAndNumberEl, "Home number": streetAndNumberEl };
   const el = map[field];
   if (el) el.classList.add("address-error");
 }
@@ -18572,7 +19294,7 @@ async function resolveStep1CityFocus() {
       country,
       lat: Number(accepted.lat),
       lon: Number(accepted.lon),
-      boundingBox: null,
+      boundingBox: parseNominatimBoundingBox(accepted),
       displayName: String(accepted.display_name || [city, country].filter(Boolean).join(", ")),
     };
     return step1ResolvedCityFocus;
@@ -18584,7 +19306,24 @@ async function resolveStep1CityFocus() {
 
 async function focusCityOnGeoMap(options) {
   const focus = await resolveStep1CityFocus();
-  if (focus) focusStep1GeoMapAt(focus.lat, focus.lon, 17, { animate: true, ...(options || {}) });
+  if (!focus) return;
+  if (focus.boundingBox && step1GeoMap && typeof step1GeoMap.fitBounds === "function") {
+    try {
+      const bounds = L.latLngBounds([
+        [focus.boundingBox.south, focus.boundingBox.west],
+        [focus.boundingBox.north, focus.boundingBox.east],
+      ]);
+      step1GeoMap.fitBounds(bounds, {
+        padding: [24, 24],
+        animate: true,
+        ...(options || {}),
+      });
+      return;
+    } catch {
+      // fallback to point focus below
+    }
+  }
+  focusStep1GeoMapAt(focus.lat, focus.lon, 13.5, { animate: true, ...(options || {}) });
 }
 
 async function focusStep1MapFromYearFocus() {
@@ -18858,7 +19597,11 @@ function buildGoogleGeocodeQueriesForAddress(address, options = {}) {
 
 async function fetchGoogleGeocodeItemsForAddress(address, options = {}) {
   const queries = buildGoogleGeocodeQueriesForAddress(address, options);
-  if (!queries.length) return [];
+  return fetchGoogleGeocodeItemsForQueries(queries);
+}
+
+async function fetchGoogleGeocodeItemsForQueries(queries) {
+  if (!Array.isArray(queries) || !queries.length) return [];
   for (const q of queries) {
     const payload = await fetchJsonWithTimeout("/api/google_geocode", {
       method: "POST",
@@ -18869,6 +19612,60 @@ async function fetchGoogleGeocodeItemsForAddress(address, options = {}) {
     if (data.length) return data;
   }
   return [];
+}
+
+function buildCityEntranceQueries(country, city, state) {
+  const cityVariants = getGoogleGeocodeQueryPlaceVariants(city);
+  const countryVariants = getGoogleGeocodeQueryPlaceVariants(country);
+  const stateValue = tidyToken(state);
+  const cities = cityVariants.length ? cityVariants : [tidyToken(city)];
+  const countries = countryVariants.length ? countryVariants : [tidyToken(country)];
+  const hasHebrew = /[\u0590-\u05FF]/.test(`${city} ${country}`);
+  const templates = hasHebrew
+    ? [(c) => `כניסה ל${c}`, (c) => `הכניסה ל${c}`]
+    : [(c) => `main entrance ${c}`, (c) => `entrance to ${c}`];
+  const queries = [];
+  const pushUnique = (value) => {
+    const q = tidyToken(value);
+    if (q && !queries.includes(q)) queries.push(q);
+  };
+  for (const cityItem of cities) {
+    for (const tmpl of templates) {
+      const phrase = tmpl(cityItem);
+      for (const countryItem of countries) {
+        pushUnique([phrase, stateValue, countryItem].filter(Boolean).join(", "));
+      }
+    }
+  }
+  return queries;
+}
+
+function isLikelyCityEntranceCandidate(candidate, cityFocus) {
+  const lat = Number(candidate?.lat);
+  const lon = Number(candidate?.lon);
+  if (!isFinite(lat) || !isFinite(lon)) return false;
+  if (!cityFocus) return true;
+  if (isCandidateWithinCityFocus(candidate, cityFocus)) return true;
+  if (isFinite(cityFocus.lat) && isFinite(cityFocus.lon)) {
+    return distanceKmBetween(lat, lon, cityFocus.lat, cityFocus.lon) <= 15;
+  }
+  return false;
+}
+
+async function resolveCityEntranceCandidate(country, city, state) {
+  const cityFocus = await resolveStep1CityFocus();
+  const queries = buildCityEntranceQueries(country, city, state);
+  if (!queries.length) return null;
+  const items = await fetchGoogleGeocodeItemsForQueries(queries);
+  const candidate = items.find((item) => isLikelyCityEntranceCandidate(item, cityFocus));
+  if (!candidate) return null;
+  return {
+    lat: Number(candidate.lat),
+    lon: Number(candidate.lon),
+    displayName: String(candidate.display_name || [city, country].filter(Boolean).join(", ")),
+    matchLevel: "city-entrance",
+    source: "google",
+  };
 }
 
 async function geocodeStep1FullAddressInOrder(address) {
@@ -19101,7 +19898,12 @@ function updateAddHomeBtnState() {
     const isLastInAfterFinishReview = step1EditModeAfterFinishActive
       && isStep1EditModeActive()
       && _step1EditingIdx >= (Array.isArray(addresses) ? addresses.length : 0) - 1;
-    const showFinish = (!isStep1EditModeActive() && isLastHome()) || isLastInAfterFinishReview;
+    const totalHomes = parseInt(String(elHomesCount?.value || ""), 10) || 0;
+    const savedHomes = Array.isArray(addresses) ? addresses.length : 0;
+    // In normal data entry, keep "add home" for the current entry (including
+    // the last one) and only show "finish" once there are no homes left to add.
+    const noMoreHomesToEnter = totalHomes > 0 && savedHomes >= totalHomes;
+    const showFinish = (!isStep1EditModeActive() && noMoreHomesToEnter) || isLastInAfterFinishReview;
     img.classList.toggle("btnImgFinish", showFinish);
     img.classList.toggle("btnImgAddHome", !showFinish);
     img.src = showFinish ? "buttons/finish.png" : "buttons/add-home.png";
@@ -19112,6 +19914,9 @@ function updateAddHomeBtnState() {
 if (elAddHomeBtn) {
   elAddHomeBtn.addEventListener("click", async () => {
     if (!elAddHomeBtn.classList.contains("active")) return;
+    if (step1StreetViewMode) {
+      await setStep1GeoStreetMode(false);
+    }
     // Trigger the same logic as the address NEXT button.
     if (elStep1AddrNextBtn) elStep1AddrNextBtn.click();
   });
@@ -19141,25 +19946,30 @@ function parseStreetAndNumber(value) {
 
 function syncStreetAndNumberFields() {
   if (!elStreetAndNumber) {
-    return {
+    const fallback = {
       raw: [String(elStreet?.value || "").trim(), String(elNumber?.value || "").trim()].filter(Boolean).join(" "),
       street: String(elStreet?.value || "").trim(),
       number: String(elNumber?.value || "").trim(),
     };
+    syncStep1ReadOnlyAddressFieldsFromCurrentValues();
+    return fallback;
   }
   const parsed = parseStreetAndNumber(elStreetAndNumber?.value || "");
   if (elStreet) elStreet.value = parsed.street;
   if (elNumber) elNumber.value = parsed.number;
+  syncStep1ReadOnlyAddressFieldsFromCurrentValues();
   return parsed;
 }
 
 if (elStreetAndNumber) {
   elStreetAndNumber.addEventListener("input", () => {
+    if (isStep1EditModeActive() && elPageStep1?.classList.contains("step1-address-locked")) return;
     syncStreetAndNumberFields();
     handleAddressFieldInput();
     updateStep1AddrNextBtnState();
   });
   elStreetAndNumber.addEventListener("blur", () => {
+    if (isStep1EditModeActive() && elPageStep1?.classList.contains("step1-address-locked")) return;
     syncStreetAndNumberFields();
     handleAddressFieldBlur();
     scheduleStreetMapFocus();
@@ -19172,7 +19982,7 @@ const elBelongingInline = document.getElementById("belonging_rate_inline");
 const elBelongingInlineValue = document.querySelector(".belongingInlineValue");
 
 function getStep1AddressClearFields() {
-  return [elCountry, elCity, elStreetAndNumber, elStartYear]
+  return [elLocationSearch, elStreetAndNumber, elStartYear]
     .filter((el) => el && typeof el.classList !== "undefined");
 }
 

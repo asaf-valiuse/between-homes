@@ -196,7 +196,21 @@
 
           <div class="step1-right">
             <span id="addToListMsg" class="step1AddToListMsg hidden" role="status" aria-live="polite"></span>
+            <button type="button" id="step1GeoModeBtn" class="step1GeoModeBtn" aria-label="switch to street map view">
+              <span id="step1GeoModeBtnIcon" class="step1GeoModeBtnIcon" aria-hidden="true">
+                <svg class="geoModeIcon geoModeIconMap" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20V6.5Zm6-1v11.8l6 2.5V8L9 5.5Zm-5 1.8v11.2l4-1.6V5.7L4 7.3Zm16-1.6-4 1.6v11.2l4-1.6V5.7Z" />
+                </svg>
+                <svg class="geoModeIcon geoModeIcon3d" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M12 2 4 6v12l8 4 8-4V6l-8-4Zm0 1.8 6 3-2.5 1.2-6-3L12 3.8Zm-3.9 1.9 6 3L12 9.9l-6-3 2.1-1.2ZM5.5 8.2l5.8 2.9v9L5.5 17V8.2Zm7.2 11.9v-9l5.8-2.9V17l-5.8 3.1Z" />
+                </svg>
+              </span>
+            </button>
             <div id="step1GeoMap" class="step1GeoMap" aria-label="Geographic map preview"></div>
+            <div id="step1StreetViewHost" class="step1StreetViewHost hidden" aria-label="Street View preview">
+              <div id="step1StreetViewCanvas" class="step1StreetViewCanvas" aria-hidden="true"></div>
+              <div id="step1StreetViewDetails" class="step1StreetViewDetails hidden" aria-live="polite"></div>
+            </div>
             <div id="step1GeoMapName" class="step1GeoMapName" aria-hidden="true"></div>
             <ol id="addressList" class="plainList"></ol>
             <div id="status" class="status" role="status" aria-live="polite"></div>
@@ -213,24 +227,36 @@
 
                   <div class="div-4">
                     <div class="div-5">
-                      <div class="group-2">
-                        <div class="text-wrapper-2">Country</div>
-                        <input id="country" name="country" class="figma-line-input" required value="ישראל" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                      <div class="group-2 locationGroup">
+                        <div class="text-wrapper-2">Enter home address</div>
+                        <input id="locationSearch" name="locationSearch" class="figma-line-input" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="your Home#1 address:" />
+                        <div id="locationSuggestions" class="locationSuggestions hidden" role="listbox" aria-label="Location suggestions"></div>
+                        <input id="country" name="country" type="hidden" value="ישראל" />
+                        <input id="city" name="city" type="hidden" value="" />
                         <div class="ellipse-2" aria-hidden="true"></div>
                       </div>
 
-                      <div class="group-2">
-                        <div class="text-wrapper-2">City</div>
-                        <input id="city" name="city" class="figma-line-input" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
-                        <div class="ellipse-2" aria-hidden="true"></div>
-                      </div>
-
-                      <div class="group-2">
+                      <div class="group-2 streetGroup">
                         <div class="text-wrapper-2">Street and home number</div>
                         <input id="streetAndNumber" name="streetAndNumber" class="figma-line-input" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
                         <input id="street" name="street" type="hidden" />
                         <input id="number" name="number" type="hidden" />
                         <div class="ellipse-2" aria-hidden="true"></div>
+                      </div>
+
+                      <div class="step1ReadOnlyAddressRow" aria-hidden="true">
+                        <div class="group-2 step1ReadOnlyAddressGroup step1ReadOnlyCountryGroup">
+                          <div class="text-wrapper-2">Country</div>
+                          <input id="step1ReadOnlyCountry" class="figma-line-input" type="text" readonly tabindex="-1" />
+                        </div>
+                        <div class="group-2 step1ReadOnlyAddressGroup step1ReadOnlyStateCityGroup">
+                          <div class="text-wrapper-2">City / state</div>
+                          <input id="step1ReadOnlyStateCity" class="figma-line-input" type="text" readonly tabindex="-1" />
+                        </div>
+                        <div class="group-2 step1ReadOnlyAddressGroup step1ReadOnlyStreetGroup">
+                          <div class="text-wrapper-2">Address</div>
+                          <input id="step1ReadOnlyStreet" class="figma-line-input" type="text" readonly tabindex="-1" />
+                        </div>
                       </div>
 
                       <div class="group-2 startYearGroup">

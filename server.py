@@ -295,6 +295,20 @@ def _google_geocode_item_to_nominatim_item(item: dict) -> Optional[dict]:
         "country": _google_address_component(components, "country"),
     }
     display_name = str(item.get("formatted_address") or "").strip()
+    viewport = geometry.get("viewport") if isinstance(geometry.get("viewport"), dict) else {}
+    northeast = viewport.get("northeast") if isinstance(viewport.get("northeast"), dict) else {}
+    southwest = viewport.get("southwest") if isinstance(viewport.get("southwest"), dict) else {}
+    boundingbox = None
+    try:
+        south = float(southwest.get("lat"))
+        north = float(northeast.get("lat"))
+        west = float(southwest.get("lng"))
+        east = float(northeast.get("lng"))
+        if all(map(lambda n: isinstance(n, float), [south, north, west, east])):
+            boundingbox = [str(south), str(north), str(west), str(east)]
+    except Exception:
+        boundingbox = None
+
     return {
         "place_id": item.get("place_id") or display_name,
         "lat": str(lat),
@@ -308,6 +322,7 @@ def _google_geocode_item_to_nominatim_item(item: dict) -> Optional[dict]:
             "name": address["road"] or display_name,
             "name:en": address["road"] or display_name,
         },
+        "boundingbox": boundingbox,
         "extratags": {},
         "source": "google",
     }
