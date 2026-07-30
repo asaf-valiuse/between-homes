@@ -6180,7 +6180,7 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
 }
 
 #pageStep1 .step1HomesList .homesListItem[data-home-idx] .homesListNum {
-  cursor: pointer;
+  cursor: default;
 }
 
 #pageStep1 .step1HomesList .homesListItem.step1HomesListMuted .homesListNum,
@@ -6681,16 +6681,7 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
   position: relative;
   top: 0;
   left: 0;
-  width: 100%;
-  padding-right: 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-#pageStep1 .startYearGroup > .text-wrapper-2,
-#pageStep1 .belongingInlineGroup > .text-wrapper-2 {
-  font-size: calc(14px / var(--step1-scale, 1));
 }
 
 /* Address input lines — fit in the horizontal row, thin and uniform */
@@ -6731,16 +6722,19 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
 }
 
 #pageStep1 .locationGroup {
-  grid-column: 1 / span 2;
+  grid-column: 1;
   position: relative;
-  left: -35px;
+  left: 0;
 }
 
-#pageStep1 .locationGroup > .figma-line-input {
-  width: 285px !important;
+#pageStep1 .cityStateGroup,
+#pageStep1 .step1ReadOnlyStateCityGroup {
+  position: relative;
+  left: -70px;
 }
 
-#pageStep1 .streetGroup {
+#pageStep1 .streetGroup,
+#pageStep1 .step1ReadOnlyStreetGroup {
   position: relative;
   left: -140px;
 }
@@ -7014,6 +7008,7 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
 /* Placeholder shown on the City / Street,number input line itself,
    set dynamically (app.js) to "בעברית" or "English" depending on Country. */
 #pageStep1 #city.figma-line-input::placeholder,
+#pageStep1 #cityState.figma-line-input::placeholder,
 #pageStep1 #streetAndNumber.figma-line-input::placeholder {
   font-family: "NarkissBlock-Extralight-TRIAL", sans-serif !important;
   font-weight: 400;
@@ -7028,44 +7023,42 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
   margin-bottom: 0;
 }
 
-/* Step1 input rows: normalize to a clean 4-column row so fields never overlap. */
+/* Step1 data entry row: keep remote-main five-column geometry while the
+   current staged inputs keep their newer element names and validation logic. */
 #pageStep1 .div-5 {
-  grid-template-columns:
-    minmax(220px, 1.25fr)
-    minmax(120px, 0.8fr)
-    minmax(165px, 1fr)
-    minmax(190px, 1.25fr)
-    minmax(220px, 1.15fr)
-    minmax(300px, 1.6fr);
-  column-gap: 14px;
+  grid-template-columns: repeat(5, 1fr);
+  column-gap: 3px;
   align-items: start;
-}
-
-#pageStep1 .div-5 > .group-2 {
-  left: 0 !important;
 }
 
 #pageStep1 .locationGroup {
   grid-column: 1;
-  width: 100%;
+  left: 0 !important;
+}
+
+#pageStep1 .cityStateGroup {
+  grid-column: 2;
+  left: -70px !important;
 }
 
 #pageStep1 .streetGroup {
-  display: none;
+  display: block;
+  grid-column: 3;
+  left: -140px !important;
 }
 
 #pageStep1 .startYearGroup {
-  grid-column: 5;
-  width: 100%;
+  grid-column: 4;
+  left: -210px !important;
 }
 
 #pageStep1 .belongingInlineGroup {
-  grid-column: 6;
-  width: 100%;
+  grid-column: 5;
+  left: -160px !important;
 }
 
 #pageStep1 .step1ReadOnlyAddressRow {
-  display: contents;
+  display: none;
 }
 
 #pageStep1 .step1ReadOnlyAddressGroup {
@@ -7087,25 +7080,33 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
 }
 
 #pageStep1 .step1ReadOnlyCountryGroup {
-  grid-column: 2;
+  grid-column: 1;
+  left: 0 !important;
 }
 
 #pageStep1 .step1ReadOnlyStateCityGroup {
-  grid-column: 3;
+  grid-column: 2;
+  left: -70px !important;
 }
 
 #pageStep1 .step1ReadOnlyStreetGroup {
-  grid-column: 4;
+  grid-column: 3;
+  left: -140px !important;
 }
 
 #pageStep1.step1-edit-mode.step1-address-locked .div-5 {
-  grid-template-columns:
-    minmax(120px, 0.8fr)
-    minmax(170px, 1.05fr)
-    minmax(210px, 1.3fr)
-    minmax(210px, 1.2fr)
-    minmax(280px, 1.65fr);
-  column-gap: 16px;
+  grid-template-columns: repeat(5, 1fr);
+  column-gap: 3px;
+}
+
+#pageStep1.step1-edit-mode.step1-address-locked .locationGroup,
+#pageStep1.step1-edit-mode.step1-address-locked .cityStateGroup,
+#pageStep1.step1-edit-mode.step1-address-locked .streetGroup {
+  display: none;
+}
+
+#pageStep1.step1-edit-mode.step1-address-locked .step1ReadOnlyAddressRow {
+  display: contents;
 }
 
 #pageStep1.step1-edit-mode.step1-address-locked .step1ReadOnlyCountryGroup {
@@ -7129,21 +7130,23 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
 }
 
 #pageStep1 .group-2 > .figma-line-input {
-  width: 100% !important;
+  width: 215px !important;
 }
 
 #pageStep1 .locationGroup > .figma-line-input,
+#pageStep1 .cityStateGroup > .figma-line-input,
+#pageStep1 .streetGroup > .figma-line-input,
 #pageStep1 .locationSuggestions {
-  width: 100% !important;
+  width: 215px !important;
 }
 
 #pageStep1 .belongingInlineGroup .figma-range-inline {
-  width: calc(100% - 116px);
-  top: 44px;
+  width: calc(100% - 42px);
+  top: 40px;
 }
 
 #pageStep1 .belongingInlineGroup .addHomeBtn {
-  right: 0;
+  right: -160px;
 }
 
 #pageStep1 .rate-your-sense-of {
@@ -7389,13 +7392,14 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
 }
 
 #pageStep1 .step1StreetViewHost {
+  display: none !important;
   position: absolute;
   top: 30px;
   left: 0;
   width: 100%;
   height: calc(100% - 30px);
   z-index: 4;
-  background: #000;
+  background: #0a1016;
 }
 
 #pageStep1 .step1StreetViewHost.hidden {
@@ -7433,6 +7437,7 @@ html.step1-no-years #pageStep1.step1-finished-state:not(.step1-edit-mode) .step1
 }
 
 #pageStep1 .step1GeoModeBtn {
+  display: none !important;
   position: absolute;
   top: 42px;
   right: 10px;
