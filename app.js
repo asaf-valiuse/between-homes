@@ -18466,7 +18466,19 @@ if (elStep1AddrNextBtn) {
     currentAddressVerified = false;
     step1PendingPreviewAddress = null;
     updateStep1GeoMapMarkers();
-    updateStep1GeoMapView();
+    // Newly-added home (not an edit of an existing ring, and not the last
+    // expected one): stay focused on the address just entered instead of
+    // zooming out to fit the whole route. Editing an existing ring keeps
+    // the old updateStep1GeoMapView() behavior (zooms back out to the full
+    // route). The last expected home is left alone here entirely -- the
+    // lastHome branch below already zooms out to fit the whole route via
+    // fitStep1GeoMapToAllAddresses(), and starting a focus-in flight here
+    // first would just have it immediately cut off by that.
+    if (editingIdx < 0 && !lastHome) {
+      focusStep1GeoMapAt(address.lat, address.lon, 15.5, { animate: true });
+    } else if (editingIdx >= 0) {
+      updateStep1GeoMapView();
+    }
     updateStep1Headers();
 
     // Update the just-added (or edited) ring in the emotion map with distortion + movement.
@@ -18510,7 +18522,9 @@ if (elStep1AddrNextBtn) {
       const divAddr = elPageStep1 && elPageStep1.querySelector(".div-3 > .div-2");
       if (divAddr) divAddr.style.display = "none";
 
-      fitStep1GeoMapToIsraelBoundaries({ animate: true });
+      // Data entry is actually finished now -- zoom out to fit the whole
+      // route just created (not just Israel's generic bounds).
+      fitStep1GeoMapToAllAddresses({ animate: true });
 
       // Auto-save to server and local archive.
       const studentName = String(elStudentName?.value || "").trim();
