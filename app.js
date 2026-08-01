@@ -17652,6 +17652,20 @@ function activateEmotionRing(ringIdx) {
       void loopAudio.play().catch(() => {});
       if (!window._step1RingLoops) window._step1RingLoops = [];
       window._step1RingLoops.push(loopAudio);
+      // Every loop here shares one output chain/limiter (see
+      // ensureEmotionLoopOutputNode()) -- left at a flat, un-normalized
+      // volume each, the growing stack of full-strength loops kept slamming
+      // that limiter's fast attack into heavy gain reduction and back out
+      // as homes were added, audible as exaggerated volume pumping. Same
+      // 1/sqrt(ringCount) normalization already used for the finished map's
+      // ambient mix (see startEmotionSound()'s perRingVolume), reapplied to
+      // every active loop (not just the new one) so the total stays roughly
+      // constant as the map grows instead of climbing with each home.
+      const normalizedVolume = clamp(EMOTION_ENTRY_RING_VOLUME / Math.sqrt(window._step1RingLoops.length), 0, 1);
+      for (const audio of window._step1RingLoops) {
+        audio.__lpBaseVolume = normalizedVolume;
+        audio.volume = normalizedVolume;
+      }
     }
   } catch {}
 
