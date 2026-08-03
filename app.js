@@ -18104,9 +18104,16 @@ function updateStep1AddrNextBtnState() {
   if (elStep1AddrNextBtn) {
     const country = String(elCountry?.value || "").trim();
     const city = String(elCity?.value || "").trim();
-    const addressText = String(elStreetAndNumber?.value || "").trim();
     const year = String(elStartYear?.value || "").trim();
-    const allFilled = Boolean(currentCountryVerified && currentCityStateVerified && country && city && addressText && isValidStartYear(year));
+    const allFilled = Boolean(
+      currentCountryVerified
+      && currentCityStateVerified
+      && country
+      && city
+      && isValidStartYear(year)
+      && currentAddressVerified
+      && step1PendingPreviewAddress,
+    );
     elStep1AddrNextBtn.classList.toggle("active", allFilled);
   }
   const countryForHint = String(elCountry?.value || elLocationSearch?.value || "").trim();
@@ -19184,7 +19191,7 @@ async function verifyCurrentCity(options = {}) {
       };
       setStep1PreviewAddressFromGeo({ country, city: normalizedCity, state: normalizedState, street, number: "" }, {
         ...focusGeo,
-      }, { renderMarkers: false, markVerified: false });
+      }, { renderMarkers: false, markVerified: true });
     }
 
     clearAddressFieldErrors();
