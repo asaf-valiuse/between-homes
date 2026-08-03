@@ -566,7 +566,8 @@ function applyEmotionRingFocusVisuals(focusIdx, options) {
 
           // Emotional connection: same height as ATTACHMENT, shifted right.
           try {
-            const addrForRate = Array.isArray(addresses) ? addresses[idx] : null;
+            const timeline = getYearSortedAddressesForEmotionTimeline();
+            const addrForRate = timeline[idx] || null;
             const conn = emotionalConnectionPartsForAddress(addrForRate, idx);
             if (conn && conn.value) {
               const cx0 = ((attachRect && typeof attachRect.left === "number") ? attachRect.left : ax0) + 162;
@@ -679,7 +680,8 @@ function applyEmotionRingFocusVisuals(focusIdx, options) {
 
         // Address line: same Y as HOME NO but 40px to the right.
         try {
-          const addr = Array.isArray(addresses) ? addresses[idx] : null;
+          const timeline = getYearSortedAddressesForEmotionTimeline();
+          const addr = timeline[idx] || null;
           const addrValue = addressValueTextForAddress(addr);
           if (addrValue) {
             const ax = (homeRect && typeof homeRect.left === "number" ? homeRect.left : homeX) + 250;
@@ -4707,10 +4709,11 @@ function cumulativeDistancePartsForIndex(index) {
   if (i <= 0) return { label, value: "--" };
 
   try {
+    const timeline = getYearSortedAddressesForEmotionTimeline();
     let sumMeters = 0;
     for (let k = 1; k <= i; k++) {
-      const prev = Array.isArray(addresses) ? addresses[k - 1] : null;
-      const cur = Array.isArray(addresses) ? addresses[k] : null;
+      const prev = timeline[k - 1] || null;
+      const cur = timeline[k] || null;
       if (!prev || !cur) return { label, value: "--" };
 
       const lat0 = Number(prev.lat);
@@ -4751,32 +4754,68 @@ function residenceTimelinePartsForIndex(index) {
 
   try {
     const i = Math.max(0, Math.floor(Number(index) || 0));
-    const list = Array.isArray(addresses) ? addresses : [];
-    const current = list[i];
-    const first = list[0];
+    const timeline = getYearSortedAddressesForEmotionTimeline();
+    const current = timeline[i] || null;
+    const first = timeline[0] || null;
     if (!current || !first) return empty;
 
     const startYear = Math.floor(Number(current.startYear));
     const birthYear = Math.floor(Number(first.startYear));
-    const nextStartYear = Math.floor(Number(list[i + 1] && list[i + 1].startYear));
     const currentYear = new Date().getFullYear();
-    const endYear = Number.isFinite(nextStartYear) && nextStartYear > startYear ? nextStartYear : currentYear;
+
+    let endYear = currentYear;
+    for (let p = i + 1; p < timeline.length; p++) {
+      const candidate = Math.floor(Number(timeline[p] && timeline[p].startYear));
+      if (candidate > startYear) {
+        endYear = candidate;
+        break;
+      }
+    }
 
     if (!Number.isFinite(startYear) || !Number.isFinite(birthYear) || !Number.isFinite(endYear)) return empty;
 
-    const durationYears = Math.max(0, endYear - startYear);
-    const livedWord = durationYears === 1 ? "year" : "years";
-    const startAge = Math.max(0, startYear - birthYear);
-    const endAge = Math.max(startAge, endYear - birthYear);
+    let groupStart = i;
+    while (groupStart > 0) {
+      const y = Math.floor(Number(timeline[groupStart - 1] && timeline[groupStart - 1].startYear));
+      if (y !== startYear) break;
+      groupStart -= 1;
+    }
+    let groupEnd = i;
+    while (groupEnd + 1 < timeline.length) {
+      const y = Math.floor(Number(timeline[groupEnd + 1] && timeline[groupEnd + 1].startYear));
+      if (y !== startYear) break;
+      groupEnd += 1;
+    }
+    const homesInSameYear = Math.max(1, groupEnd - groupStart + 1);
+    const indexInGroup = Math.max(0, i - groupStart);
+    const yearSpan = Math.max(0, endYear - startYear);
+    const normalizedSpan = yearSpan > 0 ? yearSpan : 1;
+    const durationYears = normalizedSpan / homesInSameYear;
+    const slotStartYear = startYear + durationYears * indexInGroup;
+    const slotEndYear = slotStartYear + durationYears;
+    const durationDisplay = Number.isInteger(durationYears)
+      ? String(durationYears)
+      : String(Math.round(durationYears * 100) / 100);
+    const livedWord = Math.abs(durationYears - 1) < 1e-9 ? "year" : "years";
+    const startAge = Math.max(0, slotStartYear - birthYear);
+    const endAge = Math.max(startAge, slotEndYear - birthYear);
+    const startAgeDisplay = Number.isInteger(startAge) ? String(startAge) : String(Math.round(startAge * 10) / 10);
+    const endAgeDisplay = Number.isInteger(endAge) ? String(endAge) : String(Math.round(endAge * 10) / 10);
+    const slotStartDisplay = Number.isInteger(slotStartYear)
+      ? String(slotStartYear)
+      : String(Math.round(slotStartYear * 100) / 100);
+    const slotEndDisplay = Number.isInteger(slotEndYear)
+      ? String(slotEndYear)
+      : String(Math.round(slotEndYear * 100) / 100);
     const lifeSoFarYears = Math.max(0, currentYear - birthYear);
     const lifetimePercent = lifeSoFarYears > 0
       ? Math.max(0, Math.min(100, Math.round((durationYears / lifeSoFarYears) * 100)))
       : (durationYears > 0 ? 100 : 0);
 
     return {
-      duration: { label: empty.duration.label, value: `${durationYears} ${livedWord}` },
-      years: { label: empty.years.label, value: `${startYear}-${endYear}` },
-      lifeStage: { label: empty.lifeStage.label, value: startAge === endAge ? String(startAge) : `${startAge}-${endAge}` },
+      duration: { label: empty.duration.label, value: `${durationDisplay} ${livedWord}` },
+      years: { label: empty.years.label, value: `${slotStartDisplay}-${slotEndDisplay}` },
+      lifeStage: { label: empty.lifeStage.label, value: Math.abs(endAge - startAge) < 1e-9 ? startAgeDisplay : `${startAgeDisplay}-${endAgeDisplay}` },
       lifetime: { label: empty.lifetime.label, value: `${lifetimePercent}%` },
     };
   } catch {
@@ -4793,8 +4832,9 @@ function transitionalDistancePartsForIndex(index) {
   }
 
   try {
-    const cur = Array.isArray(addresses) ? addresses[i] : null;
-    const prev = Array.isArray(addresses) ? addresses[i - 1] : null;
+    const timeline = getYearSortedAddressesForEmotionTimeline();
+    const cur = timeline[i] || null;
+    const prev = timeline[i - 1] || null;
     if (!cur || !prev) return { label, value: "--" };
 
     const lat1 = Number(cur.lat);
@@ -4839,8 +4879,9 @@ function belongingShiftPartsForIndex(index) {
   }
 
   try {
-    const cur = Array.isArray(addresses) ? addresses[i] : null;
-    const prev = Array.isArray(addresses) ? addresses[i - 1] : null;
+    const timeline = getYearSortedAddressesForEmotionTimeline();
+    const cur = timeline[i] || null;
+    const prev = timeline[i - 1] || null;
     if (!cur || !prev) return null;
 
     const curRate = normalizeBelongingRate(cur.belonging_rate, stableBelongingRateFromId(cur.id));
@@ -4877,6 +4918,61 @@ function emotionalConnectionPartsForAddress(addr, fallbackIndex) {
       return null;
     }
   }
+}
+
+function addressHomeIndexValue(addr, fallbackIndex = 1) {
+  const raw = Number(addr && addr._homeIndex);
+  if (Number.isFinite(raw) && raw > 0) return Math.floor(raw);
+  return Math.max(1, Math.floor(Number(fallbackIndex) || 1));
+}
+
+function getNextAddressHomeIndex(list = addresses) {
+  const arr = Array.isArray(list) ? list : [];
+  let maxIdx = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const key = addressHomeIndexValue(arr[i], i + 1);
+    if (key > maxIdx) maxIdx = key;
+  }
+  return maxIdx + 1;
+}
+
+function sortAddressesByYearAndHomeIndexInPlace(list = addresses) {
+  const arr = Array.isArray(list) ? list : [];
+  arr.sort((a, b) => {
+    const ay = Math.floor(Number(a && a.startYear));
+    const by = Math.floor(Number(b && b.startYear));
+    const aHasYear = Number.isFinite(ay);
+    const bHasYear = Number.isFinite(by);
+    if (aHasYear && bHasYear) {
+      return (ay - by) || (addressHomeIndexValue(a, 1) - addressHomeIndexValue(b, 1));
+    }
+    if (aHasYear && !bHasYear) return -1;
+    if (!aHasYear && bHasYear) return 1;
+    return addressHomeIndexValue(a, 1) - addressHomeIndexValue(b, 1);
+  });
+  return arr;
+}
+
+function getYearSortedAddressesForEmotionTimeline() {
+  const list = Array.isArray(addresses) ? addresses : [];
+  const withOrder = list
+    .map((addr, idx) => ({
+    addr,
+    homeIndex: addressHomeIndexValue(addr, idx + 1),
+    startYear: Math.floor(Number(addr && addr.startYear)),
+    }))
+    .filter((entry) => entry.addr && entry.addr.valid !== false);
+
+  withOrder.sort((a, b) => {
+    const aHasYear = Number.isFinite(a.startYear);
+    const bHasYear = Number.isFinite(b.startYear);
+    if (aHasYear && bHasYear) return (a.startYear - b.startYear) || (a.homeIndex - b.homeIndex);
+    if (aHasYear && !bHasYear) return -1;
+    if (!aHasYear && bHasYear) return 1;
+    return a.homeIndex - b.homeIndex;
+  });
+
+  return withOrder.map((entry) => entry.addr);
 }
 
 function homeNoTextForRingEl(ringEl, fallbackIndex) {
@@ -13694,9 +13790,10 @@ function renderEmotionMap(start) {
     }));
   } else {
     // Static render (no animation source): use current addresses.
-    const nAll = Array.isArray(addresses) ? addresses.length : 0;
+    const timeline = getYearSortedAddressesForEmotionTimeline();
+    const nAll = timeline.length;
     if (nAll <= 0) return;
-    points = addresses.map((a) => {
+    points = timeline.map((a) => {
       const strokeWidth = normalizeBelongingRate(a?.belonging_rate, stableBelongingRateFromId(a?.id));
       return {
         strokeWidth,
@@ -14138,7 +14235,7 @@ function clearStep1EmotionMap() {
 }
 
 function getStep1EmotionAddresses() {
-  return (Array.isArray(addresses) ? addresses : []).filter((addr) => addr && addr.valid !== false);
+  return getYearSortedAddressesForEmotionTimeline().filter((addr) => addr && addr.valid !== false);
 }
 
 function step1EmotionAngleForAddress(addr, index, list) {
@@ -14711,8 +14808,9 @@ function captureEmotionStartFromStep2() {
       }
     })();
 
-    for (let i = 0; i < addresses.length; i++) {
-      const a = addresses[i];
+    const timeline = getYearSortedAddressesForEmotionTimeline();
+    for (let i = 0; i < timeline.length; i++) {
+      const a = timeline[i];
 
       const ok = a && a.valid !== false && isFinite(a.lat) && isFinite(a.lon);
       if (!ok) {
@@ -18452,6 +18550,9 @@ if (elStep1AddrNextBtn) {
       _origStreet: getValue("street"),
       _origNumber: getValue("number"),
       _origStreetAndNumber: String(elStreetAndNumber?.value || "").trim(),
+      _homeIndex: editingIdx >= 0
+        ? addressHomeIndexValue(addresses[editingIdx], editingIdx + 1)
+        : getNextAddressHomeIndex(addresses),
     };
 
     const prev = step1PendingPreviewAddress;
@@ -18481,7 +18582,9 @@ if (elStep1AddrNextBtn) {
       addresses[editingIdx] = address;
     } else {
       addresses.push(address);
+      sortAddressesByYearAndHomeIndexInPlace(addresses);
     }
+    const savedAddressIdx = addresses.findIndex((a) => String(a?.id || "") === String(address.id));
     saveJson(STORAGE_KEY, addresses);
 
     currentAddressVerified = false;
@@ -18504,7 +18607,7 @@ if (elStep1AddrNextBtn) {
 
     // Update the just-added (or edited) ring in the emotion map with distortion + movement.
     // Don't re-render the whole emotion map — keep placeholders intact.
-    activateEmotionRing(editingIdx >= 0 ? editingIdx : addresses.length - 1);
+    activateEmotionRing(savedAddressIdx >= 0 ? savedAddressIdx : (editingIdx >= 0 ? editingIdx : addresses.length - 1));
     // Update all existing rings' angles based on the new geography.
     updateAllEmotionRingAngles();
     updateStep1RingReading();
@@ -18644,7 +18747,7 @@ function renderStep1Summary() {
 
     const homeLabel = document.createElement("div");
     homeLabel.className = "summaryHomeLabel";
-    homeLabel.textContent = `home no.${formatHomeNumber(i + 1)}`;
+    homeLabel.textContent = `home no.${formatHomeNumber(addressHomeIndexValue(addr, i + 1))}`;
     item.appendChild(homeLabel);
 
     const addrLine = document.createElement("div");
@@ -18696,6 +18799,7 @@ if (elStep1BelongNextBtn) {
       number: getValue("number"),
       startYear: String(elStartYear?.value || "").trim(),
       belonging_rate: normalizeBelongingRate(getValue("belonging_rate")),
+      _homeIndex: getNextAddressHomeIndex(addresses),
       valid: true,
     };
 
@@ -18708,6 +18812,7 @@ if (elStep1BelongNextBtn) {
     const lastHome = isLastHome();
 
     addresses.push(address);
+    sortAddressesByYearAndHomeIndexInPlace(addresses);
     saveJson(STORAGE_KEY, addresses);
 
     currentAddressVerified = false;
@@ -20629,6 +20734,7 @@ elForm.addEventListener("submit", async (e) => {
     number: getValue("number"),
     startYear: String(elStartYear?.value || "").trim(),
     belonging_rate: normalizeBelongingRate(getValue("belonging_rate")),
+    _homeIndex: getNextAddressHomeIndex(addresses),
     valid: true,
   };
 
@@ -20643,6 +20749,7 @@ elForm.addEventListener("submit", async (e) => {
   }
 
   addresses.push(address);
+  sortAddressesByYearAndHomeIndexInPlace(addresses);
   saveJson(STORAGE_KEY, addresses);
   showAddToListMessage(addresses.length);
 
@@ -21238,7 +21345,7 @@ function renderList() {
 
     const homeNo = document.createElement("div");
     homeNo.className = "step1ListHome";
-    homeNo.textContent = `[home no.${formatHomeNumber(index + 1)}]`;
+    homeNo.textContent = `[home no.${formatHomeNumber(addressHomeIndexValue(addr, index + 1))}]`;
 
     const addressText = document.createElement("div");
     addressText.className = "step1ListAddress";

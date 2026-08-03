@@ -203,38 +203,74 @@ function parsePrintOption1StartYear(raw) {
   return Math.floor(Number(raw));
 }
 
+function getPrintOption1AddressesSortedByStartYear(items) {
+  return (Array.isArray(items) ? items : [])
+    .map((item, idx) => ({
+      item,
+      homeIndex: Number.isFinite(Number(item?._homeIndex)) && Number(item?._homeIndex) > 0
+        ? Math.floor(Number(item._homeIndex))
+        : (idx + 1),
+      startYear: parsePrintOption1StartYear(item?.startYear),
+    }))
+    .filter((entry) => Number.isFinite(entry.startYear))
+    .sort((a, b) => (a.startYear - b.startYear) || (a.homeIndex - b.homeIndex))
+    .map((entry) => entry.item);
+}
+
 function getPrintOption1AddressDurations(items) {
-  const list = Array.isArray(items) ? items : [];
+  const list = getPrintOption1AddressesSortedByStartYear(items);
   const currentYear = new Date().getFullYear();
   const durations = [];
   for (let i = 0; i < list.length; i++) {
     const startYear = parsePrintOption1StartYear(list[i]?.startYear);
-    const nextStartYear = parsePrintOption1StartYear(list[i + 1]?.startYear);
     if (!Number.isFinite(startYear)) continue;
-    const endYear = Number.isFinite(nextStartYear) && nextStartYear > startYear ? nextStartYear : currentYear;
-    durations.push(Math.max(0, endYear - startYear));
+
+    let endYear = currentYear;
+    for (let k = i + 1; k < list.length; k++) {
+      const nextStartYear = parsePrintOption1StartYear(list[k]?.startYear);
+      if (Number.isFinite(nextStartYear) && nextStartYear > startYear) {
+        endYear = nextStartYear;
+        break;
+      }
+    }
+
+    let groupStart = i;
+    while (groupStart > 0 && parsePrintOption1StartYear(list[groupStart - 1]?.startYear) === startYear) {
+      groupStart -= 1;
+    }
+    let groupEnd = i;
+    while (groupEnd + 1 < list.length && parsePrintOption1StartYear(list[groupEnd + 1]?.startYear) === startYear) {
+      groupEnd += 1;
+    }
+
+    const homesInSameYear = Math.max(1, groupEnd - groupStart + 1);
+    const yearSpan = Math.max(0, endYear - startYear);
+    const normalizedSpan = yearSpan > 0 ? yearSpan : 1;
+    durations.push(normalizedSpan / homesInSameYear);
   }
   return durations;
 }
 
 function getPrintOption1Statistics() {
   const items = getPrintOption1DisplayAddresses();
+  const sortedByYear = getPrintOption1AddressesSortedByStartYear(items);
   const mapName = String(elStudentName?.value || currentLoadedMapDisplayName || "").trim() || "LifePath";
   const count = items.length;
   const belongingValues = items.map((item) => normalizeBelongingRate(item.belonging_rate, stableBelongingRateFromId(item.id)));
   const averageBelonging = belongingValues.length > 0
     ? belongingValues.reduce((sum, value) => sum + value, 0) / belongingValues.length
     : null;
-  const durations = getPrintOption1AddressDurations(items);
+  const durations = getPrintOption1AddressDurations(sortedByYear);
+  const sortedBelongingValues = sortedByYear.map((item) => normalizeBelongingRate(item.belonging_rate, stableBelongingRateFromId(item.id)));
   const averageYears = durations.length > 0
     ? durations.reduce((sum, value) => sum + value, 0) / durations.length
     : null;
   let weightedAverage = null;
-  if (durations.length > 0 && belongingValues.length > 0) {
+  if (durations.length > 0 && sortedBelongingValues.length > 0) {
     let weightedSum = 0;
     let weightTotal = 0;
-    for (let i = 0; i < Math.min(durations.length, belongingValues.length); i++) {
-      weightedSum += belongingValues[i] * durations[i];
+    for (let i = 0; i < Math.min(durations.length, sortedBelongingValues.length); i++) {
+      weightedSum += sortedBelongingValues[i] * durations[i];
       weightTotal += durations[i];
     }
     if (weightTotal > 0) weightedAverage = weightedSum / weightTotal;
